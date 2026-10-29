@@ -6,24 +6,28 @@
 **GNOME**. Если видеокарта не тянет Hyprland, есть безопасный режим: только
 установщик с программной отрисовкой.
 
-[![Рабочий стол Delta — видео 1920×1080, 60 к/с](docs/media/delta-demo-poster.jpg)](docs/media/delta-demo-github.mp4)
+[![Рабочий стол Delta — видео 1920×1080, 60 к/с](docs/media/delta-demo-poster.jpg)](docs/media/delta-demo.mp4)
 
-*Нажмите на картинку, чтобы посмотреть видео (75 с, 1080p60): первая настройка, смена обоев и тем, окно приложений, меню звука, «джинн», «Настройки» на английском, запуск .exe, экран блокировки. Полное качество — [delta-demo.mp4](docs/media/delta-demo.mp4).*
+*Нажмите на картинку — видео 2 мин, 1080p60: первая настройка, музыка на острове, окно приложений, живые обои, темы (и светлая), «джинн», рабочие столы, редактор виджетов, уведомления, «Настройки» на английском, запуск .exe, экран блокировки. Полное качество — в [релизе](https://github.com/ArtyomVank/Vanks0s/releases/latest).*
 
 | | |
 |---|---|
 | ![Первая настройка: язык](docs/media/screens/01-oobe-language.jpg) | ![Первая настройка: оформление](docs/media/screens/02-oobe-look.jpg) |
-| *Первая настройка на весь экран — язык* | *Тема и акцентный цвет* |
-| ![Рабочий стол: неоновый город](docs/media/screens/05-desktop-neon.jpg) | ![Окно приложений](docs/media/screens/06-launcher.jpg) |
-| *Рабочий стол с виджетами* | *Окно приложений с поиском* |
-| ![Рабочий стол: чёрная дыра](docs/media/screens/07-desktop-blackhole.jpg) | ![Меню звука](docs/media/screens/08-menu-sound.jpg) |
-| *Тема «Неон»* | *Меню «Звук и музыка» из верхнего дока* |
-| ![Настройки на английском](docs/media/screens/09-settings-english.jpg) | ![Запуск .exe](docs/media/screens/10-exe-launcher.jpg) |
+| *Первая настройка на весь экран* | *Тема и акцентный цвет* |
+| ![Рабочий стол с виджетами](docs/media/screens/04-desktop-neon.jpg) | ![Музыка в верхнем доке](docs/media/screens/06-menu-media.jpg) |
+| *Рабочий стол с виджетами* | *Музыка: остров и меню с обложкой* |
+| ![Окно приложений](docs/media/screens/07-launcher.jpg) | ![Живые обои](docs/media/screens/08-live-wallpaper.jpg) |
+| *Окно приложений с поиском* | *Живые обои и тема «Неон»* |
+| ![Сворачивание «джинн»](docs/media/screens/11-genie.jpg) | ![Светлая тема](docs/media/screens/13-light-theme.jpg) |
+| *Окно сворачивается в док «джинном»* | *Светлая тема «Сакура»* |
+| ![Редактор виджетов](docs/media/screens/14-widgets-edit.jpg) | ![Центр уведомлений](docs/media/screens/15-notification-center.jpg) |
+| *Редактор виджетов* | *Центр уведомлений* |
+| ![Настройки на английском](docs/media/screens/16-settings-english.jpg) | ![Запуск .exe](docs/media/screens/17-exe-launcher.jpg) |
 | *«Настройки» — язык меняется на лету* | *Программа Windows: обычно или через Proton CachyOS* |
-| ![Экран блокировки](docs/media/screens/11-lock.jpg) | ![Синтвейв и плитки](docs/media/screens/12-desktop-synthwave.jpg) |
+| ![Экран блокировки](docs/media/screens/18-lock.jpg) | ![Синтвейв и плитки](docs/media/screens/19-desktop-synthwave.jpg) |
 | *Экран блокировки: погода, музыка, уведомления* | *Верхний док «плитками»* |
 
-Видео и снимки пишет `tools/delta-demo.sh` — чистая вложенная сессия, всё через IPC.
+Видео и снимки пишет `tools/delta-demo.sh` — чистая вложенная сессия, всё через IPC; музыка — `tools/demo-player.py` (MPRIS без звука).
 
 ```
 Флешка → syslinux/systemd-boot → squashfs копируется в RAM → greetd → автовход vanks в Delta
