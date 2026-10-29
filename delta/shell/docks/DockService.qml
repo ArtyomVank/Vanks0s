@@ -368,5 +368,11 @@ Singleton {
         function edit(): void { ShellState.dockEditing = !ShellState.dockEditing; }
         function done(): void { ShellState.dockEditing = false; }
         function toggleMedia(): void { root.toggleMediaView(); }
+        // меню модуля верхнего дока, как щелчок по плитке (демо, проверки):
+        //     delta-shell ipc call docks menu sound      ещё раз — закрыть
+        function menu(id: string): void {
+            if (ShellState.menu === id) ShellState.closeMenu();
+            else ShellState.openMenu(id, root.focusedScreen());
+        }
     }
 }

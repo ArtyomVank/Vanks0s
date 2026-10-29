@@ -11,6 +11,7 @@
 #   tools/delta-dev.sh exec <команда>   запустить программу внутри вложенной сессии
 #
 # DELTA_DEV_HIDDEN=1       окно на скрытом спецстоле (для фоновой работы)
+# DELTA_DEV_SIZE="W H"     размер скрытого окна (по умолчанию "1280 800"; видео — "1920 1080")
 # DELTA_DEV_PRIVATE_BUS=1  своя шина D-Bus (уведомления, MPRIS, трей)
 #
 # Вложенная сессия работает с отдельным HOME, поэтому ~/.config/delta не
@@ -90,7 +91,7 @@ cmd_nested() {
         # Для фоновых проверок (агенты): окно вложенной сессии не мешает работе —
         # плавающее 1280×800 на скрытом спецстоле и продолжает рисоваться.
         # Правило живёт только до перезагрузки конфига основной сессии.
-        hyprctl eval 'hl.window_rule({ name = "delta-dev-nested", match = { class = "^aquamarine$" }, float = true, size = "1280 800", workspace = "special:deltadev silent", render_unfocused = true, no_initial_focus = true })' >/dev/null 2>&1 || true
+        hyprctl eval 'hl.window_rule({ name = "delta-dev-nested", match = { class = "^aquamarine$" }, float = true, size = "'"${DELTA_DEV_SIZE:-1280 800}"'", workspace = "special:deltadev silent", render_unfocused = true, no_initial_focus = true })' >/dev/null 2>&1 || true
     fi
     rm -f "${DEV_HOME}/.nested-bus"
     if [ "${DELTA_DEV_PRIVATE_BUS:-0}" = 1 ]; then

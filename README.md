@@ -6,14 +6,18 @@
 **GNOME**. Если видеокарта не тянет Hyprland, есть безопасный режим: только
 установщик с программной отрисовкой.
 
+[![Рабочий стол Delta — видео 1920×1080, 60 к/с](docs/media/delta-demo-poster.jpg)](docs/media/delta-demo-github.mp4)
+
+*Нажмите на картинку, чтобы посмотреть видео (1 мин, 1080p60). Полное качество — [delta-demo.mp4](docs/media/delta-demo.mp4).*
+
 ```
 Флешка → syslinux/systemd-boot → squashfs копируется в RAM → greetd → автовход vanks в Delta
        → установщик Calamares → выбор стола → pacstrap → готовый Arch
 ```
 
-Версия **0.1 «Aurora»**. Это рабочий каркас: сборка, брендинг, установщик и оба
-рабочих стола уже разведены по файлам, но ISO ещё **не собирался** — сборка
-выполняется на вашей Arch-машине (см. [docs/BUILD.md](docs/BUILD.md)).
+Версия **0.1 «Aurora»**. Готовый ISO — в [релизах](https://github.com/ArtyomVank/Vanks0s/releases/latest)
+(образ разделён на две части, как склеить — в описании релиза). Собрать ISO
+самому можно на Arch-машине (см. [docs/BUILD.md](docs/BUILD.md)).
 
 ---
 
