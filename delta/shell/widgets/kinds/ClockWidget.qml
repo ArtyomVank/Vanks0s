@@ -27,7 +27,7 @@ Base {
     readonly property string hh: Qt.formatTime(clock.date, "hh")
     readonly property string mm: Qt.formatTime(clock.date, "mm")
     readonly property string dateText: {
-        const s = Qt.locale("ru_RU").toString(clock.date, "dddd, d MMMM");
+        const s = Qt.locale(I18n.locale).toString(clock.date, "dddd, d MMMM");
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
@@ -42,12 +42,13 @@ Base {
     readonly property string timeText: hh + ":" + mm
     // ширина цифр (ползунок в редакторе виджетов), иначе общая clock.tallWidth
     readonly property real tallWidth: Math.max(0.3, Math.min(1, Number((item && item.tallWidth) ?? Settings.get("clock.tallWidth", 0.62)) || 0.62))
-    readonly property real tallH: Math.max(8, Math.min(90 * ch - dateLine.height, 94 * cw / tallFace.ratioFor(timeText)))
+    readonly property real tallH: Math.max(8, Math.min(86 * ch - dateLine.height, 94 * cw / tallFace.ratioFor(timeText)))
     readonly property color tallColor: tint === "accent" ? Theme.accent : tint === "glass" ? Qt.rgba(1, 1, 1, 0.38) : Qt.rgba(1, 1, 1, 0.9)
 
     Column {
         anchors.centerIn: parent
-        spacing: 0
+        // у «длинных» цифр линии толстые — дате нужен зазор, иначе она ложится на них
+        spacing: root.tall ? Math.max(4, 4 * root.ch) : 0
 
         WText {
             id: dateLine

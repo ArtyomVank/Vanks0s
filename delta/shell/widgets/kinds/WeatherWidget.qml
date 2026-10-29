@@ -119,21 +119,59 @@ Base {
         anchors.fill: parent
         visible: root.lock
 
-        // «Строка»: иконка · температура · состояние
+        // «Строка»: значок в стеклянном круге · температура · город и состояние.
+        // Без данных — не «—», а что сделать: указать город
         Row {
+            id: lockRow
             anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
             visible: root.mode !== "block"
             spacing: 6 * root.cm
-            Sym {
+            readonly property real chip: Math.min(62 * root.ch, 26 * root.cw)
+            Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                name: root.iconName
-                size: Math.round(46 * root.ch)
-                color: Weather.iconColor(root.iconName, root.pal.c1)
+                width: lockRow.chip; height: width
+                radius: width / 2
+                gradient: Gradient {
+                    GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.24) }
+                    GradientStop { position: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+                }
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.22)
+                Sym {
+                    anchors.centerIn: parent
+                    name: root.cur ? root.iconName : "cloud-sun"
+                    size: Math.round(parent.width * 0.56)
+                    color: root.cur ? Weather.iconColor(root.iconName, root.pal.c1) : root.pal.c1
+                    // солнце за тучей чуть покачивается
+                    SequentialAnimation on rotation {
+                        running: root.visible && root.lock
+                        loops: Animation.Infinite
+                        NumberAnimation { from: -4; to: 4; duration: 2600; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 4; to: -4; duration: 2600; easing.type: Easing.InOutSine }
+                    }
+                }
             }
             Column {
                 anchors.verticalCenter: parent.verticalCenter
-                WText { text: root.tempText; px: Math.min(32 * root.ch, 13 * root.cw); font.weight: Font.ExtraBold; color: root.pal.c1 }
-                WText { text: root.stateText; px: Math.min(16 * root.ch, 7 * root.cw); color: root.pal.c1; opacity: 0.8 }
+                width: parent.width - lockRow.chip - parent.spacing
+                spacing: 1 * root.ch
+                WText {
+                    width: parent.width
+                    text: root.cur ? root.tempText : root.noCity ? I18n.tr("Погода") : root.place
+                    px: root.cur ? Math.min(34 * root.ch, 14 * root.cw) : Math.min(22 * root.ch, 9 * root.cw)
+                    display: root.cur !== null
+                    font.weight: Font.ExtraBold
+                    color: root.pal.c1
+                }
+                WText {
+                    width: parent.width
+                    text: root.cur ? root.place + " · " + root.cur.text
+                        : root.noCity ? I18n.tr("Укажите город") : root.stateText
+                    px: Math.min(14 * root.ch, 5.6 * root.cw)
+                    color: root.pal.c1
+                    opacity: 0.78
+                }
             }
         }
 

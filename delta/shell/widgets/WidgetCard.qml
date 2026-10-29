@@ -87,15 +87,46 @@ Item {
             onRunningChanged: if (!running) frame.rotation = 0
         }
 
+        // на экране блокировки — тень под стеклом, чтобы карточка не сливалась с обоями
+        Rectangle {
+            visible: root.lock && root.bg
+            anchors { fill: parent; topMargin: 6 * root.unit; leftMargin: 4 * root.unit; rightMargin: 4 * root.unit; bottomMargin: -6 * root.unit }
+            radius: root.radius
+            color: Qt.rgba(0, 0, 0, 0.22)
+            opacity: root.alpha
+            layer.enabled: visible
+            layer.effect: MultiEffect { blurEnabled: true; blur: 1; blurMax: 32 }
+        }
+
         Rectangle {
             id: plate
             anchors.fill: parent
             radius: root.radius
             opacity: root.alpha
-            color: !root.bg ? "transparent" : root.lock ? Qt.rgba(1, 1, 1, 0.14) : Theme.glass
+            color: !root.bg ? "transparent" : root.lock ? "transparent" : Theme.glass
+            // стекло блокировки: светлее сверху, с тонкой подсветкой кромки
+            gradient: root.lock && root.bg ? lockGlass : null
             border.width: root.bg || root.editing ? 1 : 0
-            border.color: !root.bg ? Qt.rgba(1, 1, 1, 0.45) : root.lock ? Qt.rgba(1, 1, 1, 0.16) : Theme.line
+            border.color: !root.bg ? Qt.rgba(1, 1, 1, 0.45) : root.lock ? Qt.rgba(1, 1, 1, 0.24) : Theme.line
             Behavior on color { ColorAnimation { duration: Theme.anim.normal } }
+            Gradient {
+                id: lockGlass
+                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.24) }
+                GradientStop { position: 0.55; color: Qt.rgba(1, 1, 1, 0.13) }
+                GradientStop { position: 1; color: Qt.rgba(1, 1, 1, 0.09) }
+            }
+            // блик по верхней кромке
+            Rectangle {
+                visible: root.lock && root.bg
+                anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.radius * 0.8; rightMargin: parent.radius * 0.8; topMargin: 1 }
+                height: 1
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.55) }
+                    GradientStop { position: 1; color: "transparent" }
+                }
+            }
         }
 
         // содержимое; отступы — в процентах от размера, как padding в cq-единицах

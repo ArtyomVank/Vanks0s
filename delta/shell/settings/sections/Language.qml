@@ -7,7 +7,8 @@ import qs.common.ui
 import qs.settings
 import qs.settings.parts
 
-// Язык и регион: язык системы (LANG) и форматы (LC_TIME, LC_NUMERIC,
+// Язык и регион: язык интерфейса Delta (language.ui — русский или английский,
+// меняется сразу), язык системы (LANG) и форматы (LC_TIME, LC_NUMERIC,
 // LC_MONETARY, LC_MEASUREMENT, LC_PAPER) через localectl — localed спросит
 // пароль через polkit; в проверках только журнал. Применяется после
 // повторного входа.
@@ -16,12 +17,14 @@ ColumnLayout {
 
     property string title: I18n.tr("Язык и регион")
     property string icon: "globe"
-    property string keywords: "язык локаль регион форматы дата числа валюта единицы"
+    property string keywords: "язык локаль регион форматы дата числа валюта единицы english английский интерфейс"
     spacing: 18
 
     property var status: ({})       // { LANG: "ru_RU.UTF-8", LC_TIME: … }
     property var locales: []
     property bool changed: false
+    property var installed: []
+    readonly property var common: ["en_US.UTF-8", "ru_RU.UTF-8"]
 
     readonly property string lang: status.LANG || "C.UTF-8"
     readonly property string formats: status.LC_TIME || lang
@@ -49,11 +52,31 @@ ColumnLayout {
     Component.onCompleted: {
         refresh();
         Exec.read(["localectl", "list-locales"], (code, out) => {
-            root.locales = out.split("\n").filter(l => l.length).map(l => ({ value: l, label: root.nameOf(l), sub: l }));
+            const have = out.split("\n").filter(l => l.length);
+            root.installed = have;
+            // английский и русский есть в списке всегда: нет в системе — сгенерируем
+            const all = have.concat(root.common.filter(l => have.indexOf(l) < 0));
+            root.locales = all.map(l => ({ value: l, label: root.nameOf(l), sub: have.indexOf(l) >= 0 ? l : l + " · " + I18n.tr("будет установлен") }));
         });
     }
 
     function apply(newLang, newFormats) {
+        // локали нет в системе — сначала locale-gen (пароль спросит polkit)
+        const missing = [newLang, newFormats].filter((l, i, a) => a.indexOf(l) === i && root.installed.indexOf(l) < 0 && /^[a-z]{2,3}_[A-Z]{2}\.UTF-8$/.test(l));
+        if (missing.length > 0 && root.installed.length > 0) {
+            const lines = missing.map(l => l + " UTF-8");
+            Exec.run(["pkexec", "sh", "-c",
+                "for l in \"$@\"; do grep -qx \"$l\" /etc/locale.gen || sed -i \"s|^#[[:space:]]*$l\\$|$l|\" /etc/locale.gen; " +
+                "grep -qx \"$l\" /etc/locale.gen || printf '%s\\n' \"$l\" >> /etc/locale.gen; done; locale-gen", "sh"].concat(lines), {
+                label: I18n.tr("установка языка ") + missing.join(", "),
+                done: code => {
+                    if (code !== 0) { Nav.toast(I18n.tr("Не удалось установить язык")); return; }
+                    root.installed = root.installed.concat(missing);
+                    root.apply(newLang, newFormats);
+                }
+            });
+            return;
+        }
         const args = ["localectl", "set-locale", "LANG=" + newLang];
         if (newFormats !== newLang) for (const k of fmtKeys) args.push(k + "=" + newFormats);
         Exec.run(args, {
@@ -77,6 +100,23 @@ ColumnLayout {
     Card {
         title: I18n.tr("Язык")
         Rows {
+            SettingRow {
+                icon: "globe"
+                title: I18n.tr("Язык интерфейса")
+                subtitle: I18n.tr("Доки, меню, «Настройки» и экран блокировки — меняется сразу")
+                Chips {
+                    model: [{ value: "ru", label: "Русский" }, { value: "en", label: "English" }]
+                    current: I18n.lang
+                    onPicked: v => Settings.set("language.ui", v)
+                }
+            }
+            SettingRow {
+                visible: I18n.en && !root.lang.startsWith("en_")
+                icon: "info"
+                title: I18n.tr("Программы тоже на английском?")
+                subtitle: I18n.tr("Сменит язык системы на английский — после повторного входа")
+                Btn { text: "English (US)"; onClicked: root.apply("en_US.UTF-8", root.formats === root.lang ? "en_US.UTF-8" : root.formats) }
+            }
             SettingRow {
                 icon: "globe"
                 title: I18n.tr("Язык системы")

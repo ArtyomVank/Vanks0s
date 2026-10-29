@@ -114,6 +114,14 @@ PanelWindow {
         easing.type: Easing.Linear
         onFinished: win.finishPlay()
     }
+    FrameAnimation {
+        id: coverWait
+        onTriggered: {
+            if (currentFrame < 2) return;
+            stop();
+            if (win.onCovered) { const c = win.onCovered; win.onCovered = null; c(); }
+        }
+    }
     // в обратную сторону окно возвращается под снимок, и только потом снимок гаснет
     Timer { id: settle; interval: 140; onTriggered: win.stopPlay() }
 
@@ -121,6 +129,7 @@ PanelWindow {
         // прерываем прежнюю анимацию, но её колбэки доигрываем: окно должно
         // оказаться на своём месте, а Minimizer — снять отметку «занято»
         if (playing) {
+            coverWait.stop();
             settle.stop();
             run.stop();
             if (onCovered) { const c = onCovered; onCovered = null; c(); }
@@ -140,10 +149,11 @@ PanelWindow {
         fx.progress = back ? 1 : 0;
         run.from = back ? 1 : 0;
         run.to = back ? 0 : 1;
-        run.duration = back ? 520 : 600;
+        run.duration = back ? 560 : 700;
         playing = true;
-        // снимок встал поверх окна — со следующего кадра окно можно прятать
-        if (!back) Qt.callLater(() => { if (win.onCovered) { win.onCovered(); win.onCovered = null; } });
+        // окно прячем, только когда снимок уже на экране (через пару кадров):
+        // раньше — и окно на кадр пропадало, мигая перед «джинном»
+        if (!back) coverWait.restart();
         run.start();
     }
     function finishPlay() {
@@ -151,6 +161,8 @@ PanelWindow {
             if (onCovered) { onCovered(); onCovered = null; }
             settle.restart();
         } else {
+            // окно «упало» в док — значки вздрагивают волной
+            ShellState.pokeDock("apps", 0.8);
             stopPlay();
         }
     }

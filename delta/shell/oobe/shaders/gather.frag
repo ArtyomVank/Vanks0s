@@ -1,6 +1,7 @@
 #version 440
-// Первая настройка: капли стекаются с краёв экрана и сливаются в карточку.
-// progress 0 — капли за краями, 1 — карточка собрана (капли растворились в ней).
+// Первая настройка: капли стекаются с краёв экрана к центру и разливаются
+// стеклом на весь экран (card — весь экран), по стеклу медленно плывёт сияние
+// акцента. progress 0 — капли за краями, 1 — экран залит.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -61,7 +62,12 @@ void main() {
     float edge = exp(-abs(d) / 5.0);
     vec2 uv = (px - c) / max(card.zw, vec2(1.0));
     float sheen = 0.5 + 0.5 * sin(time * 0.7 + uv.x * 3.0 - uv.y * 2.0);
-    vec3 cc = mix(glass.rgb, accent.rgb, 0.10 + 0.20 * clamp(tint, 0.0, 1.0) + 0.05 * sheen);
+    // сияние: два мягких пятна акцента медленно гуляют по экрану
+    vec2 q = px / res;
+    vec2 a1 = vec2(0.25 + 0.12 * sin(time * 0.21), 0.30 + 0.10 * cos(time * 0.17));
+    vec2 a2 = vec2(0.78 + 0.10 * cos(time * 0.19), 0.72 + 0.12 * sin(time * 0.23));
+    float aur = exp(-dot(q - a1, q - a1) * 6.0) + 0.8 * exp(-dot(q - a2, q - a2) * 5.0);
+    vec3 cc = mix(glass.rgb, accent.rgb, 0.06 + 0.20 * clamp(tint, 0.0, 1.0) + 0.04 * sheen + 0.22 * aur * grow);
     vec4 cardC = vec4(cc, 1.0) * glass.a;
 
     // фон: затемнение и мягкое сияние вокруг карточки

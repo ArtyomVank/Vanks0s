@@ -13,6 +13,7 @@
 layout(location = 0) in vec4 qt_Vertex;
 layout(location = 1) in vec2 qt_MultiTexCoord0;
 layout(location = 0) out vec2 coord;
+layout(location = 1) out float squeeze;   // 0 — ширина окна, 1 — ширина значка
 
 layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
@@ -54,22 +55,29 @@ void main() {
     // доля поперёк окна
     float across = clamp((c0.x - s.x) / max(1.0, s.z - s.x), 0.0, 1.0);
 
-    // 1. воронка формируется
-    float funnel = smoothstep(0.0, 0.42, progress);
-    // 2. скольжение: ряды у дока раньше, с ускорением («засасывает»)
-    float sl = clamp((progress - 0.12 - 0.22 * (1.0 - row)) / 0.66, 0.0, 1.0);
+    // 1. воронка формируется; дальний край окна при этом чуть «наклоняется» к доку
+    float funnel = smoothstep(0.0, 0.40, progress);
+    // 2. скольжение: ряды у дока стартуют заметно раньше и с ускорением —
+    //    окно вытягивается, будто его засасывает
+    float sl = clamp((progress - 0.08 - 0.34 * (1.0 - row)) / 0.62, 0.0, 1.0);
     sl = sl * sl * (3.0 - 2.0 * sl);
-    sl = mix(sl, sl * sl, 0.45);
+    sl = mix(sl, sl * sl, 0.5);
     float y = mix(c0.y, c1.y, sl);
+    // в начале дальний край чуть подтягивается (окно не стоит столбом)
+    y += (1.0 - row) * (d.y - s.y) * 0.05 * funnel * (1.0 - sl);
 
-    // ширина воронки на текущей высоте точки
+    // ширина воронки на текущей высоте точки: горлышко сужается раньше,
+    // бока выгибаются S-кривой
     float span = max(1.0, d.y - s.y);
     float f = clamp((y - s.y) / span, 0.0, 1.0);
-    float w = smoothstep(0.0, 1.0, f) * funnel;
+    float w = smoothstep(0.0, 1.0, pow(f, 0.72)) * funnel;
     float left = mix(s.x, d.x, w);
     float right = mix(s.z, d.z, w);
     float x = mix(left, right, across);
+    // лёгкое покачивание горлышка в середине пути
+    x += sin(progress * 6.2832) * (1.0 - progress) * 6.0 * w * (1.0 - w) * 4.0;
 
+    squeeze = w;
     coord = uv;
     gl_Position = qt_Matrix * vec4(fromC(vec2(x, y)), 0.0, 1.0);
 }

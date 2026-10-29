@@ -1,7 +1,9 @@
 #version 440
-// Снимок окна для «джинна»; у самого значка гаснет, чтобы не было шва.
+// Снимок окна для «джинна»: в горлышке воронки окно светлеет и тает, у самого
+// значка гаснет полностью, чтобы не было шва.
 
 layout(location = 0) in vec2 coord;
+layout(location = 1) in float squeeze;
 layout(location = 0) out vec4 fragColor;
 
 layout(std140, binding = 0) uniform buf {
@@ -16,6 +18,12 @@ layout(std140, binding = 0) uniform buf {
 layout(binding = 1) uniform sampler2D source;
 
 void main() {
-    float fade = 1.0 - smoothstep(0.86, 1.0, progress);
-    fragColor = texture(source, coord) * qt_Opacity * fade;
+    vec4 c = texture(source, coord);
+    // чем уже, тем светлее — блик в горлышке
+    float glow = smoothstep(0.55, 1.0, squeeze) * 0.18;
+    c.rgb = min(c.rgb + glow * c.a, vec3(c.a));
+    // часть, уже ушедшая в значок, тает; в конце — всё
+    float fade = (1.0 - smoothstep(0.88, 1.0, squeeze) * smoothstep(0.35, 0.8, progress) * 0.85)
+               * (1.0 - smoothstep(0.84, 1.0, progress));
+    fragColor = c * qt_Opacity * fade;
 }

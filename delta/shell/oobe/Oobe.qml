@@ -9,10 +9,12 @@ import Quickshell.Hyprland
 import qs.common
 import qs.common.ui
 
-// Первая настройка (OOBE). При первом входе капли стекаются с краёв экрана в
-// карточку, в ней — шаги: язык, оформление, обои, доки, звуки и движение.
-// В конце кнопку «Начать» нужно зажать; после неё всё исчезает от центра к
-// краям, и открывается помощник «Добро пожаловать».
+// Первая настройка (OOBE). На весь экран и непрозрачная: при первом входе на
+// чёрном фоне капли стекаются с краёв к центру и разливаются на весь экран,
+// в нём — шаги: язык, оформление, обои, доки, звуки и движение. Систему не
+// видно до конца: доки и виджеты спрятаны (ShellState.desktopShown). В конце
+// кнопку «Начать» нужно зажать; настройка исчезает от центра к краям, открывая
+// обои, затем проступают виджеты и доки, и открывается помощник.
 //
 // Показывается сама, если в settings.json ещё нет oobe.done и пользователь
 // ничего не настраивал (у тех, кто обновился, тихо ставится oobe.done).
@@ -36,6 +38,7 @@ Scope {
         hole = 0;
         gather = 0;
         leaving = false;
+        ShellState.desktopShown = false;
         active = true;
         gatherAnim.restart();
         Sounds.play("oobe-hello", 0);
@@ -72,6 +75,8 @@ Scope {
             Settings.set("oobe.done", true);
             return;
         }
+        // скорее всего покажем: прячем доки и виджеты сразу, пока идёт проверка
+        ShellState.desktopShown = false;
         gate.running = true;
     }
     Component.onCompleted: check()
@@ -84,10 +89,8 @@ Scope {
         property bool forced: false
         // 0 — живая сессия ISO или вложенная, без DELTA_OOBE=1 не показываем
         command: ["sh", "-c", "{ [ -d /run/archiso ] || [ -n \"${DELTA_NESTED:-}\" ]; } && [ \"${DELTA_OOBE:-}\" != 1 ]"]
-        onExited: code => { if (code !== 0) startDelay.start(); }
+        onExited: code => { if (code !== 0) root.start(); else ShellState.desktopShown = true; }
     }
-    // даём оболочке встать на ноги: обои и доки появятся раньше карточки
-    Timer { id: startDelay; interval: 900; onTriggered: root.start() }
 
     // язык для программ (LANG): со следующего входа, если такая локаль есть
     Process {
@@ -113,7 +116,9 @@ Scope {
             script: {
                 root.active = false;
                 root.leaving = false;
-                Quickshell.execDetached(["sh", "-c", "sleep 0.6; exec delta-welcome --first-run"]);
+                // открылись обои — следом проступают виджеты и доки
+                ShellState.desktopShown = true;
+                Quickshell.execDetached(["sh", "-c", "sleep 1.2; exec delta-welcome --first-run"]);
             }
         }
     }
@@ -134,6 +139,7 @@ Scope {
         anchors { top: true; bottom: true; left: true; right: true }
         color: "transparent"
 
+        // содержимое — по центру, а стекло разливается на весь экран
         readonly property real cw: Math.min(1000, width - 96)
         readonly property real ch: Math.min(680, height - 96)
         readonly property real cx: (width - cw) / 2
@@ -153,21 +159,19 @@ Scope {
                 fragmentShader: Qt.resolvedUrl("shaders/dissolve.frag.qsb")
             }
 
-            // на шаге с обоями фон темнее не нужен — видно, что выбрали
-            property real dimAmount: root.page === 2 ? 0.25 : 1
-            Behavior on dimAmount { NumberAnimation { duration: 600; easing.type: Easing.InOutCubic } }
 
             ShaderEffect {
                 anchors.fill: parent
                 property real progress: root.gather
                 property real time: root.time
-                property real radius: Math.max(18, Theme.radius + 10)
-                property real dimAmount: stage.dimAmount
+                // к концу сборки углы распрямляются — стекло во весь экран
+                property real radius: 64 * (1 - root.gather)
+                property real dimAmount: 1
                 property vector2d res: Qt.vector2d(width, height)
-                property vector4d card: Qt.vector4d(win.cx, win.cy, win.cw, win.ch)
-                property color glass: Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, 0.94)
+                property vector4d card: Qt.vector4d(0, 0, width, height)
+                property color glass: Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, 1)
                 property color accent: Theme.accent
-                property color dim: Qt.rgba(0.02, 0.02, 0.05, 0.66)
+                property color dim: Qt.rgba(0.01, 0.01, 0.02, 1)
                 fragmentShader: Qt.resolvedUrl("shaders/gather.frag.qsb")
             }
 
@@ -266,6 +270,20 @@ Scope {
                 if (event.isAutoRepeat) return;
                 if (root.page === root.pages - 1 && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) startPage.button.keyUp();
             }
+        }
+    }
+
+    // на остальных мониторах — просто темнота, тает вместе с настройкой
+    Variants {
+        model: root.active ? Quickshell.screens.filter(sc => sc !== win.screen) : []
+        delegate: PanelWindow {
+            required property ShellScreen modelData
+            screen: modelData
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "delta-oobe-dim"
+            exclusionMode: ExclusionMode.Ignore
+            anchors { top: true; bottom: true; left: true; right: true }
+            color: Qt.rgba(0.01, 0.01, 0.02, 1 - root.hole)
         }
     }
 

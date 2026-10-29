@@ -140,8 +140,8 @@ Base {
             Column {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - lockCover.width - lockEq.width - parent.spacing * 2
-                WText { width: parent.width; text: root.title; px: Math.min(18 * root.ch, 6 * root.cw); font.weight: Font.ExtraBold; color: root.pal.c1 }
-                WText { width: parent.width; text: root.artist; px: Math.min(15 * root.ch, 5 * root.cw); color: root.pal.c1; opacity: 0.8 }
+                WText { width: parent.width; text: root.title; px: Math.min(16 * root.ch, 5.4 * root.cw); font.weight: Font.ExtraBold; color: root.pal.c1 }
+                WText { width: parent.width; text: root.artist; px: Math.min(13 * root.ch, 4.6 * root.cw); color: root.pal.c1; opacity: 0.75 }
             }
             Eq {
                 id: lockEq
@@ -160,9 +160,25 @@ Base {
             Cover {
                 id: wideCover
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(70 * root.ch, 34 * root.cw); height: width
-                radius: 14 * root.ch
+                width: Math.min(78 * root.ch, 32 * root.cw); height: width
+                radius: 16 * root.ch
                 source: root.art
+                // без обложки — нота, которая «дышит», пока играет
+                Sym {
+                    anchors.centerIn: parent
+                    visible: root.art.length === 0
+                    name: "music"
+                    size: Math.round(parent.width * 0.42)
+                    color: "#ffffff"
+                    opacity: 0.9
+                    scale: root.playing ? 1.0 + 0.06 * Math.sin(beat.t * Math.PI * 2) : 1
+                    QtObject { id: beat; property real t: 0 }
+                    SequentialAnimation {
+                        running: root.playing && root.visible
+                        loops: Animation.Infinite
+                        NumberAnimation { target: beat; property: "t"; from: 0; to: 1; duration: 900 }
+                    }
+                }
             }
             Item {
                 anchors { left: wideCover.right; leftMargin: 5 * root.cw; right: parent.right; top: parent.top; bottom: parent.bottom }
@@ -170,8 +186,9 @@ Base {
                 Column {
                     id: wideTitles
                     anchors { left: parent.left; right: parent.right; top: parent.top }
-                    WText { width: parent.width; text: root.title; px: Math.min(16 * root.ch, 6.5 * root.cw); font.weight: Font.ExtraBold; color: root.pal.c1 }
-                    WText { width: parent.width; text: root.artist; px: Math.min(13 * root.ch, 5.2 * root.cw); color: root.pal.c1; opacity: 0.8 }
+                    spacing: 1 * root.ch
+                    WText { width: parent.width; text: root.player ? root.title : I18n.tr("Музыка"); px: Math.min(14 * root.ch, 5.4 * root.cw); font.weight: Font.ExtraBold; color: root.pal.c1 }
+                    WText { width: parent.width; text: root.player ? root.artist : I18n.tr("Ничего не играет"); px: Math.min(11.5 * root.ch, 4.4 * root.cw); color: root.pal.c1; opacity: 0.72 }
                 }
                 Rectangle {
                     id: wideProgress
@@ -190,6 +207,7 @@ Base {
                 Row {
                     id: wideCtls
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
+                    opacity: root.player ? 1 : 0.4
                     spacing: 3 * root.cw
                     Ctl { height: Math.min(20 * root.ch, 9 * root.cw); icon: "prev"; onClicked: root.player.previous() }
                     Ctl { height: Math.min(20 * root.ch, 9 * root.cw); icon: root.playing ? "pause" : "play"; main: true; onClicked: root.player.togglePlaying() }

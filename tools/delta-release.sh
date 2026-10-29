@@ -3,8 +3,9 @@
 #  Vanks OS — новая версия Delta для обновлений «по воздуху».
 #
 #      tools/delta-release.sh 0.3.0
+#      tools/delta-release.sh 0.4.0 2     исправленная сборка той же версии
 #
-#  1. ставит pkgver в packaging/delta/PKGBUILD (pkgrel=1);
+#  1. ставит pkgver и pkgrel (по умолчанию 1) в packaging/delta/PKGBUILD;
 #  2. собирает пакет без root во временной папке (на NTFS makepkg не работает);
 #  3. кладёт dist/delta-0.3.0-1-any.pkg.tar.zst и .sha256.
 #
@@ -23,7 +24,10 @@ log() { printf '\033[1;35m[delta-release]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[delta-release] ОШИБКА:\033[0m %s\n' "$*" >&2; exit 1; }
 
 ver=${1:-}
+rel=${2:-1}
 [[ ${ver} =~ ^[0-9]+(\.[0-9]+)*$ ]] || die "укажите версию: tools/delta-release.sh 0.3.0"
+# pkgrel: исправления без новой версии — 0.4.0-2 новее 0.4.0-1, системы его возьмут
+[[ ${rel} =~ ^[1-9][0-9]*$ ]] || die "pkgrel — целое число от 1: tools/delta-release.sh 0.4.0 2"
 [[ ${EUID} -ne 0 ]] || die "запускайте без sudo: makepkg не работает от root"
 command -v makepkg >/dev/null || die "нет makepkg — установите base-devel"
 
@@ -41,8 +45,8 @@ DELTA_REPO=""; . "${PROJECT_DIR}/delta/defaults/update.conf"
 "${PROJECT_DIR}/tools/delta-shaders.sh" --check \
     || die "шейдеры не пересобраны: запустите tools/delta-shaders.sh"
 
-log "версия ${old} → ${ver}"
-sed -i -e "s/^pkgver=.*/pkgver=${ver}/" -e "s/^pkgrel=.*/pkgrel=1/" "${PKGBUILD}"
+log "версия ${old} → ${ver}-${rel}"
+sed -i -e "s/^pkgver=.*/pkgver=${ver}/" -e "s/^pkgrel=.*/pkgrel=${rel}/" "${PKGBUILD}"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
@@ -53,7 +57,7 @@ log "собираю пакет"
 ( cd "${tmp}/packaging/delta" && PKGDEST="${tmp}/out" makepkg -f --nodeps --noconfirm >/dev/null ) \
     || die "makepkg не смог собрать delta"
 
-name="delta-${ver}-1-any.pkg.tar.zst"
+name="delta-${ver}-${rel}-any.pkg.tar.zst"
 [[ -f ${tmp}/out/${name} ]] || die "makepkg завершился, но ${name} не найден"
 rm -f "${DIST}"/delta-*.pkg.tar.zst "${DIST}"/delta-*.pkg.tar.zst.sha256
 cp "${tmp}/out/${name}" "${DIST}/${name}"
