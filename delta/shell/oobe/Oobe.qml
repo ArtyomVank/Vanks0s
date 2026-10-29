@@ -105,6 +105,10 @@ Scope {
     IpcHandler {
         target: "oobe"
         function start(): void { root.start(); }
+        // для записи демо и проверок: шаг вперёд / к шагу n / как будто «Начать» дожали
+        function next(): void { root.go(root.page + 1); }
+        function page(n: int): void { root.go(n); }
+        function finish(): void { if (root.active) root.finish(Qt.point(win.width / 2, win.height * 0.62)); }
     }
 
     NumberAnimation { id: gatherAnim; target: root; property: "gather"; from: 0; to: 1; duration: 2300; easing.type: Easing.OutCubic }

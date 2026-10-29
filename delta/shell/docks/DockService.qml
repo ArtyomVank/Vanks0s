@@ -157,7 +157,10 @@ Singleton {
     readonly property var playback: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink && n.audio)
     // свойства узла (имя приложения, название) приходят, только пока узел отслеживается
     PwObjectTracker { objects: root.playback }
+    // только воспроизведение (Stream/Output/Audio): захват — cava, запись, звонки
+    // с микрофона — тоже «поток не-приёмник», но острову не нужен
     readonly property var streams: playback.filter(n => n.properties
+        && n.properties["media.class"] === "Stream/Output/Audio"
         && ["pw-play", "paplay", "cava"].indexOf(n.properties["application.process.binary"] || "") === -1
         && ["pw-play", "paplay", "cava"].indexOf(n.properties["application.name"] || "") === -1)
     readonly property var stream: streams.length ? streams[streams.length - 1] : null

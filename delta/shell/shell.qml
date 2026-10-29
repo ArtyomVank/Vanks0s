@@ -94,5 +94,9 @@ ShellRoot {
         function reload(): void { Quickshell.reload(true); }
         function get(key: string): string { return JSON.stringify(Settings.get(key, null)); }
         function set(key: string, json: string): void { Settings.set(key, JSON.parse(json)); }
+        // окно приложений, обоев, питания: delta-shell ipc call shell overlay launcher
+        function overlay(name: string): void { ShellState.toggleOverlay(name); }
+        function center(): void { notifications.toggleCenter(); }
+        function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
     }
 }
