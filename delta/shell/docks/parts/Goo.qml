@@ -12,9 +12,14 @@ ShaderEffect {
     property real k: 14
     property real glow: 0
     property color color: "white"
+    // выпуклость под курсором и обводка — у панели в покое (Island)
+    property vector4d drop2: Qt.vector4d(0, 0, 0, 0)
+    property color strokeColor: "transparent"
+    property real strokeW: 1
 
     readonly property size area: Qt.size(width, height)
     readonly property vector4d fill: Qt.vector4d(color.r, color.g, color.b, color.a)
+    readonly property vector4d stroke: Qt.vector4d(strokeColor.r, strokeColor.g, strokeColor.b, strokeColor.a)
 
     blending: true
     fragmentShader: Qt.resolvedUrl("shaders/goo.frag.qsb")

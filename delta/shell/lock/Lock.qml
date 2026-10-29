@@ -50,6 +50,7 @@ Scope {
         if (fromDesktop) { setXray(true); xrayOff.restart(); }
         // поверхности создаются здесь же — fromDesktop уже должен быть известен
         persist.locked = true;
+        ShellState.desktopShown = false;
         lockedHint(true);
         Sounds.play("service-logout");
     }
@@ -61,6 +62,7 @@ Scope {
         if (canXray) setXray(true);
         exitRequested();
         finishTimer.restart();
+        revealTimer.restart();
     }
 
     function finishUnlock() {
@@ -68,6 +70,7 @@ Scope {
         unlocking = false;
         Sounds.play("service-login");
         ShellState.unlocking = false;
+        ShellState.desktopShown = true;
         lockedHint(false);
         if (canXray) xrayOff.restart();
         console.info("[delta] разблокировано");
@@ -95,6 +98,8 @@ Scope {
 
     // концепт: 820 мс, кольцо доигрывает чуть дольше уже на рабочем столе
     Timer { id: finishTimer; interval: 840; onTriggered: root.finishUnlock() }
+    // фон блокировки начинает таять на 420 мс — рабочий стол проступает чуть раньше
+    Timer { id: revealTimer; interval: 360; onTriggered: if (root.unlocking) ShellState.desktopShown = true }
     Timer { id: xrayOff; interval: 900; onTriggered: if (!root.unlocking) root.setXray(false) }
 
     function setXray(on) {
@@ -204,7 +209,10 @@ Scope {
 
         WlSessionLockSurface {
             id: surf
-            color: "black"
+            // Под LockSurface — сплошной чёрный, кроме переходов: с xray композитор
+            // рисует рабочий стол под прозрачными местами, и чёрная подложка
+            // превратила бы наслаивание в «затемнение и рывок».
+            color: root.canXray && (root.unlocking || root.fromDesktop) ? "transparent" : "black"
 
             Loader {
                 id: content
@@ -343,6 +351,8 @@ Scope {
         target: "lock"
         function lock(): void { root.lock(); }
         function isLocked(): bool { return root.locked; }
+        // только во вложенной сессии (пробный режим): ввод пароля туда не подать
+        function unlock(): void { root.devUnlock(); }
         // раздел «Экран блокировки» в «Настройках» — отдельный процесс, поэтому через IPC
         function edit(): void {
             ShellState.widgetEditing = false;

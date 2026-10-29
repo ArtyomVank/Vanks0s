@@ -40,6 +40,12 @@ if [ "${CHOICE}" = "delta" ] && ! arch-chroot "${ROOT}" pacman -Si delta >/dev/n
     arch-chroot "${ROOT}" pacman -U --needed --noconfirm "/var/cache/vankos/pkgs/${pkgfile##*/}"
     mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | grep -vx delta)
 fi
+# Обои (~180 МБ) есть только в офлайн-репозитории полного ISO: в образ файлом
+# их не кладём, чтобы не возить дважды. Без них Delta работает — пропускаем.
+if [ "${CHOICE}" = "delta" ] && ! arch-chroot "${ROOT}" pacman -Si vankos-wallpapers >/dev/null 2>&1; then
+    log "обоев Vanks OS нет в репозитории — ставлю без них"
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | grep -vx vankos-wallpapers)
+fi
 
 arch-chroot "${ROOT}" pacman -S --needed --noconfirm "${pkgs[@]}"
 
@@ -95,7 +101,7 @@ printf '%s\n' "${CHOICE}" > "${ROOT}/etc/vankos/shell"
 cat > "${ROOT}/etc/vankos/release" <<EOF
 VANKS_SHELL=${CHOICE}
 VANKS_DISPLAY_MANAGER=${DM}
-VANKS_VERSION=0.1
+VANKS_VERSION=0.2
 EOF
 
 log "рабочий стол ${CHOICE} установлен"

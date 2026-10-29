@@ -80,13 +80,13 @@ ColumnLayout {
             SettingRow {
                 icon: "globe"
                 title: "Язык системы"
-                subtitle: "Меню, сообщения программ и названия папок"
+                subtitle: "На этом языке говорят программы"
                 Select { text: root.nameOf(root.lang); onClicked: langPicker.openWith() }
             }
             SettingRow {
                 icon: "calendar"
                 title: "Форматы"
-                subtitle: "Дата, время, числа, валюта и единицы измерения"
+                subtitle: "Как писать даты, числа и деньги"
                 Select { text: root.nameOf(root.formats); onClicked: fmtPicker.openWith() }
             }
             SettingRow {
@@ -117,7 +117,7 @@ ColumnLayout {
         SettingRow {
             icon: "info"
             title: "Нет нужного языка?"
-            subtitle: "Здесь только установленные языки. Другие добавляются в /etc/locale.gen и командой locale-gen."
+            subtitle: "Здесь языки, которые уже есть в системе"
         }
     }
 

@@ -20,7 +20,7 @@ ColumnLayout {
         SliderRow {
             icon: "cursor"
             title: "Скорость указателя"
-            subtitle: "0 — как задано устройством"
+            subtitle: "Середина — как задумал производитель"
             from: -1; to: 1; step: 0.05
             value: root.i.sensitivity ?? 0
             format: v => (v > 0 ? "+" : "") + v.toFixed(2)
@@ -33,19 +33,19 @@ ColumnLayout {
         SettingRow {
             icon: "mouse"
             title: "Естественная прокрутка"
-            subtitle: "Содержимое движется за пальцами, как на телефоне"
+            subtitle: "Как на телефоне: страница едет за пальцами"
             Toggle { checked: root.i.naturalScroll ?? true; onToggled: v => Settings.set("input.naturalScroll", v) }
         }
         SettingRow {
             icon: "check"
             title: "Нажатие касанием"
-            subtitle: "Лёгкое касание тачпада — щелчок"
+            subtitle: "Щелчок лёгким касанием"
             Toggle { checked: root.i.tapToClick ?? true; onToggled: v => Settings.set("input.tapToClick", v) }
         }
         SettingRow {
             icon: "windows"
             title: "Жесты"
-            subtitle: "Три пальца влево-вправо — переключение рабочих столов"
+            subtitle: "Проведите тремя пальцами вбок, чтобы сменить стол"
             Label { text: "включены"; tone: 3 }
         }
     }

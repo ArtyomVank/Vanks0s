@@ -45,11 +45,21 @@ PanelWindow {
 
     readonly property bool popupHere: DockService.appMenu !== null && DockService.appMenu.screen === screen?.name
     readonly property bool hovered: island.hovered || hot.containsMouse || hint.containsMouse
-    readonly property bool want: Settings.ready && !ShellState.widgetEditing && (!autohide || hovered || hold.running || popupHere
+    readonly property bool want: Settings.ready && win.deskShown && !ShellState.widgetEditing && (!autohide || hovered || hold.running || popupHere
                                  || ShellState.docksForced || DockService.peek
                                  || Minimizer.animating)
     onHoveredChanged: if (!hovered) { hold.restart(); hoverIndex = -1; }
     Timer { id: hold; interval: 700 }
+    // после разблокировки док приложений выходит чуть позже верхнего — слоями
+    property bool deskShown: ShellState.desktopShown
+    Connections {
+        target: ShellState
+        function onDesktopShownChanged() {
+            if (ShellState.desktopShown) deskDelay.restart();
+            else { deskDelay.stop(); win.deskShown = false; }
+        }
+    }
+    Timer { id: deskDelay; interval: 160; onTriggered: win.deskShown = true }
     readonly property bool hintVisible: autohide && island.stage === 0 && !ShellState.dockEditing
 
     WlrLayershell.namespace: "delta-dock"

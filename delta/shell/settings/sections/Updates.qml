@@ -222,7 +222,7 @@ ColumnLayout {
         SettingRow {
             icon: "bell"
             title: "Проверять обновления"
-            subtitle: "Раз в несколько часов в фоне. Когда что-то выйдет — придёт уведомление, установка в одно нажатие"
+            subtitle: "Система сама сообщит, когда выйдет что-то новое"
             Toggle { checked: Settings.get("updates.auto", true) !== false; onToggled: v => Settings.set("updates.auto", v) }
         }
         SettingRow {

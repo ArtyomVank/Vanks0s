@@ -16,11 +16,11 @@ ColumnLayout {
     Card {
         title: "Уведомления"
         SettingRow {
-            icon: "bell-off"; title: "Не беспокоить"; subtitle: "Всплывающие уведомления скрыты, кроме важных; всё остаётся в центре уведомлений (Super+N)"
+            icon: "bell-off"; title: "Не беспокоить"; subtitle: "Сообщения не всплывают, но ждут вас в центре уведомлений"
             Toggle { checked: Settings.get("notifications.dnd", false) === true; onToggled: v => Settings.set("notifications.dnd", v) }
         }
         SettingRow {
-            icon: "clock"; title: "Сколько показывать"; subtitle: "Если приложение не задало своё время. Наведение мыши задерживает уведомление"; wide: true
+            icon: "clock"; title: "Сколько показывать"; subtitle: "Пока мышь над уведомлением, оно не исчезнет"; wide: true
             Chips {
                 model: [{ value: 4, label: "4 с" }, { value: 6, label: "6 с" }, { value: 10, label: "10 с" }, { value: 20, label: "20 с" }]
                 current: Settings.get("notifications.timeout", 6)
@@ -28,7 +28,7 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "lock"; title: "На экране блокировки"; subtitle: "Показывать последние уведомления на экране блокировки"
+            icon: "lock"; title: "На экране блокировки"; subtitle: "Видны, пока экран заблокирован"
             Toggle { checked: Settings.get("notifications.onLock", true) !== false; onToggled: v => Settings.set("notifications.onLock", v) }
         }
     }
@@ -36,11 +36,11 @@ ColumnLayout {
     Card {
         title: "Индикаторы"
         SettingRow {
-            icon: "volume"; title: "Громкость и яркость"; subtitle: "Шарик выходит из дока приложений при изменении клавишами"
+            icon: "volume"; title: "Громкость и яркость"; subtitle: "Показывать уровень, когда меняете клавишами"
             Toggle { checked: Settings.get("osd.enabled", true) !== false; onToggled: v => Settings.set("osd.enabled", v) }
         }
         SettingRow {
-            icon: "keyboard"; title: "Раскладка клавиатуры"; subtitle: "Коротко показывать новую раскладку при переключении"
+            icon: "keyboard"; title: "Раскладка клавиатуры"; subtitle: "Подсказка при смене языка"
             Toggle { checked: Settings.get("osd.layout", true) !== false; onToggled: v => Settings.set("osd.layout", v) }
         }
     }
@@ -48,7 +48,7 @@ ColumnLayout {
     Card {
         title: "По приложениям"
         SettingRow {
-            icon: "apps"; title: "Настройка для отдельных приложений"; subtitle: "Скоро: отключить или сделать тихими уведомления выбранных программ"
+            icon: "apps"; title: "Настройка для отдельных приложений"; subtitle: "Скоро"
         }
     }
 }

@@ -188,6 +188,18 @@ Item {
 
     readonly property color cardColor: strong ? Theme.glass2 : Theme.glass
 
+    // --- «желе» карточки ---
+    // Доехав, капля ещё тянется вдоль пути полёта и колышется; от нажатия
+    // карточка чуть сплющивается к доку. Сжатие — от стороны источника.
+    Spring { id: jx; stiffness: 280; damping: 12 }
+    Spring { id: jy; stiffness: 280; damping: 12 }
+    function wobble(k) {
+        const along = k * 0.9, across = -k * 0.4;
+        if (sdy !== 0) { jy.kick(along); jx.kick(across); }
+        else { jx.kick(along); jy.kick(across); }
+    }
+    onRestChanged: if (rest && open) wobble(1)
+
     RectangularShadow {
         anchors.fill: body
         radius: body.radius
@@ -230,6 +242,17 @@ Item {
         border.width: root.rest ? 1 : 0
         border.color: Theme.line
         clip: true
+        transform: Scale {
+            origin.x: root.sdx < 0 ? 0 : root.sdx > 0 ? body.width : body.width / 2
+            origin.y: root.sdy < 0 ? 0 : root.sdy > 0 ? body.height : body.height / 2
+            xScale: 1 + jx.value
+            yScale: 1 + jy.value
+        }
+        // пассивно: кнопкам внутри щелчок доходит как обычно
+        PointHandler {
+            acceptedButtons: Qt.AllButtons
+            onActiveChanged: if (root.rest) root.wobble(active ? -0.55 : 0.35)
+        }
 
         // содержимое не меняет размер во время морфинга: оно стоит на месте
         // карточки, а растущее тело его открывает

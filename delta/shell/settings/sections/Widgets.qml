@@ -25,7 +25,7 @@ ColumnLayout {
         SettingRow {
             icon: "grid"
             title: "Редактор виджетов"
-            subtitle: "Расставить, добавить и убрать виджеты, поменять размер и вид. Super+W"
+            subtitle: "Расставьте виджеты прямо на столе. Super+W"
             Btn {
                 text: "Открыть"
                 kind: "accent"
@@ -39,7 +39,7 @@ ColumnLayout {
         SettingRow {
             icon: "clock"
             title: "Стиль"
-            subtitle: "Для часов, у которых в редакторе не выбран свой стиль"
+            subtitle: "Для всех часов, если у них не выбран свой"
             wide: true
             Chips {
                 model: [{ value: "ios", label: "iOS" }, { value: "thin", label: "Тонкие" }, { value: "mono", label: "Моно" },
@@ -55,7 +55,7 @@ ColumnLayout {
             visible: Settings.get("clock.style", "ios") === "tall"
             icon: "sliders"
             title: "Ширина цифр"
-            subtitle: "Для «Длинных» часов; у отдельных часов — ползунок в редакторе"
+            subtitle: "Только для стиля «Длинные»"
             Slider {
                 implicitWidth: 220
                 from: 0.35; to: 0.95

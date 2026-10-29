@@ -113,7 +113,7 @@ ColumnLayout {
     Card {
         title: "Звуки системы"
         SettingRow {
-            icon: "bell"; title: "Звуки оболочки"; subtitle: "Уведомления, громкость, снимок экрана, блокировка, зарядка"
+            icon: "bell"; title: "Звуки оболочки"; subtitle: "Тихие звуки на уведомления, громкость и блокировку"
             Toggle { checked: Settings.get("sounds.enabled", true) !== false; onToggled: v => Settings.set("sounds.enabled", v) }
         }
         SettingRow {

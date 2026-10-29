@@ -22,8 +22,12 @@ Singleton {
         const f = String(Settings.get("wallpaper.folder", "") || "");
         return f.startsWith("~/") ? home + f.slice(1) : (f || defaultFolder);
     }
+    // обои Vanks OS (пакет vankos-wallpapers) — показываются вместе с папкой
+    // пользователя; в проверках delta-dev.sh подставляет wallpapers/ проекта
+    readonly property string systemFolder: Quickshell.env("DELTA_WALLPAPERS") || "/usr/share/backgrounds/vankos"
+    readonly property bool showSystem: Settings.get("wallpaper.system", true) !== false
 
-    // [{ path, name, video, key, thumb, mtime }]
+    // [{ path, name, video, system, key, thumb, mtime }]
     property var items: []
     property bool scanning: false
     property bool folderMissing: false
@@ -68,34 +72,38 @@ Singleton {
         scanProc.running = true;
     }
     onFolderChanged: if (wanted) scan()
+    onShowSystemChanged: if (wanted) scan()
 
     Process {
         id: scanProc
+        // MISSING — нет папки пользователя; обои системы показываем всё равно
         command: ["sh", "-c",
-            "[ -d \"$1\" ] || { echo MISSING; exit 0; }; " +
-            "find -L \"$1\" -maxdepth 3 -type d -name '.*' -prune -o -type f -printf '%T@\\t%s\\t%p\\n' 2>/dev/null",
-            "sh", root.folder]
+            "[ -d \"$1\" ] || echo MISSING; " +
+            "for d in \"$1\" \"$2\"; do [ -n \"$d\" ] && [ -d \"$d\" ] || continue; " +
+            "find -L \"$d\" -maxdepth 3 -type d -name '.*' -prune -o -type f -printf '%T@\\t%s\\t%p\\n' 2>/dev/null; done",
+            "sh", root.folder, root.showSystem ? root.systemFolder : ""]
         onStarted: root.scanning = true
         stdout: StdioCollector {
             onStreamFinished: {
                 root.scanning = false;
-                if (text.trim() === "MISSING") {
-                    root.folderMissing = true;
-                    root.items = [];
-                    return;
-                }
-                root.folderMissing = false;
+                root.folderMissing = text.startsWith("MISSING");
                 const out = [];
+                const seen = {};
+                const sys = root.systemFolder + "/";
                 for (const line of text.split("\n")) {
                     const parts = line.split("\t");
                     if (parts.length < 3) continue;
                     const path = parts.slice(2).join("\t");
+                    // папкой пользователя может быть и сама системная
+                    if (seen[path]) continue;
+                    seen[path] = true;
                     const video = Media.isVideo(path);
                     if (!video && !Media.isImage(path)) continue;
                     const key = Qt.md5(path + "|" + parts[0] + "|" + parts[1]);
-                    out.push({ path, name: Media.baseName(path), video, key, thumb: root.thumbDir + "/" + key + ".jpg", mtime: Number(parts[0]) || 0 });
+                    out.push({ path, name: Media.baseName(path), video, system: path.startsWith(sys), key, thumb: root.thumbDir + "/" + key + ".jpg", mtime: Number(parts[0]) || 0 });
                 }
-                out.sort((a, b) => a.name.localeCompare(b.name));
+                // сначала свои, потом обои системы
+                out.sort((a, b) => (a.system - b.system) || a.name.localeCompare(b.name));
                 root.items = out;
                 root.makeThumbs();
             }

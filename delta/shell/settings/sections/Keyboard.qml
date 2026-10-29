@@ -85,7 +85,7 @@ ColumnLayout {
             SettingRow {
                 icon: "plus"
                 title: "Добавить раскладку"
-                subtitle: "Порядок — порядок переключения"
+                subtitle: "Раскладки переключаются в этом порядке"
                 Btn { text: "Добавить…"; icon: "plus"; onClicked: picker.openWith() }
             }
         }

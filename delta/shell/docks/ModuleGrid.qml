@@ -8,7 +8,10 @@ import qs.docks
 
 // Сетка верхнего дока: 16 ячеек вдоль края, модуль занимает span ячеек.
 //
-// full / tiles — ячейки одинаковые и растянуты на всю длину;
+// full — ячейки одинаковые и растянуты на всю длину;
+// tiles — каждый модуль — своя стеклянная плитка по размеру содержимого,
+// ровные зазоры, а соседние маленькие значки (колокольчик, раскладка, сеть,
+// звук) сливаются в одну капсулу; пустые клетки — чуть больший зазор;
 // compact — ячейки с модулем ужимаются до содержимого, пустые почти
 // исчезают (док — пилюля по размеру содержимого). В режиме правки ячейки
 // снова одинаковые и видны, модуль можно перетащить (занятая ячейка
@@ -69,7 +72,39 @@ Item {
         out.push(acc);
         return out;
     }
-    readonly property real implicitAlong: (compact || tiles) && !editing ? Math.max(80, starts[cells] + pad) : ((compact || tiles) ? cells * cw + 2 * pad : fullAlong)
+    // --- плитки: раскладка по содержимому ---
+    readonly property bool tileLayout: tiles && !editing
+    readonly property real tileSmall: 40      // значок без подписи — кружок
+    readonly property real tileGap: 6         // между плитками
+    readonly property real groupGap: 14       // где в сетке пустые клетки
+    function isSmall(m) { return m.span === 1 && (naturals[m.id] ?? 36) <= 52; }
+    // { start[c], end[c] — по ячейкам модулей; groups: [{ from, to }] капсул; total }
+    readonly property var tl: {
+        const start = [], end = [], groups = [];
+        const list = modules.filter(m => (naturals[m.id] ?? 36) > 0).slice().sort((a, b) => a.cell - b.cell);
+        let acc = pad, prev = null, group = null;
+        for (const m of list) {
+            const small = isSmall(m);
+            const touching = prev !== null && m.cell === prev.cell + prev.span;
+            const together = touching && small && isSmall(prev);
+            if (prev !== null) acc += together ? 0 : touching ? tileGap : groupGap;
+            const w = small ? tileSmall : Math.max(52, (naturals[m.id] ?? 36) + 12);
+            for (let c = m.cell; c < m.cell + m.span; c++) {
+                start[c] = acc + (c - m.cell) * w / m.span;
+                end[c] = acc + (c - m.cell + 1) * w / m.span;
+            }
+            if (together) group.to = acc + w;
+            else if (small) { group = { from: acc, to: acc + w, n: 0 }; groups.push(group); }
+            else group = null;
+            if (small) group.n++;
+            acc += w;
+            prev = m;
+        }
+        return { start: start, end: end, groups: groups.filter(g => g.n > 1), total: acc };
+    }
+
+    readonly property real implicitAlong: tileLayout ? Math.max(80, tl.total + pad)
+        : compact && !editing ? Math.max(80, starts[cells] + pad) : ((compact || tiles) ? cells * cw + 2 * pad : fullAlong)
 
     width: vertical ? thick : implicitAlong
     height: vertical ? implicitAlong : thick
@@ -84,6 +119,25 @@ Item {
             if (s && s.mid === id) return s;
         }
         return null;
+    }
+
+    // капсулы из соседних маленьких значков — общее стекло под ними
+    Repeater {
+        model: grid.tileLayout ? grid.tl.groups : []
+        delegate: Rectangle {
+            required property var modelData
+            readonly property real across: 40
+            x: grid.vertical ? (grid.thick - across) / 2 : modelData.from
+            y: grid.vertical ? modelData.from : (grid.thick - across) / 2
+            width: grid.vertical ? across : modelData.to - modelData.from
+            height: grid.vertical ? modelData.to - modelData.from : across
+            radius: across / 2
+            color: Theme.glass
+            border.width: 1
+            border.color: Theme.line
+            Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+        }
     }
 
     // ячейки сетки в режиме правки
@@ -146,8 +200,10 @@ Item {
             onNaturalChanged: grid.setNatural(mid, natural)
             Component.onCompleted: grid.setNatural(mid, natural)
 
-            readonly property real start: grid.starts[cell]
-            readonly property real size: grid.starts[cell + span] - start
+            readonly property real start: grid.tileLayout ? (grid.tl.start[cell] ?? 0) : grid.starts[cell]
+            readonly property real size: grid.tileLayout ? (grid.tl.end[cell + span - 1] ?? start) - start : grid.starts[cell + span] - start
+            // в капсуле: своё стекло не рисуем, подсветка — кружком
+            readonly property bool grouped: grid.tileLayout && grid.tl.groups.some(g => start >= g.from - 0.5 && start < g.to - 0.5)
             property real dragOff: 0
             property bool dragging: false
             property bool resizing: false
@@ -164,7 +220,8 @@ Item {
 
             readonly property bool tiles: grid.length === "tiles"
             readonly property real btnAcross: tiles ? (grid.compact ? 32 : 40) : (grid.thick < 46 ? 30 : 36)
-            readonly property real btnAlong: tiles ? Math.max(btnAcross, size - 6) : Math.max(btnAcross, Math.min(natural, size - 4))
+            readonly property real btnAlong: grid.tileLayout ? Math.max(btnAcross, size)
+                : tiles ? Math.max(btnAcross, size - 6) : Math.max(btnAcross, Math.min(natural, size - 4))
 
             // кнопка модуля: подсветка при наведении, стекло в плиточном режиме
             Item {
@@ -189,13 +246,14 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: Math.min(width, height) / 2
-                    visible: slot.tiles
+                    visible: slot.tiles && !slot.grouped
                     color: Theme.glass
                     border.width: 1
                     border.color: Theme.line
                 }
                 Rectangle {
                     anchors.fill: parent
+                    anchors.margins: slot.grouped ? 3 : 0
                     radius: Math.min(width, height) / 2
                     color: Theme.soft2
                     opacity: slot.menuOpen || (area.containsMouse && !grid.editing) ? 1 : 0

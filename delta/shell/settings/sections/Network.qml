@@ -161,7 +161,7 @@ ColumnLayout {
         SettingRow {
             visible: root.saved.length === 0
             title: "Рядом нет сохранённых сетей"
-            subtitle: "Здесь видны сохранённые сети, которые сейчас в зоне действия"
+            subtitle: "Сети, к которым вы уже подключались"
         }
         Repeater {
             model: root.saved

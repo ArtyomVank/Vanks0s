@@ -136,7 +136,7 @@ ColumnLayout {
         }
         SettingRow {
             visible: root.clockStyle === "tall"
-            icon: "sliders"; title: "Ширина цифр"; subtitle: "Для «Длинных» часов: уже или шире"
+            icon: "sliders"; title: "Ширина цифр"; subtitle: "Только для стиля «Длинные»"
             Slider {
                 implicitWidth: 220
                 from: 0.35; to: 0.95
@@ -155,7 +155,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "widgets"; title: "Виджеты экрана блокировки"
-            subtitle: "Погода, календарь, музыка — перетаскиваются так же, как на рабочем столе"
+            subtitle: "Погода, календарь, музыка — расставляются как на рабочем столе"
             Btn { text: "Изменить"; icon: "edit"; onClicked: root.shell(["edit"]) }
         }
         SettingRow {
@@ -168,7 +168,7 @@ ColumnLayout {
         title: "Обои"
         SettingRow {
             icon: "image"; title: "Обои экрана блокировки"; wide: true
-            subtitle: "Свои обои для блокировки и экрана входа. Видео не подходят — для них берётся кадр обоев рабочего стола"
+            subtitle: "Можно поставить отдельную картинку. Для видеообоев покажем их кадр"
             Flow {
                 Layout.fillWidth: true
                 spacing: 8
@@ -205,7 +205,7 @@ ColumnLayout {
         title: "Уведомления"
         SettingRow {
             icon: "bell"; title: "Показывать на экране блокировки"
-            subtitle: "Заголовок и начало текста последних уведомлений видны без пароля"
+            subtitle: "Последние сообщения видно без пароля"
             Toggle { checked: Settings.get("notifications.onLock", true); onToggled: v => Settings.set("notifications.onLock", v) }
         }
     }
@@ -223,17 +223,17 @@ ColumnLayout {
         }
         SettingRow {
             icon: "sleep"; title: "Блокировать перед сном"
-            subtitle: "При закрытии крышки и «Сне» компьютер засыпает уже заблокированным"
+            subtitle: "Проснувшись, компьютер попросит пароль"
             Toggle { checked: Settings.get("power.lockBeforeSleep", true); onToggled: v => Settings.set("power.lockBeforeSleep", v) }
         }
         SettingRow {
             icon: "unlock"; title: "Блокировать сразу после входа"
-            subtitle: "Для входа без пароля: система входит сама и сразу показывает экран блокировки, как Windows. Связка ключей при этом не откроется сама — пароль спросит первая программа, которой он нужен"
+            subtitle: "Компьютер включается сразу на экран блокировки — удобно при входе без пароля"
             Toggle { checked: Settings.get("lock.onStart", false); onToggled: v => Settings.set("lock.onStart", v) }
         }
         SettingRow {
             icon: "eye"; title: "Плавный переход к рабочему столу"
-            subtitle: "Рабочий стол проявляется из-под экрана блокировки (Hyprland session_lock_xray на время анимации)"
+            subtitle: "Рабочий стол плавно проступает, когда вы входите"
             Toggle { checked: Settings.get("lock.smoothTransitions", true); onToggled: v => Settings.set("lock.smoothTransitions", v) }
         }
     }
@@ -242,12 +242,12 @@ ColumnLayout {
         title: "Экран входа"
         SettingRow {
             icon: "image"; title: "Мои обои и тема на экране входа"
-            subtitle: "Копируются в /var/lib/delta-greeter — их увидят все, кто включает этот компьютер"
+            subtitle: "Их увидит любой, кто включит компьютер"
             Toggle { checked: Settings.get("greeter.sync", true); onToggled: v => Settings.set("greeter.sync", v) }
         }
         SettingRow {
             icon: "widgets"; title: "Виджеты на экране входа"
-            subtitle: "Часы, погода и календарь до входа в систему"
+            subtitle: "Часы, погода и календарь ещё до входа"
             Toggle { checked: Settings.get("greeter.widgets", true); onToggled: v => Settings.set("greeter.widgets", v) }
         }
     }

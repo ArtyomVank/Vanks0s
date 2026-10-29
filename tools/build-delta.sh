@@ -62,3 +62,23 @@ rm -f "${OUT_DIR}"/delta-*.pkg.tar.zst "${OUT_DIR}"/delta-*.pkg.tar.zst.sig
 install -m 0644 "${built}" "${OUT_DIR}/"
 chown root:root "${OUT_DIR}/$(basename "${built}")"
 log "готово: ${OUT_DIR}/$(basename "${built}")"
+
+# --- обои Vanks OS: отдельный пакет, пересобираем только при новой версии ---
+# (180 МБ картинок — сжимать их на каждой сборке ISO незачем)
+wp_ver=$(sed -n 's/^pkgver=//p; s/^pkgrel=//p' "${PROJECT_DIR}/packaging/vankos-wallpapers/PKGBUILD" | paste -sd-)
+if compgen -G "${OUT_DIR}/vankos-wallpapers-${wp_ver}-any.pkg.tar.zst" >/dev/null; then
+    log "обои ${wp_ver} уже собраны"
+else
+    log "собираю пакет vankos-wallpapers ${wp_ver}"
+    install -d "${SRC_DIR}/packaging/vankos-wallpapers"
+    cp -r "${PROJECT_DIR}/wallpapers" "${SRC_DIR}/wallpapers"
+    install -m 0644 "${PROJECT_DIR}/packaging/vankos-wallpapers/PKGBUILD" "${SRC_DIR}/packaging/vankos-wallpapers/PKGBUILD"
+    chown -R "${BUILD_USER}:${BUILD_USER}" "${SRC_DIR}"
+    ( cd "${SRC_DIR}/packaging/vankos-wallpapers" && sudo -u "${BUILD_USER}" makepkg -f --nodeps --noconfirm ) \
+        || die "makepkg не смог собрать vankos-wallpapers"
+    wp=$(find "${SRC_DIR}/packaging/vankos-wallpapers" -maxdepth 1 -name 'vankos-wallpapers-*.pkg.tar.zst' -type f | head -n1)
+    [[ -n "${wp}" ]] || die "пакет vankos-wallpapers не найден после сборки"
+    rm -f "${OUT_DIR}"/vankos-wallpapers-*.pkg.tar.zst
+    install -m 0644 "${wp}" "${OUT_DIR}/"
+    log "готово: ${OUT_DIR}/$(basename "${wp}")"
+fi

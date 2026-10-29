@@ -37,7 +37,7 @@ PanelWindow {
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
     readonly property bool covered: monitor?.activeWorkspace?.hasFullscreen ?? false
     readonly property bool playing: isVideo && allowVideo && visible && !covered
-        && !ShellState.locked && !(pauseOnBattery && UPower.onBattery)
+        && ShellState.desktopShown && !(pauseOnBattery && UPower.onBattery)
 
     // Hyprland не всегда присылает событие о полноэкранном режиме вместе с
     // обновлением стола — перечитываем столы сами.
@@ -61,8 +61,19 @@ PanelWindow {
     // два слоя для перетекания: новая картинка проявляется поверх старой
     property bool frontIsA: true
 
+    // Блокировка: рабочий стол чуть отъезжает вглубь; разблокировка — мягко
+    // возвращается, пока сверху тает экран блокировки (ShellState.desktopShown).
+    property real zoom: ShellState.desktopShown ? 1 : 1.06
+    Behavior on zoom {
+        NumberAnimation {
+            duration: ShellState.desktopShown ? 1100 : 600
+            easing.type: ShellState.desktopShown ? Easing.OutQuart : Easing.InOutCubic
+        }
+    }
+
     Image {
         id: imgA
+        scale: root.zoom
         anchors.fill: parent
         asynchronous: true
         cache: false
@@ -73,6 +84,7 @@ PanelWindow {
     }
     Image {
         id: imgB
+        scale: root.zoom
         anchors.fill: parent
         asynchronous: true
         cache: false
@@ -137,6 +149,7 @@ PanelWindow {
     Loader {
         id: video
         anchors.fill: parent
+        scale: root.zoom
         active: root.isVideo && root.allowVideo
         // показываем, только когда пошли кадры, — иначе мигнёт чёрным
         opacity: item && item.hasFrame ? 1 : 0

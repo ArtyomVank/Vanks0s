@@ -63,8 +63,23 @@ Scope {
             anchors.fill: parent
             place: "desktop"
             editing: root.editingHere
-            // на время блокировки виджеты под экраном блокировки не нужны
-            visible: !ShellState.locked
+            // под блокировкой виджеты не нужны; при разблокировке проступают
+            // вслед за обоями — чуть из глубины, с лёгкой пружиной
+            opacity: ShellState.desktopShown ? 1 : 0
+            scale: ShellState.desktopShown ? 1 : 0.94
+            visible: opacity > 0
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: ShellState.desktopShown ? 90 : 0 }
+                    NumberAnimation { duration: ShellState.desktopShown ? 520 : 260; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: ShellState.desktopShown ? 90 : 0 }
+                    NumberAnimation { duration: ShellState.desktopShown ? 760 : 260; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
+                }
+            }
         }
     }
 
@@ -78,5 +93,7 @@ Scope {
         function edit(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
         function done(): void { ShellState.widgetEditing = false; }
         function toggle(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
+        // выбрать виджет в редакторе (проверки, «Настройки»): widgets select clock
+        function select(id: string): void { if (root.editingHere) grid.select(id); }
     }
 }

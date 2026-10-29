@@ -61,7 +61,7 @@ ColumnLayout {
             visible: root.on
             icon: "eye"
             title: "Виден другим устройствам"
-            subtitle: "Другие устройства смогут найти этот компьютер"
+            subtitle: "Телефон и наушники увидят этот компьютер"
             Toggle {
                 checked: root.adapter?.discoverable ?? false
                 onToggled: v => root.adapter.discoverable = v
@@ -103,7 +103,7 @@ ColumnLayout {
         SettingRow {
             icon: "search"
             title: root.adapter?.discovering ? "Идёт поиск…" : "Поиск новых устройств"
-            subtitle: "Переведите устройство в режим сопряжения"
+            subtitle: "Включите на устройстве поиск пары"
             Btn {
                 text: root.adapter?.discovering ? "Остановить" : "Искать"
                 active: root.adapter?.discovering ?? false

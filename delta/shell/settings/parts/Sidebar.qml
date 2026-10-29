@@ -76,11 +76,9 @@ Rectangle {
 
                         Label {
                             text: grp.modelData
-                            size: "caption"
+                            size: "small"
                             tone: 3
                             font.weight: Font.DemiBold
-                            font.capitalization: Font.AllUppercase
-                            font.letterSpacing: 0.6
                             leftPadding: 12
                             topPadding: grp.index === 0 ? 2 : 12
                             bottomPadding: 4

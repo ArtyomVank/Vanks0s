@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
@@ -47,6 +47,7 @@ depends=(
     'pacman-contrib' 'curl'
 )
 optdepends=(
+    'vankos-wallpapers: набор обоев Vanks OS'
     'kitty: терминал по умолчанию'
     'hyprsunset: ночной свет'
     'greetd: экран входа в стиле экрана блокировки'

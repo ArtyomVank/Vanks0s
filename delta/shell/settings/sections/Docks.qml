@@ -43,16 +43,16 @@ ColumnLayout {
             Chips { model: root.edges; current: Settings.get("docks.top.edge", "top"); onPicked: v => root.setEdge("top", v) }
         }
         SettingRow {
-            icon: "scale"; title: "Длина"; subtitle: "Полный — от края до края, плитки — небольшие отдельные плитки, компактный — по размеру содержимого"; wide: true
+            icon: "scale"; title: "Длина"; subtitle: "Во всю ширину, отдельными плитками или по размеру содержимого"; wide: true
             Chips { model: root.lengths; current: Settings.get("docks.top.length", "full"); onPicked: v => Settings.set("docks.top.length", v) }
         }
         SettingRow {
             icon: "eye-off"; title: "Скрывать автоматически"; wide: true
-            subtitle: "Док прячется за край и стекает каплей, если подвести мышь. «Умное» — прячется, только когда на рабочем столе открыто окно"
+            subtitle: "Спрятанный док выходит, если подвести мышь к краю. «Умное» прячет его только когда мешает окно"
             Chips { model: root.hides; current: root.hideMode("top", false); onPicked: v => Settings.set("docks.top.autohide", v) }
         }
         SettingRow {
-            icon: "windows"; title: "Рабочие столы"; subtitle: "Сколько точек в модуле рабочих столов. Нажатие на точку — переход на этот стол"; wide: true
+            icon: "windows"; title: "Рабочие столы"; subtitle: "Сколько столов показывать в доке"; wide: true
             Chips {
                 model: [3, 4, 5, 6, 7, 8, 10].map(n => ({ value: n, label: String(n) }))
                 current: Number(Settings.get("docks.top.workspaces", 5))
@@ -60,11 +60,11 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "music"; title: "Плеер вместо дока"; subtitle: "Когда играет музыка, док превращается в пилюлю с обложкой. Нажатие — плеер, ещё нажатие — закрыть, двойное — обычный док"
+            icon: "music"; title: "Плеер вместо дока"; subtitle: "Пока играет музыка, док сворачивается в пилюлю с обложкой"
             Toggle { checked: Settings.get("docks.top.media", true) === true; onToggled: v => Settings.set("docks.top.media", v) }
         }
         SettingRow {
-            icon: "grid"; title: "Модули"; subtitle: "Перетаскивание по 16 ячейкам, ширина — за правый край модуля, добавление и удаление прямо в доке"
+            icon: "grid"; title: "Модули"; subtitle: "Переставьте, добавьте или уберите то, что видно в доке"
             Btn { text: "Изменить"; kind: "accent"; onClicked: Quickshell.execDetached(["delta-shell", "ipc", "call", "docks", "edit"]) }
         }
     }
@@ -81,7 +81,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "eye-off"; title: "Скрывать автоматически"; wide: true
-            subtitle: "«Умное» — док прячется, только когда на рабочем столе открыто окно"
+            subtitle: "«Умное» прячет док только когда мешает окно"
             Chips { model: root.hides; current: root.hideMode("apps", true); onPicked: v => Settings.set("docks.apps.autohide", v) }
         }
         SettingRow {
@@ -89,7 +89,7 @@ ColumnLayout {
             Toggle { checked: Settings.get("docks.apps.magnify", true) !== false; onToggled: v => Settings.set("docks.apps.magnify", v) }
         }
         SettingRow {
-            icon: "windows"; title: "Запущенные приложения"; subtitle: "Показывать в доке и незакреплённые открытые приложения"
+            icon: "windows"; title: "Запущенные приложения"; subtitle: "Открытые программы тоже видны в доке"
             Toggle { checked: Settings.get("docks.apps.showRunning", true) !== false; onToggled: v => Settings.set("docks.apps.showRunning", v) }
         }
     }
@@ -129,7 +129,7 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "plus"; title: "Добавить"; subtitle: "Кнопка «+» в самом доке: приложение, ярлык (команда) или файл и папка"
+            icon: "plus"; title: "Добавить"; subtitle: "Кнопка «+» в доке: программа, команда, файл или папка"
         }
     }
 

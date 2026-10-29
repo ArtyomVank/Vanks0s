@@ -20,7 +20,7 @@ ColumnLayout {
         SettingRow {
             icon: "windows"
             title: "Плавающие окна"
-            subtitle: "Окна можно двигать и растягивать, а не раскладывать плиткой"
+            subtitle: "Окна лежат свободно, как на обычном столе"
             Toggle { checked: root.w.floating ?? true; onToggled: v => Settings.set("windows.floating", v) }
         }
         SliderRow {
@@ -44,7 +44,7 @@ ColumnLayout {
         SliderRow {
             icon: "windows"
             title: "Рамка активного окна"
-            subtitle: "Цвет рамки — цвет оформления"
+            subtitle: "Рамка в цвет оформления"
             from: 0; to: 6; step: 1; unit: " px"
             value: root.w.border ?? 2
             onCommit: v => Settings.set("windows.border", Math.round(v))
@@ -59,21 +59,20 @@ ColumnLayout {
         SettingRow {
             icon: "eye"
             title: "Размытие под прозрачными окнами"
-            subtitle: "Стекло у терминала, доков и меню. Выключите на слабой видеокарте"
+            subtitle: "Красиво, но нагружает видеокарту"
             Toggle { checked: root.w.blur ?? true; onToggled: v => Settings.set("windows.blur", v) }
         }
         SettingRow {
             icon: "windows"
             title: "Кнопки окна"
-            subtitle: "Свернуть, развернуть и закрыть в правом верхнем углу активного окна"
+            subtitle: "Свернуть, развернуть и закрыть"
             Toggle { checked: root.w.buttons ?? true; onToggled: v => Settings.set("windows.buttons", v) }
         }
         SettingRow {
             icon: "windows"
             title: "Программы со своими кнопками"
             readonly property var list: Array.isArray(root.w.buttonsSkip) ? root.w.buttonsSkip : []
-            subtitle: "Браузеры, Electron и программы GNOME рисуют кнопки сами — кнопки Delta им не добавляются. "
-                    + "Ещё одну программу можно добавить правым щелчком по кнопкам Delta на её окне. Сейчас в списке: " + list.length
+            subtitle: "Браузеры и программы GNOME рисуют кнопки сами, им наши не нужны. В списке: " + list.length
             Btn {
                 text: "Сбросить"
                 onClicked: Settings.set("windows.buttonsSkip", (Settings.defaults.windows || {}).buttonsSkip || [])
@@ -86,13 +85,13 @@ ColumnLayout {
         SettingRow {
             icon: "play"
             title: "Анимации окон"
-            subtitle: "Открытие, закрытие, переключение рабочих столов"
+            subtitle: "Окна и столы двигаются плавно"
             Toggle { checked: root.w.animations ?? true; onToggled: v => Settings.set("windows.animations", v) }
         }
         SettingRow {
             icon: "windows"
             title: "Анимация открытия"
-            subtitle: "«Сборка» — окно собирается из центра с пружинкой"
+            subtitle: "Как окно появляется на экране"
             Chips {
                 opacity: (root.w.animations ?? true) ? 1 : 0.45
                 model: [{ value: "popin", label: "Сборка" }, { value: "slide", label: "Выезд" }, { value: "fade", label: "Плавно" }]
@@ -103,13 +102,13 @@ ColumnLayout {
         SettingRow {
             icon: "dock"
             title: "Сворачивание в значок"
-            subtitle: "Окно утекает в свой значок в доке"
+            subtitle: "Свёрнутое окно утекает в значок дока"
             Toggle { checked: root.w.genie ?? true; onToggled: v => Settings.set("windows.genie", v) }
         }
         SettingRow {
             icon: "windows"
             title: "Желе при перетаскивании"
-            subtitle: "Окно догоняет курсор на пружине и покачивается, когда его тащат или растягивают"
+            subtitle: "Окно чуть покачивается, когда его тащат"
             Chips {
                 model: [{ value: 0, label: "Выкл" }, { value: 0.5, label: "Слабо" }, { value: 1, label: "Средне" }, { value: 1.7, label: "Сильно" }]
                 current: root.w.jelly ?? 0.5

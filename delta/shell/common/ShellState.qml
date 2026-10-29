@@ -62,6 +62,15 @@ Singleton {
     signal settingsRequested(string section, var from)
     function openSettings(section, from) { settingsRequested(section || "", from || null); }
 
+    // --- «желе» доков (docks/parts/Island.qml) ---
+    // Толчок: док сплющивается и колышется — сменился стол, раскладка и т. п.
+    // dockId: "top" | "apps"; strength ~1 — заметно, 0.5 — слегка.
+    signal dockPoked(string dockId, real strength)
+    function pokeDock(dockId, strength) { dockPoked(dockId, strength === undefined ? 1 : strength); }
+    // проверки во вложенной сессии: «курсор» над доком без настоящей мыши,
+    // { "<экран>/<док>": координата вдоль края }; IPC docks hover
+    property var devHover: ({})
+
     // --- плитка, из которой вытекает капля (docks/parts/Blob.qml) ---
     // Пока капля не оторвалась (и когда возвращается), плитка дока тянется
     // за ней: pull 0…1. Ключ — "<экран>/<что>": "@launcher", "@add",
@@ -82,6 +91,9 @@ Singleton {
     property bool dockEditing: false       // перестановка модулей верхнего дока
     property bool locked: false            // экран заблокирован (пишет lock/)
     property bool unlocking: false         // идёт анимация разблокировки (пишет lock/)
+    // рабочий стол виден: false под блокировкой, true уже с середины разблокировки —
+    // обои, виджеты и доки проступают слоями, пока экран блокировки тает (пишет lock/)
+    property bool desktopShown: true
 
     // --- данные, которые публикуют модули ---
     // notify/: последние уведомления для виджета на экране блокировки

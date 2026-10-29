@@ -4,6 +4,9 @@
 // Каждая фигура — функция расстояния (SDF) в пикселях элемента. Мягкий
 // минимум (smin) сливает их так, что между краем и каплей тянется «шейка»,
 // а капля растекается в тело без шва. Фигура с нулевым размером выключена.
+// Вторая капля (drop2) — выпуклость «желе» под курсором у открытой панели.
+// stroke — тонкая обводка по краю всей фигуры (у панели в покое), чтобы
+// выпуклости и вмятины обводились вместе с телом, без отдельного Rectangle.
 // Сглаживание края — по самому расстоянию (1 px), поэтому чётко на любом масштабе.
 // После правки: tools/delta-shaders.sh (собирает .qsb).
 
@@ -21,6 +24,9 @@ layout(std140, binding = 0) uniform buf {
     float k;        // мягкость слияния, px
     vec4 fill;      // цвет (без премультипликации)
     float glow;     // свечение вокруг (0…1)
+    vec4 drop2;     // вторая капля: центр x, y, радиус x, радиус y
+    vec4 stroke;    // цвет обводки (без премультипликации), a = 0 — нет обводки
+    float strokeW;  // толщина обводки, px
 };
 
 float sdBox(vec2 p, vec4 r, float rad) {
@@ -49,9 +55,15 @@ void main() {
     float bandR = min(band.z, band.w) * 0.5;
     float d = smin(sdBox(p, band, bandR), sdEllipse(p, drop), k);
     d = smin(d, sdBox(p, body, bodyR), k);
+    d = smin(d, sdEllipse(p, drop2), k);
 
     float a = clamp(0.5 - d, 0.0, 1.0);
     float halo = glow * exp(-max(d, 0.0) / 9.0) * (1.0 - a) * 0.55;
     float alpha = fill.a * a + halo;
-    fragColor = vec4(fill.rgb * alpha, alpha) * qt_Opacity;
+    vec3 rgb = fill.rgb * alpha;
+    // обводка: полоса strokeW px внутрь от края, поверх заливки
+    float sa = stroke.a * (a - clamp(0.5 - (d + strokeW), 0.0, 1.0));
+    rgb = rgb * (1.0 - sa) + stroke.rgb * sa;
+    alpha = alpha * (1.0 - sa) + sa;
+    fragColor = vec4(rgb, alpha) * qt_Opacity;
 }

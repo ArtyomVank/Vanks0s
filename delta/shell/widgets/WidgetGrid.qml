@@ -372,6 +372,6 @@ Item {
         scale: k
         x: (root.width - width) / 2
         y: shown ? root.height - height - 10 * root.unit : root.height + 20
-        width: Math.min(root.width - 32, 1320 * root.unit) / k
+        width: Math.min(root.width - 32, 880 * root.unit) / k
     }
 }

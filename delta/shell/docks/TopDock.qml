@@ -45,7 +45,7 @@ PanelWindow {
 
     readonly property bool menuHere: ShellState.menu !== "" && ShellState.menuScreen === screen
     readonly property bool hovered: island.hovered || hot.containsMouse || hint.containsMouse
-    readonly property bool want: Settings.ready && !ShellState.widgetEditing && (!autohide || hovered || hold.running || menuHere
+    readonly property bool want: Settings.ready && ShellState.desktopShown && !ShellState.widgetEditing && (!autohide || hovered || hold.running || menuHere
                                  || ShellState.docksForced || ShellState.dockEditing || DockService.peek
                                  || DockService.musicPeek || noticing)
     onHoveredChanged: if (!hovered) hold.restart()
@@ -168,10 +168,25 @@ PanelWindow {
             thick: win.barThick
             editing: ShellState.dockEditing
             screen: win.screen
-            opacity: win.pill || win.noticing ? 0 : 1
+            readonly property bool on: !win.pill && !win.noticing
+            opacity: on ? 1 : 0
             visible: opacity > 0
-            enabled: !win.pill && !win.noticing
-            Behavior on opacity { NumberAnimation { duration: win.pill || win.noticing ? 120 : 300; easing.type: Easing.OutCubic } }
+            enabled: on
+            // смена содержимого острова: старое быстро сжимается и тает, новое
+            // проявляется с пружиной, когда тело уже перетекло в новую форму
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: grid.on ? 150 : 0 }
+                    NumberAnimation { duration: grid.on ? 260 : 90; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: grid.on ? 150 : 0 }
+                    NumberAnimation { duration: grid.on ? 460 : 140; easing.type: grid.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
             onActivated: id => win.activate(id)
         }
 
@@ -179,9 +194,24 @@ PanelWindow {
             id: pillContent
             anchors.centerIn: parent
             vertical: win.vertical
-            opacity: win.pill && !win.noticing ? 1 : 0
+            readonly property bool on: win.pill && !win.noticing
+            opacity: on ? 1 : 0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: win.pill ? 300 : 120; easing.type: Easing.OutCubic } }
+            // смена содержимого острова: старое быстро сжимается и тает, новое
+            // проявляется с пружиной, когда тело уже перетекло в новую форму
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: pillContent.on ? 150 : 0 }
+                    NumberAnimation { duration: pillContent.on ? 260 : 90; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: pillContent.on ? 150 : 0 }
+                    NumberAnimation { duration: pillContent.on ? 460 : 140; easing.type: pillContent.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
         }
 
         // сообщение острова: перечёркнутый колокольчик и подпись
@@ -190,9 +220,24 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 10
             readonly property bool muted: DockService.notice?.muted ?? false
-            opacity: win.noticing ? 1 : 0
+            readonly property bool on: win.noticing
+            opacity: on ? 1 : 0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: win.noticing ? 260 : 120; easing.type: Easing.OutCubic } }
+            // смена содержимого острова: старое быстро сжимается и тает, новое
+            // проявляется с пружиной, когда тело уже перетекло в новую форму
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: notice.on ? 150 : 0 }
+                    NumberAnimation { duration: notice.on ? 260 : 90; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: notice.on ? 150 : 0 }
+                    NumberAnimation { duration: notice.on ? 460 : 140; easing.type: notice.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
             MuteBell {
                 id: noticeBell
                 anchors.verticalCenter: parent.verticalCenter

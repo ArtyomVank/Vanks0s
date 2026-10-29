@@ -1,0 +1,31 @@
+# Vanks OS — набор обоев.
+#
+# Отдельно от delta: обои весят ~180 МБ и меняются редко, а delta
+# обновляется «по воздуху» — так каждое обновление остаётся маленьким.
+# Файлы лежат в wallpapers/ этого репозитория. Сборка:
+#   cd packaging/vankos-wallpapers && makepkg -f
+#
+# Оболочка показывает /usr/share/backgrounds/vankos рядом с папкой
+# пользователя (WallStore.systemFolder).
+
+pkgname=vankos-wallpapers
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Обои Vanks OS (картинки и видео) для Delta"
+arch=('any')
+url="https://github.com/ArtyomVank/Vanks0s"
+license=('custom')
+# картинки уже сжаты: сильное сжатие их почти не уменьшит, а сборку замедлит
+PKGEXT='.pkg.tar.zst'
+COMPRESSZST=(zstd -c -T0 -1 -)
+
+_src="${startdir}/../../wallpapers"
+
+package() {
+    local d="${pkgdir}/usr/share/backgrounds/vankos"
+    install -d "${d}"
+    find -L "${_src}" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.mp4' -o -iname '*.webm' \) -print0 |
+        while IFS= read -r -d '' f; do
+            install -m644 "${f}" "${d}/"
+        done
+}

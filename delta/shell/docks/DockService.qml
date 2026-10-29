@@ -206,6 +206,18 @@ Singleton {
             }
         }
     }
+    // «желе»: доки вздрагивают от событий — верхний от смены стола и раскладки,
+    // док приложений — когда открылось окно
+    Connections {
+        target: Hyprland
+        function onFocusedWorkspaceChanged() { ShellState.pokeDock("top", 0.55); }
+        function onRawEvent(event) { if (event.name === "openwindow") ShellState.pokeDock("apps", 0.5); }
+    }
+    Connections {
+        target: KbLayout
+        function onSwitched() { ShellState.pokeDock("top", 0.45); }
+    }
+
     // есть ли на видимом столе монитора окно, задевающее прямоугольник r
     // (координаты экрана монитора) — с запасом в несколько пикселей
     function covered(screenName, r) {
@@ -370,6 +382,14 @@ Singleton {
         function toggleMedia(): void { root.toggleMediaView(); }
         // меню модуля верхнего дока, как щелчок по плитке (демо, проверки):
         //     delta-shell ipc call docks menu sound      ещё раз — закрыть
+        // «желе» для проверок: толчок и «курсор» над доком (u — px вдоль края, -1 — убрать)
+        function poke(dock: string, strength: real): void { ShellState.pokeDock(dock, strength); }
+        function hover(dock: string, u: real): void {
+            const h = Object.assign({}, ShellState.devHover);
+            const key = (root.focusedScreen()?.name ?? "") + "/" + dock;
+            if (u < 0) delete h[key]; else h[key] = u;
+            ShellState.devHover = h;
+        }
         function menu(id: string): void {
             if (ShellState.menu === id) ShellState.closeMenu();
             else ShellState.openMenu(id, root.focusedScreen());

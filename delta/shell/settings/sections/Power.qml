@@ -70,7 +70,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "sleep"; title: "Засыпать через"; wide: true
-            subtitle: "Видео и программы, которые просят не засыпать, откладывают сон"
+            subtitle: "Во время фильма компьютер не уснёт"
             Chips {
                 current: Settings.get("power.sleepAfter", 1800)
                 model: root.timeChips
@@ -84,7 +84,7 @@ ColumnLayout {
         SettingRow {
             id: lid
             icon: "info"; title: "При закрытии крышки"; wide: true
-            subtitle: "Это настройка systemd-logind: она пишется в /etc/systemd/logind.conf.d/ и требует пароля администратора"
+            subtitle: "Понадобится пароль"
             readonly property string value: Settings.get("power.lid", "suspend")
             Chips {
                 current: lid.value

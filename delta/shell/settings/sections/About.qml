@@ -93,7 +93,7 @@ ColumnLayout {
             SettingRow {
                 icon: "monitor"
                 title: "Имя компьютера"
-                subtitle: "Так компьютер виден в сети и в терминале"
+                subtitle: "Так компьютер называется в сети"
                 RowLayout {
                     spacing: 8
                     Label { text: root.info.hostname || "—"; font.weight: Font.DemiBold }
@@ -197,7 +197,7 @@ ColumnLayout {
     Dialog {
         id: renameDlg
         title: "Имя компьютера"
-        subtitle: "Латиница, цифры и дефис, до 63 символов. Понадобится пароль администратора."
+        subtitle: "Латинские буквы, цифры и дефис. Понадобится пароль."
         property string error: ""
         function openDlg() { error = ""; hostF.text = root.info.hostname || ""; open(); hostF.focusInput(); }
         readonly property bool valid: /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(hostF.text)

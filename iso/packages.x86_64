@@ -63,6 +63,7 @@ edk2-shell
 # открывается окном поверх. GNOME в образ не входит: он ставится
 # установщиком из локального репозитория (iso/lists/gnome.txt).
 delta
+vankos-wallpapers
 greetd
 greetd-agreety
 kitty

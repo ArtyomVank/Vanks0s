@@ -29,6 +29,8 @@ PIDFILE=${DEV_HOME}/.nested-pid
 
 export DELTA_DATA=${DELTA}
 export PATH=${DELTA}/bin:${PATH}
+# обои Vanks OS из проекта вместо /usr/share/backgrounds/vankos
+export DELTA_WALLPAPERS=${PROJECT_DIR}/wallpapers
 if [ -n "${DELTA_SHELL_ENTRY:-}" ]; then
     DELTA_SHELL_ENTRY=$(realpath "${DELTA_SHELL_ENTRY}")
     export DELTA_SHELL_ENTRY
@@ -130,6 +132,9 @@ cmd_stop() {
     local sock="" pgid
     pgid=$(cat "${PIDFILE}")
     [ -f "${STATE}" ] && sock=$(cat "${STATE}")
+    # Оболочка запущена с -d и живёт вне группы: гасим её на дисплее этой
+    # сессии сами, иначе следующий запуск (qs -n) увидит её и не стартует
+    [ -n "${sock}" ] && WAYLAND_DISPLAY=${sock} qs -p "${DELTA_SHELL_ENTRY:-${DELTA}/shell}" kill >/dev/null 2>&1 || true
     # setsid выше сделал timeout лидером группы: гасим всю группу
     kill -TERM -- "-${pgid}" 2>/dev/null || true
     # ждём, пока Hyprland освободит сокет, иначе следующий запуск займёт то же имя

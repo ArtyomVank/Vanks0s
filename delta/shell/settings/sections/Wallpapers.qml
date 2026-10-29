@@ -52,7 +52,7 @@ ColumnLayout {
         SettingRow {
             icon: "keyboard"
             title: "Быстрый выбор обоев"
-            subtitle: "Миниатюры, фильтры по типу и цвету, поиск"
+            subtitle: "Все обои с поиском и подборкой по цвету"
             Row {
                 spacing: 6
                 Repeater {
@@ -73,8 +73,9 @@ ColumnLayout {
         SettingRow {
             icon: "folder"
             title: WallStore.pretty(WallStore.folder) || "—"
+            readonly property var own: WallStore.items.filter(i => !i.system)
             subtitle: WallStore.folderMissing ? "Папка не найдена"
-                : WallStore.items.length ? "Файлов: " + WallStore.items.length + " · фото " + WallStore.items.filter(i => !i.video).length + ", видео " + WallStore.items.filter(i => i.video).length
+                : own.length ? "Файлов: " + own.length + " · фото " + own.filter(i => !i.video).length + ", видео " + own.filter(i => i.video).length
                 : "Картинки и видео из папки и вложенных папок"
             Row {
                 spacing: 8
@@ -93,8 +94,18 @@ ColumnLayout {
             }
         }
         SettingRow {
+            icon: "image"
+            title: "Обои Vanks OS"
+            readonly property int count: WallStore.items.filter(i => i.system).length
+            subtitle: count ? "Ещё " + count + " обоев рядом с вашими" : "Набор обоев, который идёт с системой"
+            Toggle {
+                checked: WallStore.showSystem
+                onToggled: v => Settings.set("wallpaper.system", v)
+            }
+        }
+        SettingRow {
             title: "Путь"
-            subtitle: "Можно вписать вручную и нажать Enter"
+            subtitle: "Впишите путь и нажмите Enter"
             wide: true
             Rectangle {
                 implicitHeight: 38
@@ -167,7 +178,7 @@ ColumnLayout {
         SettingRow {
             icon: "scale"
             title: "Заполнение"
-            subtitle: "«Заполнить» обрезает края, «Вписать» показывает картинку целиком"
+            subtitle: "Обрезать края или показать картинку целиком"
             Chips {
                 current: Settings.get("wallpaper.fill", "cover")
                 model: [{ value: "cover", label: "Заполнить" }, { value: "contain", label: "Вписать" }]
@@ -177,7 +188,7 @@ ColumnLayout {
         SettingRow {
             icon: "video"
             title: "Видеообои"
-            subtitle: "Если выключить, вместо видео будет его кадр"
+            subtitle: "Если выключить, останется неподвижный кадр"
             Toggle {
                 checked: Settings.get("wallpaper.allowVideo", true) !== false
                 onToggled: v => Settings.set("wallpaper.allowVideo", v)
@@ -186,7 +197,7 @@ ColumnLayout {
         SettingRow {
             icon: "battery"
             title: "Пауза видео от батареи"
-            subtitle: "Видео всегда на паузе, когда окно на весь экран или экран заблокирован"
+            subtitle: "Бережёт батарею ноутбука"
             Toggle {
                 checked: Settings.get("wallpaper.pauseOnBattery", true) !== false
                 onToggled: v => Settings.set("wallpaper.pauseOnBattery", v)
@@ -199,7 +210,7 @@ ColumnLayout {
         SettingRow {
             icon: "clock"
             title: "Менять по таймеру"
-            subtitle: "Следующий файл из папки по порядку"
+            subtitle: "Обои сменятся сами через выбранное время"
             wide: true
             Chips {
                 current: Number(Settings.get("wallpaper.rotate", 0)) || 0

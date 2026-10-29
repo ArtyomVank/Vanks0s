@@ -11,6 +11,10 @@ import qs.common
 // Если наведение мыши дёргается посреди анимации, t просто идёт обратно из
 // текущего места — без скачков и без «застрявших» состояний.
 //
+// В покое панель — тоже жидкость («желе»): под курсором вздувается и тянется
+// за ним с запаздыванием, от нажатия сплющивается и колышется, при смене
+// длины поджимается поперёк. Всё это — пружины (Spring), poke() — толчок извне.
+//
 // Окно-владелец заполняет Island целиком; тело ставится от края `edge`.
 // Содержимое кладётся в `content` (центр тела) и само задаёт свой размер,
 // чтобы во время морфинга не было перераскладки.
@@ -76,7 +80,14 @@ Item {
     property real cOpen: thick
     Behavior on aOpen { enabled: root.rest; NumberAnimation { duration: 680; easing.type: Easing.OutBack; easing.overshoot: root.osMorph } }
     Behavior on cOpen { enabled: root.rest; NumberAnimation { duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-    onAlongChanged: if (rest) { osMorph = overshootFor(aOpen - along); morph = true; morphTimer.restart(); }
+    onAlongChanged: if (rest) {
+        osMorph = overshootFor(aOpen - along);
+        morph = true;
+        morphTimer.restart();
+        // объём «сохраняется»: вытягиваясь вдоль края, панель на миг худеет поперёк
+        const d = (along - aOpen) / Math.max(1, aOpen);
+        jC.kick(-Math.max(-1.6, Math.min(1.6, d * 2.4)));
+    }
     Timer { id: morphTimer; interval: 720; onTriggered: root.morph = false }
 
     // Пружина с перелётом не больше ~20 px, чтобы длинная панель не вылезала за экран.
@@ -92,6 +103,52 @@ Item {
         }
         return lo;
     }
+
+    // --- «желе» в покое ---
+    // jA, jC — относительная деформация вдоль края и поперёк (0 — покой)
+    Spring { id: jA; stiffness: 300; damping: 12 }
+    Spring { id: jC; stiffness: 340; damping: 10 }
+    // толчок извне: сменился стол, пришло уведомление, щелчок по модулю
+    function poke(strength) {
+        if (!rest) return;
+        const k = strength === undefined ? 1 : strength;
+        jC.kick(-2.4 * k);
+        jA.kick(0.8 * k);
+    }
+    // докатилась до места — чуть колышется, как упавшая капля
+    onRestChanged: if (rest) poke(0.7)
+    Connections {
+        target: ShellState
+        function onDockPoked(id, k) { if (id === root.dockId) root.poke(k); }
+    }
+
+    // выпуклость под курсором: тянется за мышью с запаздыванием и вытягивается
+    // хвостом при быстром движении
+    readonly property real devU: ShellState.devHover[screenName + "/" + dockId] ?? -1
+    readonly property bool liquidHover: rest && !tiles && !editing && (bodyHover.hovered || devU >= 0)
+    Spring { id: hv; target: root.liquidHover ? 1 : 0; stiffness: 170; damping: 16 }
+    Spring { id: hu; stiffness: 240; damping: 19; epsilon: 0.2 }
+    readonly property real cursorU: devU >= 0 ? devU
+        : vertical ? body.y + bodyHover.point.position.y : body.x + bodyHover.point.position.x
+    onCursorUChanged: if (liquidHover) hu.target = cursorU
+    // курсор только вошёл — капля рождается под ним, а не едет от края
+    onLiquidHoverChanged: if (liquidHover && hv.value < 0.05) { hu.snap(cursorU); hu.target = cursorU; }
+    readonly property vector4d hoverDrop: {
+        const h = Math.max(0, hv.value);
+        if (h < 0.01) return Qt.vector4d(0, 0, 0, 0);
+        const R = cOpen * 0.3 * Math.min(1.15, h);
+        const stretch = Math.min(0.9, Math.abs(hu.velocity) / 1400);
+        const mid = (vertical ? height : width) / 2, half = aOpen / 2 - cOpen * 0.6;
+        const u = Math.max(mid - half, Math.min(mid + half, hu.value));
+        // центр капли чуть внутри внешнего края панели — край вздувается наружу
+        const v = margin + thick / 2 + cOpen * (1 + jC.value) / 2 - R * 0.62;
+        const c = rectAt(u, v, 0, 0);
+        const ra = R * (1 + stretch), rc = R * (1 - 0.25 * stretch);
+        return Qt.vector4d(c.x, c.y, vertical ? rc : ra, vertical ? ra : rc);
+    }
+    // тело в покое с деформацией
+    readonly property rect liquidRect: rectAt((vertical ? height : width) / 2, margin + thick / 2,
+                                              aOpen * (1 + jA.value), cOpen * (1 + jC.value))
 
     // --- кривые ---
     function clamp01(x) { return Math.max(0, Math.min(1, x)); }
@@ -211,19 +268,23 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 220 } }
     }
 
-    // жидкость — только пока идёт анимация; в покое панель рисует Rectangle ниже
-    // (и пока край выпускает или втягивает каплю — тогда панель рисует тоже она,
-    // чтобы шейка и тело были одного цвета без шва)
+    // Панель всегда рисует жидкость: при выезде — капля и тело по t, в покое —
+    // «желе» (деформированное тело, выпуклость под курсором, капля меню из края)
+    // с обводкой по общему контуру. Rectangle ниже — только размер и ввод.
     Goo {
         anchors.fill: parent
-        visible: (!root.rest && root.t > 0) || root.bulging
-        band: root.bulging ? Qt.rect(0, 0, 0, 0) : root.g.band
-        drop: root.bulging ? root.bulgeDrop : root.g.drop
-        body: root.bulging ? (root.tiles ? Qt.rect(0, 0, 0, 0) : root.restRect) : root.g.body
-        bodyR: root.bulging ? root.radiusOpen : root.g.bodyR
+        visible: root.t > 0
+        readonly property bool resting: root.rest
+        band: resting ? Qt.rect(0, 0, 0, 0) : root.g.band
+        drop: resting ? (root.bulging ? root.bulgeDrop : Qt.vector4d(0, 0, 0, 0)) : root.g.drop
+        drop2: resting ? root.hoverDrop : Qt.vector4d(0, 0, 0, 0)
+        body: resting ? (root.tiles ? Qt.rect(0, 0, 0, 0) : root.liquidRect) : root.g.body
+        bodyR: resting ? root.radiusOpen : root.g.bodyR
         k: 13
-        glow: root.bulging ? 0 : root.g.glow
-        color: root.bulging ? (root.tiles ? Theme.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
+        glow: resting ? 0 : root.g.glow
+        color: resting ? (root.tiles ? Theme.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
+        strokeColor: resting && !root.tiles ? (root.editing ? Theme.accent : Theme.line) : "transparent"
+        strokeW: root.editing ? 1.5 : 1
     }
 
     Rectangle {
@@ -234,13 +295,24 @@ Item {
         width: Math.max(0, r.width)
         height: Math.max(0, r.height)
         radius: Math.min(root.rest ? root.radiusOpen : root.g.bodyR, width / 2, height / 2)
-        color: root.rest && !root.bulging ? root.openColor : "transparent"
-        border.width: root.rest ? (root.editing ? 1.5 : 1) : 0
-        border.color: root.editing ? Theme.accent : root.tiles ? "transparent" : Theme.line
+        color: "transparent"
+        // у сплошной панели обводку рисует Goo; у плиток — рамка режима правки
+        border.width: root.rest && root.tiles && root.editing ? 1.5 : 0
+        border.color: Theme.accent
         // в открытом виде значки увеличиваются и подсказки выходят за край панели
         clip: !root.rest || root.morph
 
         HoverHandler { id: bodyHover }
+        // нажатие в любом месте панели: сплющивается и отпружинивает
+        // (пассивный захват — модулям и значкам щелчок доходит как обычно)
+        PointHandler {
+            acceptedButtons: Qt.AllButtons
+            onActiveChanged: {
+                if (!root.rest) return;
+                if (active) { jC.kick(-2.6); jA.kick(0.7); }
+                else { jC.kick(1.8); jA.kick(-0.5); }
+            }
+        }
 
         Item {
             id: holder
@@ -249,6 +321,11 @@ Item {
             height: 0
             opacity: root.want && root.t > 0.86 ? 1 : 0
             visible: opacity > 0
+            // содержимое колышется вместе с «желе», но вполсилы
+            transform: Scale {
+                xScale: 1 + 0.5 * (root.vertical ? jC.value : jA.value)
+                yScale: 1 + 0.5 * (root.vertical ? jA.value : jC.value)
+            }
             Behavior on opacity { NumberAnimation { duration: holder.opacity < 0.5 ? 280 : 120; easing.type: Easing.OutCubic } }
         }
     }

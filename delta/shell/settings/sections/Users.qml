@@ -49,7 +49,7 @@ ColumnLayout {
             SettingRow {
                 visible: Accounts.loaded && Accounts.users.length === 0
                 title: "AccountsService недоступен"
-                subtitle: "Нет службы accounts-daemon — список пользователей не получить"
+                subtitle: "Список пользователей сейчас недоступен"
             }
             SettingRow {
                 icon: "plus"
@@ -64,7 +64,7 @@ ColumnLayout {
     Dialog {
         id: addDlg
         title: "Новый пользователь"
-        subtitle: "Имя для входа — латиницей, со строчной буквы"
+        subtitle: "Латиницей, с маленькой буквы"
         property string error: ""
         property bool isAdmin: false
         onShownChanged: if (shown) { error = ""; fullF.text = ""; loginF.text = ""; pwF.text = ""; isAdmin = false; fullF.focusInput(); }
@@ -156,7 +156,7 @@ ColumnLayout {
         function ask(u) { user = u; removeFiles = false; error = ""; open(); }
 
         title: "Удалить «" + (user.realName || user.userName || "") + "»?"
-        subtitle: "Пользователь не сможет войти. Действие нельзя отменить."
+        subtitle: "Его файлы и вход пропадут насовсем"
 
         RowLayout {
             Layout.fillWidth: true

@@ -7,11 +7,11 @@ import Quickshell
 Singleton {
     id: root
 
-    readonly property var themes: [
+    // Тема — цвет стекла доков, меню и окон; у части тем свой акцент
+    // (применяется при выборе, дальше его можно сменить).
+    readonly property var builtinThemes: [
         { id: "midnight", name: "Полночь",       rgb: [20, 15, 38] },
         { id: "black",    name: "Чёрная",        rgb: [0, 0, 0] },
-        { id: "white",    name: "Белая",         rgb: [247, 246, 251], light: true },
-        { id: "sand",     name: "Светлый песок", rgb: [245, 238, 226], light: true },
         { id: "graphite", name: "Графит",        rgb: [24, 25, 30] },
         { id: "storm",    name: "Шторм",         rgb: [28, 34, 44] },
         { id: "ocean",    name: "Океан",         rgb: [10, 28, 46] },
@@ -23,12 +23,35 @@ Singleton {
         { id: "cocoa",    name: "Какао",         rgb: [38, 26, 18] },
         { id: "forest",   name: "Лес",           rgb: [12, 32, 25] },
         { id: "emerald",  name: "Изумруд",       rgb: [6, 42, 36] },
-        { id: "pine",     name: "Хвоя",          rgb: [18, 36, 14] }
+        { id: "pine",     name: "Хвоя",          rgb: [18, 36, 14] },
+        // готовые сочетания: фон и акцент подобраны вместе
+        { id: "aurora",   name: "Сияние",        rgb: [8, 30, 38],   accent: "#3EE6B0" },
+        { id: "sunset",   name: "Закат",         rgb: [46, 18, 34],  accent: "#FF8A4C" },
+        { id: "neon",     name: "Неон",          rgb: [6, 6, 14],    accent: "#00E5FF" },
+        { id: "amber",    name: "Янтарь",        rgb: [34, 24, 10],  accent: "#FFB020" },
+        { id: "cosmos",   name: "Космос",        rgb: [14, 10, 30],  accent: "#B07CFF" },
+        { id: "matrix",   name: "Терминал",      rgb: [4, 14, 6],    accent: "#39D353" },
+        { id: "rose",     name: "Роза",          rgb: [40, 14, 24],  accent: "#FF5C8A" },
+        { id: "slate",    name: "Сланец",        rgb: [30, 34, 40],  accent: "#7AA2F7" },
+        // светлые
+        { id: "white",    name: "Белая",         rgb: [247, 246, 251], light: true },
+        { id: "sand",     name: "Песок",         rgb: [245, 238, 226], light: true },
+        { id: "mint",     name: "Мята",          rgb: [228, 245, 238], light: true, accent: "#1FA67A" },
+        { id: "lavender", name: "Лаванда",       rgb: [238, 234, 252], light: true, accent: "#7C5CFF" },
+        { id: "sakura",   name: "Сакура",        rgb: [252, 236, 242], light: true, accent: "#E0567F" },
+        { id: "sky",      name: "Небо",          rgb: [230, 241, 252], light: true, accent: "#2F80ED" }
     ]
+    // свои темы пользователя (appearance.customThemes): те же поля + custom: true
+    readonly property var customThemes: {
+        const list = (Settings.s.appearance || {}).customThemes;
+        return Array.isArray(list) ? list.filter(t => t && t.id && Array.isArray(t.rgb)).map(t => Object.assign({ custom: true }, t)) : [];
+    }
+    readonly property var themes: builtinThemes.concat(customThemes)
+
     readonly property var accents: ["#7C5CFF", "#2BC4F0", "#E0567F", "#3FB37A", "#F09A2B", "#E5484D", "#4C7DFF", "#C9A227"]
 
     readonly property var appearance: Settings.s.appearance || {}
-    readonly property var current: themes.find(t => t.id === appearance.theme) || themes[4]
+    readonly property var current: themes.find(t => t.id === appearance.theme) || builtinThemes[2]
     readonly property bool light: current.light === true
 
     readonly property real opacity: Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))

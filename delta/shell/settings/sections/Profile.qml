@@ -65,7 +65,7 @@ ColumnLayout {
         SettingRow {
             icon: "user"
             title: "Имя"
-            subtitle: "Видно на экране входа, блокировки и в меню питания"
+            subtitle: "Так вас видно на экране входа"
             RowLayout {
                 spacing: 8
                 Field {
@@ -86,7 +86,7 @@ ColumnLayout {
         SettingRow {
             icon: "key"
             title: "Пароль"
-            subtitle: "Для входа, разблокировки и действий администратора"
+            subtitle: "Для входа и важных изменений"
             Btn { text: "Сменить…"; onClicked: pwDlg.open() }
         }
     }
@@ -96,7 +96,7 @@ ColumnLayout {
         SettingRow {
             icon: "unlock"
             title: "Входить без пароля"
-            subtitle: "После включения компьютера сразу открывается сессия. Связка ключей при этом не разблокируется сама — браузер и почта спросят пароль"
+            subtitle: "Компьютер включается сразу на рабочий стол. Браузер может один раз спросить пароль"
             Toggle {
                 checked: root.autologinUser === root.me.userName
                 onToggled: v => root.setAutologin(v)
@@ -152,7 +152,7 @@ ColumnLayout {
     Dialog {
         id: avatarDlg
         title: "Фото профиля"
-        subtitle: "Выберите картинку или стандартный аватар. Фото обрезается по кругу."
+        subtitle: "Картинка или готовый аватар"
         cardWidth: 560
 
         // "" — текущее; "color:<hex>" — инициалы на цвете; иначе путь к файлу

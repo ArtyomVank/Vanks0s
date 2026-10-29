@@ -16,12 +16,11 @@ ColumnLayout {
     Label {
         visible: root.title.length > 0
         text: root.title
-        size: "small"
-        tone: 3
+        // обычный регистр и чуть крупнее: группа читается как заголовок, а не как метка
+        tone: 2
         font.weight: Font.DemiBold
-        font.capitalization: Font.AllUppercase
-        font.letterSpacing: 0.6
         Layout.leftMargin: 6
+        Layout.topMargin: 4
     }
 
     Rectangle {

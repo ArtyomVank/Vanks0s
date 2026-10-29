@@ -336,7 +336,7 @@ ColumnLayout {
             SettingRow {
                 icon: "scale"
                 title: "Масштаб"
-                subtitle: "Как будто " + page.logical.w + " × " + page.logical.h + " — только значения, которые Hyprland применяет без округления"
+                subtitle: "Всё на экране будет как при " + page.logical.w + " × " + page.logical.h
                 wide: true
                 Chips {
                     model: page.scaleModel
@@ -374,7 +374,7 @@ ColumnLayout {
             SettingRow {
                 icon: "refresh-rate"
                 title: "Переменная частота (VRR)"
-                subtitle: "Убирает разрывы и подтормаживания в играх, если монитор поддерживает FreeSync / G-Sync"
+                subtitle: "Игры идут плавнее, без разрывов картинки. Нужен монитор с FreeSync или G-Sync"
                 wide: true
                 Chips {
                     model: [{ value: 0, label: "Выкл" }, { value: 1, label: "Вкл" }, { value: 2, label: "Только полноэкранные" }, { value: 3, label: "Игры и видео" }]
@@ -428,7 +428,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "sun"
-                title: "Яркость обычного контента — " + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
+                title: "Яркость обычной картинки: " + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
                 subtitle: "Как выглядят окна и рабочий стол в режиме HDR"
                 wide: true
                 Slider {
@@ -442,7 +442,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "palette"
-                title: "Насыщенность обычного контента — " + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
+                title: "Насыщенность обычной картинки: " + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
                 wide: true
                 Slider {
                     from: 0.5; to: 1.5; step: 0.05
@@ -456,7 +456,7 @@ ColumnLayout {
             SettingRow {
                 icon: "hdr"
                 title: "Авто-HDR в полноэкранных играх"
-                subtitle: "Включать HDR, только пока открыта полноэкранная игра или видео в HDR"
+                subtitle: "HDR включается сам, когда вы запускаете игру или видео в HDR"
                 Toggle {
                     checked: Settings.get("display.autoHdr", false) === true
                     onToggled: v => Displays.setAutoHdr(v)
@@ -538,8 +538,8 @@ ColumnLayout {
         }
         SettingRow {
             icon: "thermometer"
-            title: "Температура — " + NightLight.temperature + " K"
-            subtitle: "Меньше — теплее и желтее"
+            title: "Теплота: " + NightLight.temperature + " K"
+            subtitle: "Левее — теплее, глазам спокойнее"
             wide: true
             Slider {
                 enabled: NightLight.usable
