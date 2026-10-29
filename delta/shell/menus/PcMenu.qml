@@ -72,11 +72,11 @@ Item {
         anchors { left: parent.left; right: parent.right }
         spacing: 14
 
-        Label { text: "Показатели ПК"; size: "title" }
+        Label { text: I18n.tr("Показатели ПК"); size: "title" }
 
         Stat {
             icon: "cpu"
-            title: "Процессор"
+            title: I18n.tr("Процессор")
             details: SystemStats.cpuName
             value: root.pct(SystemStats.cpu)
             extra: root.deg(SystemStats.cpuTemp)
@@ -85,7 +85,7 @@ Item {
         Stat {
             visible: SystemStats.gpuVendor.length > 0
             icon: "gpu"
-            title: "Видеокарта"
+            title: I18n.tr("Видеокарта")
             details: SystemStats.gpuName + (SystemStats.vramTotal > 0 ? (SystemStats.gpuName ? " · " : "") + "память " + SystemStats.pair(SystemStats.vramUsed, SystemStats.vramTotal) : "")
             value: SystemStats.hasGpuLoad ? root.pct(SystemStats.gpu) : SystemStats.hasGpuTemp ? "" : "нет данных"
             extra: root.deg(SystemStats.gpuTemp)
@@ -94,7 +94,7 @@ Item {
         }
         Stat {
             icon: "memory"
-            title: "Оперативная память"
+            title: I18n.tr("Оперативная память")
             details: SystemStats.ramTotal > 0
                 ? SystemStats.pair(SystemStats.ramUsed, SystemStats.ramTotal)
                   + (SystemStats.swapTotal > 0 ? " · подкачка " + SystemStats.bytes(SystemStats.swapUsed) : "")
@@ -104,7 +104,7 @@ Item {
         }
         Stat {
             icon: "disk"
-            title: "Диск /"
+            title: I18n.tr("Диск /")
             details: SystemStats.diskTotal > 0
                 ? SystemStats.pair(SystemStats.diskUsed, SystemStats.diskTotal)
                   + " · свободно " + SystemStats.bytes(SystemStats.diskTotal - SystemStats.diskUsed)

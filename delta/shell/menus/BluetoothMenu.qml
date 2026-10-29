@@ -74,8 +74,8 @@ Item {
             clickable: false
             icon: "bluetooth"
             iconColor: Theme.fg3
-            title: "Bluetooth недоступен"
-            subtitle: "Нет адаптера или службы bluetooth"
+            title: I18n.tr("Bluetooth недоступен")
+            subtitle: I18n.tr("Нет адаптера или службы bluetooth")
         }
         MenuRow {
             visible: root.adapter !== null && !root.on
@@ -122,7 +122,7 @@ Item {
             Btn {
                 kind: "ghost"
                 icon: "settings"
-                text: "Настройки…"
+                text: I18n.tr("Настройки…")
                 implicitHeight: 32
                 onClicked: { ShellState.openSettings("bluetooth", null); root.close(); }
             }

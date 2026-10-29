@@ -77,7 +77,7 @@ Item {
                     ColumnLayout {
                         spacing: 0
                         Layout.fillWidth: true
-                        Label { text: "Заряд"; size: "small"; font.weight: Font.DemiBold }
+                        Label { text: I18n.tr("Заряд"); size: "small"; font.weight: Font.DemiBold }
                         Label { text: root.stateText; size: "caption"; tone: 3; Layout.fillWidth: true }
                     }
                     Label { text: Math.round(root.percent) + "%"; size: "title"; font.weight: Font.Bold }
@@ -97,7 +97,7 @@ Item {
                 }
                 Label {
                     visible: root.dev?.healthSupported ?? false
-                    text: "Износ: состояние " + Math.round(root.dev?.healthPercentage ?? 0) + "%"
+                    text: I18n.tr("Износ: состояние ") + Math.round(root.dev?.healthPercentage ?? 0) + "%"
                     size: "caption"; tone: 3
                 }
             }
@@ -107,22 +107,22 @@ Item {
             visible: !root.hasBattery
             clickable: false
             icon: "power"
-            title: "Питание от сети"
-            subtitle: "Батарея не найдена"
+            title: I18n.tr("Питание от сети")
+            subtitle: I18n.tr("Батарея не найдена")
         }
 
         // режим питания
         Label {
             visible: root.profilesAvailable
-            text: "Режим питания"; size: "small"; tone: 3
+            text: I18n.tr("Режим питания"); size: "small"; tone: 3
             Layout.topMargin: 2
         }
         Chips {
             visible: root.profilesAvailable
             Layout.fillWidth: true
             current: PowerProfiles.profile
-            model: [{ value: PowerProfile.PowerSaver, label: "Экономия" }, { value: PowerProfile.Balanced, label: "Баланс" }]
-                .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: "Производительность" }] : [])
+            model: [{ value: PowerProfile.PowerSaver, label: I18n.tr("Экономия") }, { value: PowerProfile.Balanced, label: I18n.tr("Баланс") }]
+                .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: I18n.tr("Производительность") }] : [])
             onPicked: v => PowerProfiles.profile = v
         }
         Label {
@@ -138,7 +138,7 @@ Item {
             Layout.alignment: Qt.AlignLeft
             kind: "ghost"
             icon: "settings"
-            text: "Настройки питания…"
+            text: I18n.tr("Настройки питания…")
             implicitHeight: 32
             onClicked: { ShellState.openSettings("power", null); root.close(); }
         }

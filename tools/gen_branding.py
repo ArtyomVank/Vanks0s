@@ -188,7 +188,7 @@ def make_wallpaper(size=(1920, 1080)) -> Image.Image:
 
     d = ImageDraw.Draw(img)
     d.text((110, size[1] - 190), "Vanks OS", font=font(66, bold=True), fill=(255, 255, 255, 238))
-    d.text((114, size[1] - 108), "Arch Linux · GNOME и Hyprland · 0.3 «Pulsar»", font=font(24), fill=MUTED + (220,))
+    d.text((114, size[1] - 108), "Arch Linux · GNOME и Hyprland · 0.4 «Quasar»", font=font(24), fill=MUTED + (220,))
 
     logo = draw_letter_mark(120)
     img.alpha_composite(logo, (110, size[1] - 340))

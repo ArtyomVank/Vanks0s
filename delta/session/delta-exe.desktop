@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Windows Program Launcher
+Name[ru]=Запуск программ Windows
+Comment=Open .exe files normally (Wine) or through Proton CachyOS
+Comment[ru]=Открыть .exe обычно (Wine) или через Proton CachyOS
+Exec=delta-exe %f
+Icon=wine
+Terminal=false
+NoDisplay=true
+MimeType=application/x-ms-dos-executable;application/x-msdownload;application/vnd.microsoft.portable-executable;application/x-msi;application/x-ms-shortcut;application/x-wine-extension-msp;
+StartupWMClass=delta-exe

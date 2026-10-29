@@ -274,6 +274,7 @@ Item {
             say(d.type === "resize" ? "Для такого размера не хватает места" : "Сюда не помещается");
             return;
         }
+        Sounds.play("drop", 60);
         if (d.type === "resize") { patch(d.id, { w: p.w, h: p.h }); return; }
         save(list => {
             for (let i = 0; i < list.length; i++) {

@@ -31,8 +31,8 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
-            Label { text: "Уведомления"; size: "title"; Layout.fillWidth: true }
-            Label { text: "Не беспокоить"; size: "small"; tone: 2 }
+            Label { text: I18n.tr("Уведомления"); size: "title"; Layout.fillWidth: true }
+            Label { text: I18n.tr("Не беспокоить"); size: "small"; tone: 2 }
             Toggle {
                 checked: ShellState.dnd
                 onToggled: v => ShellState.dnd = v
@@ -43,7 +43,7 @@ Item {
             visible: ShellState.dnd
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: "Всплывающие уведомления скрыты, кроме важных. Всё приходящее остаётся здесь."
+            text: I18n.tr("Всплывающие уведомления скрыты, кроме важных. Всё приходящее остаётся здесь.")
             size: "small"
             tone: 3
         }
@@ -58,7 +58,7 @@ Item {
                 anchors.centerIn: parent
                 spacing: 6
                 Sym { anchors.horizontalCenter: parent.horizontalCenter; name: ShellState.dnd ? "bell-off" : "bell"; size: 20; color: Theme.fg3 }
-                Label { text: "Новых уведомлений нет"; size: "small"; tone: 3 }
+                Label { text: I18n.tr("Новых уведомлений нет"); size: "small"; tone: 3 }
             }
         }
 
@@ -185,7 +185,7 @@ Item {
             visible: root.items.length > 0
             Layout.fillWidth: true
             Label { text: root.items.length + " " + root.plural(root.items.length); size: "small"; tone: 3; Layout.fillWidth: true }
-            Btn { icon: "trash"; text: "Очистить все"; onClicked: NotifyStore.clear() }
+            Btn { icon: "trash"; text: I18n.tr("Очистить все"); onClicked: NotifyStore.clear() }
         }
     }
 

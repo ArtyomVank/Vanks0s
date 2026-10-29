@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
@@ -56,6 +56,10 @@ optdepends=(
     'imagemagick: миниатюры обоев и уменьшенные обои для экрана входа'
     'zenity: выбор папки с обоями'
     'xdg-user-dirs: папка «Изображения» для обоев'
+    'wine: программы Windows (.exe) — «Открыть обычно»'
+    'umu-launcher: запуск .exe через Proton CachyOS с лучшей совместимостью'
+    'proton-cachyos: Proton CachyOS из репозитория (иначе delta-exe скачает его сам)'
+    'libnotify: уведомления delta-exe о скачивании Proton'
 )
 
 _src="${startdir}/../../delta"
@@ -73,6 +77,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-update"    "${pkgdir}/usr/bin/delta-update"
     install -Dm755 "${_src}/bin/delta-welcome"   "${pkgdir}/usr/bin/delta-welcome"
     install -Dm755 "${_src}/bin/delta-setup"     "${pkgdir}/usr/bin/delta-setup"
+    install -Dm755 "${_src}/bin/delta-exe"       "${pkgdir}/usr/bin/delta-exe"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
@@ -91,6 +96,9 @@ package() {
     # помощник «Добро пожаловать»: значок в доке и в списке приложений
     install -Dm644 "${_src}/session/delta-welcome.desktop" \
         "${pkgdir}/usr/share/applications/delta-welcome.desktop"
+    # .exe/.msi: «Открыть обычно или через лаунчер» (delta-exe)
+    install -Dm644 "${_src}/session/delta-exe.desktop" \
+        "${pkgdir}/usr/share/applications/delta-exe.desktop"
     install -Dm644 "${_src}/session/delta-welcome.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \

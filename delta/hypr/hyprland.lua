@@ -193,7 +193,8 @@ hl.bind(mod .. " + RETURN",  hl.dsp.exec_cmd("xdg-terminal-exec || kitty"))
 hl.bind(mod .. " + E",       hl.dsp.exec_cmd("xdg-open " .. home))
 hl.bind(mod .. " + Q",       hl.dsp.window.close())
 hl.bind(mod .. " + H",       hl.dsp.global("delta:minimize"))
-hl.bind(mod .. " + F",       hl.dsp.window.fullscreen())
+-- через оболочку: на время разворачивания она убирает «желе» (window/Motion.qml)
+hl.bind(mod .. " + F",       hl.dsp.global("delta:fullscreen"))
 hl.bind(mod .. " + V",       hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + J",       hl.dsp.layout("togglesplit"))
 
@@ -247,6 +248,13 @@ hl.window_rule({
     match = { class = "^delta-welcome$" },
     float = true,
     size  = "1000 680",
+    center = true,
+})
+hl.window_rule({
+    name  = "delta-exe",
+    match = { class = "^delta-exe$" },
+    float = true,
+    size  = "600 600",
     center = true,
 })
 hl.window_rule({

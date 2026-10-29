@@ -72,25 +72,25 @@ Scope {
                     anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                     spacing: 6
 
-                    MenuTitle { text: "Рабочий стол"; Layout.leftMargin: 4 }
+                    MenuTitle { text: I18n.tr("Рабочий стол"); Layout.leftMargin: 4 }
                     MenuRow {
-                        icon: "widgets"; title: "Изменить виджеты"; subtitle: "Добавить, переставить, настроить"
+                        icon: "widgets"; title: I18n.tr("Изменить виджеты"); subtitle: I18n.tr("Добавить, переставить, настроить")
                         onClicked: { ShellState.closeDesktopMenu(); ShellState.widgetEditing = true; }
                     }
                     MenuRow {
-                        icon: "image"; title: "Изменить обои"; subtitle: "Лента обоев из папки"
+                        icon: "image"; title: I18n.tr("Изменить обои"); subtitle: I18n.tr("Лента обоев из папки")
                         onClicked: { ShellState.closeDesktopMenu(); ShellState.overlay = "wallpapers"; }
                     }
                     MenuRow {
-                        icon: "palette"; title: "Настройки обоев"
+                        icon: "palette"; title: I18n.tr("Настройки обоев")
                         onClicked: { ShellState.closeDesktopMenu(); ShellState.openSettings("wallpapers", null); }
                     }
                     MenuRow {
-                        icon: "lock"; title: "Экран блокировки"
+                        icon: "lock"; title: I18n.tr("Экран блокировки")
                         onClicked: { ShellState.closeDesktopMenu(); ShellState.openSettings("lock", null); }
                     }
                     MenuRow {
-                        icon: "settings"; title: "Настройки"
+                        icon: "settings"; title: I18n.tr("Настройки")
                         onClicked: { ShellState.closeDesktopMenu(); ShellState.openSettings("", null); }
                     }
                 }

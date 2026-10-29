@@ -14,7 +14,7 @@ import qs.walls
 ColumnLayout {
     id: root
 
-    property string title: "Экран блокировки"
+    property string title: I18n.tr("Экран блокировки")
     property string icon: "lock"
     property string keywords: "блокировка вход часы виджеты уведомления пароль простой автовход экран входа обои фон картинка"
     spacing: 18
@@ -101,7 +101,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Вид"
+        title: I18n.tr("Вид")
 
         // предпросмотр часов на обоях
         Item {
@@ -123,20 +123,20 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "clock"; title: "Стиль часов"; wide: true
+            icon: "clock"; title: I18n.tr("Стиль часов"); wide: true
             Chips {
                 current: root.clockStyle
-                model: [{ value: "ios", label: "iOS" }, { value: "thin", label: "Тонкие" }, { value: "mono", label: "Моно" },
-                        { value: "neon", label: "Неон" }, { value: "stack", label: "Столбиком" },
-                        { value: "serif", label: "С засечками" }, { value: "wide", label: "Разрядка" },
-                        { value: "outline", label: "Контур" }, { value: "minimal", label: "Минимум" },
-                        { value: "tall", label: "Длинные" }]
+                model: [{ value: "ios", label: "iOS" }, { value: "thin", label: I18n.tr("Тонкие") }, { value: "mono", label: I18n.tr("Моно") },
+                        { value: "neon", label: I18n.tr("Неон") }, { value: "stack", label: I18n.tr("Столбиком") },
+                        { value: "serif", label: I18n.tr("С засечками") }, { value: "wide", label: I18n.tr("Разрядка") },
+                        { value: "outline", label: I18n.tr("Контур") }, { value: "minimal", label: I18n.tr("Минимум") },
+                        { value: "tall", label: I18n.tr("Длинные") }]
                 onPicked: v => root.setClock("style", v)
             }
         }
         SettingRow {
             visible: root.clockStyle === "tall"
-            icon: "sliders"; title: "Ширина цифр"; subtitle: "Только для стиля «Длинные»"
+            icon: "sliders"; title: I18n.tr("Ширина цифр"); subtitle: I18n.tr("Только для стиля «Длинные»")
             Slider {
                 implicitWidth: 220
                 from: 0.35; to: 0.95
@@ -145,41 +145,41 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "palette"; title: "Цвет часов"; wide: true
+            icon: "palette"; title: I18n.tr("Цвет часов"); wide: true
             Chips {
                 current: root.clockColor
-                model: [{ value: "white", label: "Белые" }, { value: "accent", label: "Акцент" },
-                        { value: "gradient", label: "Градиент" }, { value: "glass", label: "Стекло" }]
+                model: [{ value: "white", label: I18n.tr("Белые") }, { value: "accent", label: I18n.tr("Акцент") },
+                        { value: "gradient", label: I18n.tr("Градиент") }, { value: "glass", label: I18n.tr("Стекло") }]
                 onPicked: v => root.setClock("color", v)
             }
         }
         SettingRow {
-            icon: "widgets"; title: "Виджеты экрана блокировки"
-            subtitle: "Погода, календарь, музыка — расставляются как на рабочем столе"
-            Btn { text: "Изменить"; icon: "edit"; onClicked: root.shell(["edit"]) }
+            icon: "widgets"; title: I18n.tr("Виджеты экрана блокировки")
+            subtitle: I18n.tr("Погода, календарь, музыка — расставляются как на рабочем столе")
+            Btn { text: I18n.tr("Изменить"); icon: "edit"; onClicked: root.shell(["edit"]) }
         }
         SettingRow {
-            icon: "lock"; title: "Посмотреть экран блокировки"; subtitle: "Заблокировать сейчас"
-            Btn { text: "Показать"; onClicked: root.shell(["lock"]) }
+            icon: "lock"; title: I18n.tr("Посмотреть экран блокировки"); subtitle: I18n.tr("Заблокировать сейчас")
+            Btn { text: I18n.tr("Показать"); onClicked: root.shell(["lock"]) }
         }
     }
 
     Card {
-        title: "Обои"
+        title: I18n.tr("Обои")
         SettingRow {
-            icon: "image"; title: "Обои экрана блокировки"; wide: true
-            subtitle: "Можно поставить отдельную картинку. Для видеообоев покажем их кадр"
+            icon: "image"; title: I18n.tr("Обои экрана блокировки"); wide: true
+            subtitle: I18n.tr("Можно поставить отдельную картинку. Для видеообоев покажем их кадр")
             Flow {
                 Layout.fillWidth: true
                 spacing: 8
-                WallTile { path: ""; label: "Как на столе"; color: Theme.accent }
+                WallTile { path: ""; label: I18n.tr("Как на столе"); color: Theme.accent }
                 // свой файл, которого нет в списках ниже
                 WallTile {
                     visible: root.lockWall.length > 0 && root.systemWalls.indexOf(root.lockWall) === -1 && root.folderWalls.indexOf(root.lockWall) === -1
                     path: root.lockWall
-                    label: "Свой"
+                    label: I18n.tr("Свой")
                 }
-                Repeater { model: root.systemWalls; delegate: WallTile { required property string modelData; path: modelData; label: "Системные" } }
+                Repeater { model: root.systemWalls; delegate: WallTile { required property string modelData; path: modelData; label: I18n.tr("Системные") } }
                 Repeater { model: root.folderWalls; delegate: WallTile { required property string modelData; path: modelData } }
                 Rectangle {
                     width: 132
@@ -202,52 +202,52 @@ ColumnLayout {
     }
 
     Card {
-        title: "Уведомления"
+        title: I18n.tr("Уведомления")
         SettingRow {
-            icon: "bell"; title: "Показывать на экране блокировки"
-            subtitle: "Последние сообщения видно без пароля"
+            icon: "bell"; title: I18n.tr("Показывать на экране блокировки")
+            subtitle: I18n.tr("Последние сообщения видно без пароля")
             Toggle { checked: Settings.get("notifications.onLock", true); onToggled: v => Settings.set("notifications.onLock", v) }
         }
     }
 
     Card {
-        title: "Блокировка"
+        title: I18n.tr("Блокировка")
         SettingRow {
-            icon: "clock"; title: "Блокировать после простоя"; wide: true
+            icon: "clock"; title: I18n.tr("Блокировать после простоя"); wide: true
             Chips {
                 current: Settings.get("power.lockAfter", 300)
-                model: [{ value: 60, label: "1 мин" }, { value: 120, label: "2 мин" }, { value: 300, label: "5 мин" },
-                        { value: 600, label: "10 мин" }, { value: 1800, label: "30 мин" }, { value: 0, label: "Никогда" }]
+                model: [{ value: 60, label: I18n.tr("1 мин") }, { value: 120, label: I18n.tr("2 мин") }, { value: 300, label: I18n.tr("5 мин") },
+                        { value: 600, label: I18n.tr("10 мин") }, { value: 1800, label: I18n.tr("30 мин") }, { value: 0, label: I18n.tr("Никогда") }]
                 onPicked: v => Settings.set("power.lockAfter", v)
             }
         }
         SettingRow {
-            icon: "sleep"; title: "Блокировать перед сном"
-            subtitle: "Проснувшись, компьютер попросит пароль"
+            icon: "sleep"; title: I18n.tr("Блокировать перед сном")
+            subtitle: I18n.tr("Проснувшись, компьютер попросит пароль")
             Toggle { checked: Settings.get("power.lockBeforeSleep", true); onToggled: v => Settings.set("power.lockBeforeSleep", v) }
         }
         SettingRow {
-            icon: "unlock"; title: "Блокировать сразу после входа"
-            subtitle: "Компьютер включается сразу на экран блокировки — удобно при входе без пароля"
+            icon: "unlock"; title: I18n.tr("Блокировать сразу после входа")
+            subtitle: I18n.tr("Компьютер включается сразу на экран блокировки — удобно при входе без пароля")
             Toggle { checked: Settings.get("lock.onStart", false); onToggled: v => Settings.set("lock.onStart", v) }
         }
         SettingRow {
-            icon: "eye"; title: "Плавный переход к рабочему столу"
-            subtitle: "Рабочий стол плавно проступает, когда вы входите"
+            icon: "eye"; title: I18n.tr("Плавный переход к рабочему столу")
+            subtitle: I18n.tr("Рабочий стол плавно проступает, когда вы входите")
             Toggle { checked: Settings.get("lock.smoothTransitions", true); onToggled: v => Settings.set("lock.smoothTransitions", v) }
         }
     }
 
     Card {
-        title: "Экран входа"
+        title: I18n.tr("Экран входа")
         SettingRow {
-            icon: "image"; title: "Мои обои и тема на экране входа"
-            subtitle: "Их увидит любой, кто включит компьютер"
+            icon: "image"; title: I18n.tr("Мои обои и тема на экране входа")
+            subtitle: I18n.tr("Их увидит любой, кто включит компьютер")
             Toggle { checked: Settings.get("greeter.sync", true); onToggled: v => Settings.set("greeter.sync", v) }
         }
         SettingRow {
-            icon: "widgets"; title: "Виджеты на экране входа"
-            subtitle: "Часы, погода и календарь ещё до входа"
+            icon: "widgets"; title: I18n.tr("Виджеты на экране входа")
+            subtitle: I18n.tr("Часы, погода и календарь ещё до входа")
             Toggle { checked: Settings.get("greeter.widgets", true); onToggled: v => Settings.set("greeter.widgets", v) }
         }
     }

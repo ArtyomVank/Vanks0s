@@ -26,7 +26,7 @@ FloatingWindow {
     property bool quitOnClose: true
     readonly property int contentWidth: Math.min(720, pane.width - 56)
 
-    title: "Настройки"
+    title: I18n.tr("Настройки")
     implicitWidth: 1100
     implicitHeight: 720
     minimumSize: Qt.size(880, 560)
@@ -103,7 +103,7 @@ FloatingWindow {
                     implicitHeight: 26
                     radius: 13
                     color: Qt.rgba(0.94, 0.6, 0.17, 0.18)
-                    Label { id: dryLbl; anchors.centerIn: parent; text: "пробный режим"; size: "caption"; color: "#F09A2B" }
+                    Label { id: dryLbl; anchors.centerIn: parent; text: I18n.tr("пробный режим"); size: "caption"; color: "#F09A2B" }
                 }
                 Btn { icon: "close"; onClicked: win.close() }
             }

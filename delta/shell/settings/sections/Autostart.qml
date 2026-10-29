@@ -13,7 +13,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Автозапуск"
+    property string title: I18n.tr("Автозапуск")
     property string icon: "rocket"
     property string keywords: "запуск при входе программы автозагрузка"
     spacing: 18
@@ -40,7 +40,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "При входе запускаются"
+        title: I18n.tr("При входе запускаются")
         Rows {
             Repeater {
                 model: root.entries
@@ -67,20 +67,20 @@ ColumnLayout {
             SettingRow {
                 visible: root.loaded && root.entries.length === 0
                 icon: "info"
-                title: "Пока ничего"
-                subtitle: "Добавьте программу, которая должна открываться сама после входа"
+                title: I18n.tr("Пока ничего")
+                subtitle: I18n.tr("Добавьте программу, которая должна открываться сама после входа")
             }
             SettingRow {
                 icon: "plus"
-                title: "Добавить приложение"
-                Btn { text: "Добавить…"; icon: "plus"; onClicked: picker.openWith() }
+                title: I18n.tr("Добавить приложение")
+                Btn { text: I18n.tr("Добавить…"); icon: "plus"; onClicked: picker.openWith() }
             }
         }
     }
 
     Picker {
         id: picker
-        title: "Добавить в автозапуск"
+        title: I18n.tr("Добавить в автозапуск")
         searchHint: "Приложение"
         model: DesktopEntries.applications.values
             .filter(e => !e.noDisplay && root.entries.every(x => x.file !== e.id + ".desktop"))

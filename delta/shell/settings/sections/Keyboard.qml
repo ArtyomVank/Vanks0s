@@ -13,7 +13,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Клавиатура"
+    property string title: I18n.tr("Клавиатура")
     property string icon: "keyboard"
     property string keywords: "раскладка язык переключение повтор задержка сочетания горячие клавиши xkb"
     spacing: 18
@@ -62,7 +62,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Раскладки"
+        title: I18n.tr("Раскладки")
         Rows {
 
             Repeater {
@@ -84,23 +84,23 @@ ColumnLayout {
             }
             SettingRow {
                 icon: "plus"
-                title: "Добавить раскладку"
-                subtitle: "Раскладки переключаются в этом порядке"
-                Btn { text: "Добавить…"; icon: "plus"; onClicked: picker.openWith() }
+                title: I18n.tr("Добавить раскладку")
+                subtitle: I18n.tr("Раскладки переключаются в этом порядке")
+                Btn { text: I18n.tr("Добавить…"); icon: "plus"; onClicked: picker.openWith() }
             }
         }
     }
 
     Card {
-        title: "Переключение и повтор"
+        title: I18n.tr("Переключение и повтор")
         SettingRow {
             icon: "globe"
-            title: "Сочетание для смены раскладки"
+            title: I18n.tr("Сочетание для смены раскладки")
             wide: true
             Chips {
                 model: [
                     { value: "grp:alt_shift_toggle", label: "Alt + Shift" },
-                    { value: "grp:win_space_toggle", label: "Super + Пробел" },
+                    { value: "grp:win_space_toggle", label: I18n.tr("Super + Пробел") },
                     { value: "grp:ctrl_shift_toggle", label: "Ctrl + Shift" },
                     { value: "grp:caps_toggle", label: "Caps Lock" }
                 ]
@@ -110,14 +110,14 @@ ColumnLayout {
         }
         SliderRow {
             icon: "clock"
-            title: "Задержка перед повтором"
+            title: I18n.tr("Задержка перед повтором")
             from: 150; to: 1000; step: 10; unit: " мс"
             value: root.i.repeatDelay ?? 300
             onCommit: v => Settings.set("input.repeatDelay", Math.round(v))
         }
         SliderRow {
             icon: "refresh"
-            title: "Скорость повтора"
+            title: I18n.tr("Скорость повтора")
             from: 5; to: 80; step: 1
             format: v => Math.round(v) + "/с"
             value: root.i.repeatRate ?? 30
@@ -125,14 +125,14 @@ ColumnLayout {
         }
         SettingRow {
             icon: "edit"
-            title: "Проверить"
+            title: I18n.tr("Проверить")
             wide: true
-            Field { placeholder: "Зажмите клавишу, чтобы проверить повтор" }
+            Field { placeholder: I18n.tr("Зажмите клавишу, чтобы проверить повтор") }
         }
     }
 
     Card {
-        title: "Сочетания Delta"
+        title: I18n.tr("Сочетания Delta")
         Rows {
             Repeater {
                 model: [
@@ -162,15 +162,15 @@ ColumnLayout {
             }
             SettingRow {
                 icon: "info"
-                title: "Переназначение сочетаний"
-                subtitle: "скоро"
+                title: I18n.tr("Переназначение сочетаний")
+                subtitle: I18n.tr("скоро")
             }
         }
     }
 
     Picker {
         id: picker
-        title: "Добавить раскладку"
+        title: I18n.tr("Добавить раскладку")
         searchHint: "Язык или код: немецкая, de"
         model: root.xkb.filter(l => root.layouts.indexOf(l.value) === -1)
         onPicked: v => root.add(v)

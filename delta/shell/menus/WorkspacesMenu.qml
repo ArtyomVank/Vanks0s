@@ -57,7 +57,7 @@ Item {
         width: parent.width
         spacing: 10
 
-        MenuTitle { text: "Рабочие столы" }
+        MenuTitle { text: I18n.tr("Рабочие столы") }
 
         GridLayout {
             Layout.fillWidth: true
@@ -72,7 +72,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     active: modelData === root.current
-                    title: "Стол " + modelData
+                    title: I18n.tr("Стол ") + modelData
                     subtitle: root.windows(root.counts[modelData] || 0)
                     onClicked: root.go(modelData)
                 }
@@ -83,7 +83,7 @@ Item {
             Layout.alignment: Qt.AlignLeft
             kind: "ghost"
             icon: "plus"
-            text: "Новый рабочий стол"
+            text: I18n.tr("Новый рабочий стол")
             implicitHeight: 32
             onClicked: { root.dispatch("hl.dsp.focus({ workspace = \"empty\" })", "workspace empty"); root.close(); }
         }

@@ -1,5 +1,5 @@
 NAME="Vanks OS"
-PRETTY_NAME="Vanks OS 0.3 «Pulsar» (live)"
+PRETTY_NAME="Vanks OS 0.4 «Quasar» (live)"
 ID=vankos
 ID_LIKE=arch
 BUILD_ID=rolling
@@ -10,5 +10,5 @@ SUPPORT_URL="https://vanksos.local/support"
 BUG_REPORT_URL="https://vanksos.local/issues"
 LOGO=vankos-logo
 VERSION_ID=0.3
-VERSION="0.3 (Pulsar)"
+VERSION="0.4 (Quasar)"
 VERSION_CODENAME=aurora

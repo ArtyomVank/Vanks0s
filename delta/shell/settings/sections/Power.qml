@@ -14,7 +14,7 @@ import qs.settings
 ColumnLayout {
     id: root
 
-    property string title: "Питание"
+    property string title: I18n.tr("Питание")
     property string icon: "power"
     property string keywords: "батарея сон гибернация крышка энергия профиль экономия производительность экран гаснет"
     spacing: 18
@@ -30,29 +30,29 @@ ColumnLayout {
         return h > 0 ? h + " ч " + m + " мин" : m + " мин";
     }
 
-    readonly property var timeChips: [{ value: 60, label: "1 мин" }, { value: 300, label: "5 мин" }, { value: 600, label: "10 мин" },
-        { value: 900, label: "15 мин" }, { value: 1800, label: "30 мин" }, { value: 3600, label: "1 ч" }, { value: 0, label: "Никогда" }]
+    readonly property var timeChips: [{ value: 60, label: I18n.tr("1 мин") }, { value: 300, label: I18n.tr("5 мин") }, { value: 600, label: I18n.tr("10 мин") },
+        { value: 900, label: I18n.tr("15 мин") }, { value: 1800, label: I18n.tr("30 мин") }, { value: 3600, label: I18n.tr("1 ч") }, { value: 0, label: I18n.tr("Никогда") }]
 
     Card {
-        title: "Режим питания"
+        title: I18n.tr("Режим питания")
         SettingRow {
-            icon: "cpu"; title: "Режим"; wide: true
+            icon: "cpu"; title: I18n.tr("Режим"); wide: true
             subtitle: PowerProfiles.degradationReason !== PerformanceDegradationReason.None
                 ? "Производительность снижена: " + PerformanceDegradationReason.toString(PowerProfiles.degradationReason)
                 : "Режим выбирает служба power-profiles-daemon"
             Chips {
                 current: PowerProfiles.profile
-                model: [{ value: PowerProfile.PowerSaver, label: "Экономия" }, { value: PowerProfile.Balanced, label: "Баланс" }]
-                    .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: "Производительность" }] : [])
+                model: [{ value: PowerProfile.PowerSaver, label: I18n.tr("Экономия") }, { value: PowerProfile.Balanced, label: I18n.tr("Баланс") }]
+                    .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: I18n.tr("Производительность") }] : [])
                 onPicked: v => { if (Exec.dryRun) console.info("[delta-settings] пробный режим: профиль " + v); else PowerProfiles.profile = v; }
             }
         }
     }
 
     Card {
-        title: "Экран и сон"
+        title: I18n.tr("Экран и сон")
         SettingRow {
-            icon: "monitor"; title: "Гасить экран через"; wide: true
+            icon: "monitor"; title: I18n.tr("Гасить экран через"); wide: true
             Chips {
                 current: Settings.get("power.screenOffAfter", 600)
                 model: root.timeChips
@@ -60,17 +60,17 @@ ColumnLayout {
             }
         }
         SettingRow {
-            icon: "lock"; title: "На экране блокировки гасить через"; wide: true
+            icon: "lock"; title: I18n.tr("На экране блокировки гасить через"); wide: true
             Chips {
                 current: Settings.get("power.screenOffLockedAfter", 60)
-                model: [{ value: 30, label: "30 с" }, { value: 60, label: "1 мин" }, { value: 120, label: "2 мин" },
-                        { value: 300, label: "5 мин" }, { value: 0, label: "Как обычно" }]
+                model: [{ value: 30, label: I18n.tr("30 с") }, { value: 60, label: I18n.tr("1 мин") }, { value: 120, label: I18n.tr("2 мин") },
+                        { value: 300, label: I18n.tr("5 мин") }, { value: 0, label: I18n.tr("Как обычно") }]
                 onPicked: v => Settings.set("power.screenOffLockedAfter", v)
             }
         }
         SettingRow {
-            icon: "sleep"; title: "Засыпать через"; wide: true
-            subtitle: "Во время фильма компьютер не уснёт"
+            icon: "sleep"; title: I18n.tr("Засыпать через"); wide: true
+            subtitle: I18n.tr("Во время фильма компьютер не уснёт")
             Chips {
                 current: Settings.get("power.sleepAfter", 1800)
                 model: root.timeChips
@@ -80,17 +80,17 @@ ColumnLayout {
     }
 
     Card {
-        title: "Крышка ноутбука"
+        title: I18n.tr("Крышка ноутбука")
         SettingRow {
             id: lid
-            icon: "info"; title: "При закрытии крышки"; wide: true
-            subtitle: "Понадобится пароль"
+            icon: "info"; title: I18n.tr("При закрытии крышки"); wide: true
+            subtitle: I18n.tr("Понадобится пароль")
             readonly property string value: Settings.get("power.lid", "suspend")
             Chips {
                 current: lid.value
-                model: [{ value: "suspend", label: "Сон" }]
-                    .concat(PowerActions.canHibernate ? [{ value: "hibernate", label: "Гибернация" }] : [])
-                    .concat([{ value: "lock", label: "Только блокировка" }, { value: "poweroff", label: "Выключение" }, { value: "ignore", label: "Ничего" }])
+                model: [{ value: "suspend", label: I18n.tr("Сон") }]
+                    .concat(PowerActions.canHibernate ? [{ value: "hibernate", label: I18n.tr("Гибернация") }] : [])
+                    .concat([{ value: "lock", label: I18n.tr("Только блокировка") }, { value: "poweroff", label: I18n.tr("Выключение") }, { value: "ignore", label: I18n.tr("Ничего") }])
                 onPicked: v => {
                     // значение из списка — подставлять в команду безопасно
                     if (["suspend", "hibernate", "lock", "poweroff", "ignore"].indexOf(v) === -1) return;
@@ -98,22 +98,22 @@ ColumnLayout {
                     Exec.run(["pkexec", "sh", "-c",
                         "mkdir -p /etc/systemd/logind.conf.d && printf '[Login]\\nHandleLidSwitch=%s\\nHandleLidSwitchExternalPower=%s\\n' \"$1\" \"$1\" " +
                         "> /etc/systemd/logind.conf.d/10-delta-lid.conf && systemctl kill -s HUP systemd-logind", "sh", v],
-                        { label: "Крышка: " + v });
+                        { label: I18n.tr("Крышка: ") + v });
                 }
             }
         }
     }
 
     Card {
-        title: "Батарея"
+        title: I18n.tr("Батарея")
         SettingRow {
             visible: !root.hasBattery
-            icon: "battery"; title: "Батареи нет"; subtitle: "Компьютер работает от сети"
+            icon: "battery"; title: I18n.tr("Батареи нет"); subtitle: I18n.tr("Компьютер работает от сети")
         }
         SettingRow {
             visible: root.hasBattery
             icon: root.bat && root.bat.state === UPowerDeviceState.Charging ? "battery-charging" : "battery"
-            title: "Заряд " + root.percent + " %"
+            title: I18n.tr("Заряд ") + root.percent + " %"
             subtitle: {
                 if (!root.bat) return "";
                 const s = root.bat.state;

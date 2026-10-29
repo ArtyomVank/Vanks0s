@@ -83,12 +83,12 @@ cmd_nested() {
     cmd_stop >/dev/null 2>&1 || true
     mkdir -p "${DEV_HOME}/.config/delta/hypr"
     # во вложенной сессии нет сторожа start-hyprland — убираем его плашку со снимков
-    printf 'hl.config({ misc = { disable_watchdog_warning = true } })\n' \
+    # Окно вложенной сессии маленькое, и масштаб «auto» дал бы 2: держим 1
+    # правилом для всех выходов в user.lua — так он не зависит от settings.json
+    # (сброс настроек, раздел «Экран»). Своё правило для WL-1 из «Экран» главнее.
+    printf '%s\n' 'hl.config({ misc = { disable_watchdog_warning = true } })' \
+        'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })' \
         > "${DEV_HOME}/.config/delta/hypr/user.lua"
-    # Окно вложенной сессии — 1280×800, и масштаб «auto» дал бы 2: снимки
-    # выходят 1:1 только с явным масштабом 1. Свой выбор в settings.json не трогаем.
-    local cfg=${DEV_HOME}/.config/delta/settings.json
-    [ -f "${cfg}" ] || printf '{ "monitors": [{ "output": "", "scale": 1 }] }\n' > "${cfg}"
     if [ "${DELTA_DEV_HIDDEN:-0}" = 1 ]; then
         # Для фоновых проверок (агенты): окно вложенной сессии не мешает работе —
         # плавающее 1280×800 на скрытом спецстоле и продолжает рисоваться.

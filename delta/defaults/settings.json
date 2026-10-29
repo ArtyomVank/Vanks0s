@@ -150,5 +150,16 @@
   },
   "welcome": {
     "done": false
+  },
+  "oobe": {
+    "done": false
+  },
+  "language": {
+    "ui": "ru"
+  },
+  "exe": {
+    "enabled": true,
+    "always": {},
+    "excluded": []
   }
 }

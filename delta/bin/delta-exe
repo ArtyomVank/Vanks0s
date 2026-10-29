@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# Delta — запуск программ Windows (.exe, .msi).
+#
+#   delta-exe <файл>                        открыть: спросить, как (окно выбора)
+#   delta-exe --run normal <файл>           обычно — через Wine системы
+#   delta-exe --run launcher <раннер> <файл>
+#                                           через лаунчер: auto · proton:<папка> · wine
+#   delta-exe --runners                     найденные Proton CachyOS, Wine, umu (JSON)
+#   delta-exe --fetch                       скачать последний Proton CachyOS
+#
+# «Авто» — самый свежий Proton CachyOS: из пакета proton-cachyos или скачанный
+# с GitHub (CachyOS/proton-cachyos) в ~/.local/share/delta/proton. Префикс
+# у каждой программы свой: ~/.local/share/delta/prefixes/<имя>.
+# Запуск через umu-run (umu-launcher), без него — прямо через proton.
+#
+# Окно выбора можно выключить: «Настройки» → «Рекомендации» (exe.enabled);
+# там же список программ, которые всегда открываются обычно (exe.excluded),
+# и запомненные «Всегда так» (exe.always).
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_EXE_ENTRY:-${SHELL_DIR}/exe-app.qml}
+CONFIG=${XDG_CONFIG_HOME:-${HOME}/.config}/delta/settings.json
+DATA=${XDG_DATA_HOME:-${HOME}/.local/share}/delta
+PROTONS=${DATA}/proton
+PREFIXES=${DATA}/prefixes
+REPO=${DELTA_PROTON_REPO:-CachyOS/proton-cachyos}
+export DELTA_DATA
+
+say() { notify-send -a "Delta" -i applications-games "$@" 2>/dev/null || printf '%s\n' "$*" >&2; }
+
+# имя программы для настроек: файл без пути, строчными
+key_of() { basename -- "$1" | tr '[:upper:]' '[:lower:]'; }
+
+setting() {  # путь jq, значение по умолчанию (false — тоже значение, не пусто)
+    local v=""
+    [ -f "${CONFIG}" ] && v=$(jq -r "$1 | if . == null then empty else . end" "${CONFIG}" 2>/dev/null)
+    printf '%s' "${v:-$2}"
+}
+
+# --- Proton CachyOS ---
+# все найденные: «имя<TAB>папка», новые первыми
+list_protons() {
+    local dirs=(
+        "${PROTONS}"
+        /usr/share/steam/compatibilitytools.d
+        "${HOME}/.steam/root/compatibilitytools.d"
+        "${HOME}/.local/share/Steam/compatibilitytools.d"
+    )
+    local d p
+    for d in "${dirs[@]}"; do
+        [ -d "${d}" ] || continue
+        for p in "${d}"/*; do
+            [ -x "${p}/proton" ] || continue
+            case "$(basename -- "${p}")" in *[Cc]achy*) ;; *) continue ;; esac
+            printf '%s\t%s\n' "$(basename -- "${p}")" "${p}"
+        done
+    done | sort -t$'\t' -k1,1 -V -r | awk -F'\t' '!seen[$1]++'
+}
+latest_proton() { list_protons | head -n1 | cut -f2; }
+
+# последний выпуск с GitHub: скачать, сверить sha256, распаковать
+fetch_proton() {
+    command -v curl >/dev/null && command -v jq >/dev/null || { say "Нет curl или jq"; return 1; }
+    local info url name digest tmp
+    info=$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' \
+        "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null |
+        jq -r '[.assets[] | select(.name | test("x86_64\\.tar\\.(xz|gz|zst)$"))][0]
+               | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null)
+    url=$(printf '%s' "${info}" | cut -f1)
+    name=$(printf '%s' "${info}" | cut -f2)
+    digest=$(printf '%s' "${info}" | cut -f3)
+    [ -n "${url}" ] && [ "${url}" != null ] || { say "Proton CachyOS" "Не удалось узнать последнюю версию — нет сети?"; return 1; }
+    case "${name}" in */*|..*) return 1 ;; esac
+    mkdir -p "${PROTONS}"
+    tmp=$(mktemp -d "${PROTONS}/.dl.XXXXXX") || return 1
+    say "Proton CachyOS" "Скачиваю ${name%%.tar.*}…"
+    if ! curl -fL --retry 2 -o "${tmp}/${name}" "${url}"; then
+        rm -rf "${tmp}"; say "Proton CachyOS" "Не удалось скачать"; return 1
+    fi
+    if [ -n "${digest}" ]; then
+        if [ "$(sha256sum "${tmp}/${name}" | cut -d' ' -f1)" != "${digest#sha256:}" ]; then
+            rm -rf "${tmp}"; say "Proton CachyOS" "Файл повреждён (не сошлась контрольная сумма)"; return 1
+        fi
+    fi
+    if ! tar -xf "${tmp}/${name}" -C "${tmp}"; then
+        rm -rf "${tmp}"; say "Proton CachyOS" "Не удалось распаковать"; return 1
+    fi
+    local dir
+    dir=$(find "${tmp}" -mindepth 1 -maxdepth 1 -type d | head -n1)
+    [ -n "${dir}" ] && [ -x "${dir}/proton" ] || { rm -rf "${tmp}"; return 1; }
+    rm -rf "${PROTONS:?}/$(basename -- "${dir}")"
+    mv "${dir}" "${PROTONS}/"
+    rm -rf "${tmp}"
+    say "Proton CachyOS" "$(basename -- "${dir}") готов"
+    printf '%s\n' "${PROTONS}/$(basename -- "${dir}")"
+}
+
+runners_json() {
+    local protons
+    protons=$(list_protons | jq -R 'split("\t") | { name: .[0], path: .[1] }' | jq -s .)
+    jq -n --argjson protons "${protons:-[]}" \
+        --arg wine "$(command -v wine || true)" \
+        --arg umu "$(command -v umu-run || true)" \
+        '{ protons: $protons, wine: ($wine != ""), umu: ($umu != "") }'
+}
+
+# --- запуск ---
+run_normal() {
+    command -v wine >/dev/null || { say "Нет Wine" "Поставьте его: «Настройки» → «Рекомендации» → «Библиотеки»"; exit 1; }
+    cd -- "$(dirname -- "$1")" || true
+    exec wine "$1"
+}
+
+run_launcher() {
+    local runner=$1 file=$2 name prefix proton=""
+    name=$(key_of "${file}"); name=${name%.*}
+    prefix=${PREFIXES}/${name}
+    mkdir -p "${prefix}"
+    cd -- "$(dirname -- "${file}")" || true
+
+    case "${runner}" in
+        wine)
+            command -v wine >/dev/null || { say "Нет Wine"; exit 1; }
+            WINEPREFIX=${prefix} exec wine "${file}"
+            ;;
+        proton:*)
+            proton=${runner#proton:}
+            [ -x "${proton}/proton" ] || { say "Proton не найден" "${proton}"; exit 1; }
+            ;;
+        *)  # auto: самый свежий, нет ни одного — скачать
+            proton=$(latest_proton)
+            [ -n "${proton}" ] || proton=$(fetch_proton | tail -n1)
+            [ -n "${proton}" ] && [ -x "${proton}/proton" ] || exit 1
+            ;;
+    esac
+
+    if command -v umu-run >/dev/null; then
+        WINEPREFIX=${prefix} PROTONPATH=${proton} GAMEID=${GAMEID:-umu-default} exec umu-run "${file}"
+    fi
+    # без umu: proton сам, префикс как у Steam (pfx внутри)
+    mkdir -p "${HOME}/.steam/root"
+    STEAM_COMPAT_DATA_PATH=${prefix} STEAM_COMPAT_CLIENT_INSTALL_PATH=${HOME}/.steam/root \
+        exec "${proton}/proton" run "${file}"
+}
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    --runners) runners_json; exit 0 ;;
+    --fetch)   fetch_proton; exit $? ;;
+    --run)
+        mode=${2:-}
+        if [ "${mode}" = normal ]; then
+            [ -n "${3:-}" ] || exit 2
+            run_normal "$3"
+        fi
+        [ "${mode}" = launcher ] && [ -n "${4:-}" ] || exit 2
+        run_launcher "$3" "$4"
+        ;;
+    ""|-*) echo "delta-exe: нужен файл .exe" >&2; exit 2 ;;
+esac
+
+file=$(realpath -- "$1" 2>/dev/null || printf '%s' "$1")
+[ -f "${file}" ] || { say "Файл не найден" "${file}"; exit 1; }
+key=$(key_of "${file}")
+
+# окно выбора выключено или программа в списке «обычно»
+if [ "$(setting '.exe.enabled' true)" = false ] ||
+   { [ -f "${CONFIG}" ] && jq -e --arg k "${key}" '(.exe.excluded // []) | map(ascii_downcase) | index($k)' "${CONFIG}" >/dev/null 2>&1; }; then
+    run_normal "${file}"
+fi
+# «Всегда так» через лаунчер
+remembered=""
+[ -f "${CONFIG}" ] && remembered=$(jq -r --arg k "${key}" '.exe.always[$k] // empty' "${CONFIG}" 2>/dev/null)
+[ -n "${remembered}" ] && run_launcher "${remembered}" "${file}"
+
+export DELTA_EXE_FILE=${file}
+exec qs -p "${ENTRY}" -d

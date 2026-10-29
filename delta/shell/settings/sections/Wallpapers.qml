@@ -14,7 +14,7 @@ import "../../wallpaper/media.js" as Media
 ColumnLayout {
     id: root
 
-    property string title: "Обои"
+    property string title: I18n.tr("Обои")
     property string icon: "image"
     property string keywords: "фон картинка видеообои папка заполнение таймер смена"
     spacing: 18
@@ -37,22 +37,22 @@ ColumnLayout {
     }
 
     Card {
-        title: "Сейчас"
+        title: I18n.tr("Сейчас")
         SettingRow {
             icon: root.current && Media.isVideo(root.current) ? "video" : "image"
             title: root.current ? Media.baseName(root.current) : "Градиент темы"
             subtitle: root.current ? WallStore.pretty(root.current) : "Файл не выбран — фон рисуется из цвета темы и акцента"
             Btn {
                 visible: root.current.length > 0
-                text: "Убрать"
+                text: I18n.tr("Убрать")
                 kind: "ghost"
                 onClicked: { Settings.set("wallpaper.video", false); Settings.set("wallpaper.path", ""); }
             }
         }
         SettingRow {
             icon: "keyboard"
-            title: "Быстрый выбор обоев"
-            subtitle: "Все обои с поиском и подборкой по цвету"
+            title: I18n.tr("Быстрый выбор обоев")
+            subtitle: I18n.tr("Все обои с поиском и подборкой по цвету")
             Row {
                 spacing: 6
                 Repeater {
@@ -69,7 +69,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Папка"
+        title: I18n.tr("Папка")
         SettingRow {
             icon: "folder"
             title: WallStore.pretty(WallStore.folder) || "—"
@@ -79,15 +79,15 @@ ColumnLayout {
                 : "Картинки и видео из папки и вложенных папок"
             Row {
                 spacing: 8
-                Btn { visible: root.hasZenity; text: "Выбрать папку…"; onClicked: chooser.running = true }
+                Btn { visible: root.hasZenity; text: I18n.tr("Выбрать папку…"); onClicked: chooser.running = true }
                 Btn {
-                    text: "Мои обои"
+                    text: I18n.tr("Мои обои")
                     kind: "ghost"
                     onClicked: Settings.set("wallpaper.folder", "~/Pictures/Wallpapers")
                 }
                 Btn {
                     visible: String(Settings.get("wallpaper.folder", "")).length > 0
-                    text: "По умолчанию"
+                    text: I18n.tr("По умолчанию")
                     kind: "ghost"
                     onClicked: Settings.set("wallpaper.folder", "")
                 }
@@ -95,7 +95,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "image"
-            title: "Обои Vanks OS"
+            title: I18n.tr("Обои Vanks OS")
             readonly property int count: WallStore.items.filter(i => i.system).length
             subtitle: count ? "Ещё " + count + " обоев рядом с вашими" : "Набор обоев, который идёт с системой"
             Toggle {
@@ -104,8 +104,8 @@ ColumnLayout {
             }
         }
         SettingRow {
-            title: "Путь"
-            subtitle: "Впишите путь и нажмите Enter"
+            title: I18n.tr("Путь")
+            subtitle: I18n.tr("Впишите путь и нажмите Enter")
             wide: true
             Rectangle {
                 implicitHeight: 38
@@ -131,7 +131,7 @@ ColumnLayout {
 
     // несколько последних файлов из папки — кликом можно поставить
     Card {
-        title: "Из папки"
+        title: I18n.tr("Из папки")
         visible: WallStore.items.length > 0
         Item {
             Layout.fillWidth: true
@@ -174,21 +174,21 @@ ColumnLayout {
     }
 
     Card {
-        title: "Отображение"
+        title: I18n.tr("Отображение")
         SettingRow {
             icon: "scale"
-            title: "Заполнение"
-            subtitle: "Обрезать края или показать картинку целиком"
+            title: I18n.tr("Заполнение")
+            subtitle: I18n.tr("Обрезать края или показать картинку целиком")
             Chips {
                 current: Settings.get("wallpaper.fill", "cover")
-                model: [{ value: "cover", label: "Заполнить" }, { value: "contain", label: "Вписать" }]
+                model: [{ value: "cover", label: I18n.tr("Заполнить") }, { value: "contain", label: I18n.tr("Вписать") }]
                 onPicked: v => Settings.set("wallpaper.fill", v)
             }
         }
         SettingRow {
             icon: "video"
-            title: "Видеообои"
-            subtitle: "Если выключить, останется неподвижный кадр"
+            title: I18n.tr("Видеообои")
+            subtitle: I18n.tr("Если выключить, останется неподвижный кадр")
             Toggle {
                 checked: Settings.get("wallpaper.allowVideo", true) !== false
                 onToggled: v => Settings.set("wallpaper.allowVideo", v)
@@ -196,8 +196,8 @@ ColumnLayout {
         }
         SettingRow {
             icon: "battery"
-            title: "Пауза видео от батареи"
-            subtitle: "Бережёт батарею ноутбука"
+            title: I18n.tr("Пауза видео от батареи")
+            subtitle: I18n.tr("Бережёт батарею ноутбука")
             Toggle {
                 checked: Settings.get("wallpaper.pauseOnBattery", true) !== false
                 onToggled: v => Settings.set("wallpaper.pauseOnBattery", v)
@@ -206,16 +206,16 @@ ColumnLayout {
     }
 
     Card {
-        title: "Смена обоев"
+        title: I18n.tr("Смена обоев")
         SettingRow {
             icon: "clock"
-            title: "Менять по таймеру"
-            subtitle: "Обои сменятся сами через выбранное время"
+            title: I18n.tr("Менять по таймеру")
+            subtitle: I18n.tr("Обои сменятся сами через выбранное время")
             wide: true
             Chips {
                 current: Number(Settings.get("wallpaper.rotate", 0)) || 0
-                model: [{ value: 0, label: "Не менять" }, { value: 15, label: "15 минут" }, { value: 30, label: "30 минут" },
-                        { value: 60, label: "1 час" }, { value: 180, label: "3 часа" }, { value: 1440, label: "Раз в день" }]
+                model: [{ value: 0, label: I18n.tr("Не менять") }, { value: 15, label: I18n.tr("15 минут") }, { value: 30, label: I18n.tr("30 минут") },
+                        { value: 60, label: I18n.tr("1 час") }, { value: 180, label: I18n.tr("3 часа") }, { value: 1440, label: I18n.tr("Раз в день") }]
                 onPicked: v => Settings.set("wallpaper.rotate", v)
             }
         }

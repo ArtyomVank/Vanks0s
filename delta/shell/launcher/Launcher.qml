@@ -220,7 +220,7 @@ Scope {
                         height: 50
                         radius: 16
                         fontSize: 16
-                        placeholder: "Поиск приложений"
+                        placeholder: I18n.tr("Поиск приложений")
                         text: root.query
                         onTextChanged: if (root.query !== text) root.query = text
                         onAccepted: root.launch(root.results[list.currentIndex])

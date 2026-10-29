@@ -274,7 +274,8 @@ PanelWindow {
         anchors.fill: parent
         z: -1
         cursorShape: win.pill ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: if (win.pill) win.activate("media")
+        // звук без плеера MPRIS (игра, видео) — управлять нечем, открываем звук
+        onClicked: if (win.pill) win.activate(DockService.streamOnly ? "sound" : "media")
         onDoubleClicked: {
             if (ShellState.dockEditing) return;
             if (ShellState.menu === "media") ShellState.closeMenu();

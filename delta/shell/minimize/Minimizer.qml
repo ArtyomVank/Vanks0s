@@ -75,6 +75,7 @@ Singleton {
         if (!h || isMinimized(h)) return;
         const addr = norm(h.address);
         if (busy[addr]) return;
+        Sounds.play("swoosh", 150);
         if (!animate || !h.wayland) { moveTo(addr, workspace); return; }
 
         mark(addr, true);

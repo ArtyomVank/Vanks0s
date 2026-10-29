@@ -151,11 +151,28 @@ Singleton {
     }
     onPlayerChanged: if (player) stickyPlayer = player
 
-    readonly property bool hasPlayer: fake !== null || player !== null
-    readonly property bool playing: fake ? fake.playing === true : (player?.isPlaying ?? false)
-    readonly property string title: fake ? (fake.title || "") : (player?.trackTitle || player?.identity || "")
-    readonly property string artist: fake ? (fake.artist || "") : (player?.trackArtist || "")
-    readonly property string art: fake ? (fake.art || "") : (player?.trackArtUrl || "")
+    // Звук без MPRIS: игры, видеоплееры без плагина, часть браузеров. Их видно
+    // как потоки воспроизведения PipeWire — по ним остров тоже появляется.
+    // Свои звуки оболочки (pw-play) и записи (микрофон) не считаем.
+    readonly property var playback: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink && n.audio)
+    // свойства узла (имя приложения, название) приходят, только пока узел отслеживается
+    PwObjectTracker { objects: root.playback }
+    readonly property var streams: playback.filter(n => n.properties
+        && ["pw-play", "paplay", "cava"].indexOf(n.properties["application.process.binary"] || "") === -1
+        && ["pw-play", "paplay", "cava"].indexOf(n.properties["application.name"] || "") === -1)
+    readonly property var stream: streams.length ? streams[streams.length - 1] : null
+    readonly property bool mprisPlaying: player?.isPlaying ?? false
+    // поток показываем, только если плеер MPRIS сейчас не играет (иначе он главный)
+    readonly property bool streamOnly: fake === null && !mprisPlaying && stream !== null
+
+    readonly property bool hasPlayer: fake !== null || player !== null || stream !== null
+    readonly property bool playing: fake ? fake.playing === true : (mprisPlaying || stream !== null)
+    readonly property string title: fake ? (fake.title || "")
+        : streamOnly ? (stream.properties["media.name"] || stream.properties["application.name"] || "Звук")
+        : (player?.trackTitle || player?.identity || "")
+    readonly property string artist: fake ? (fake.artist || "")
+        : streamOnly ? (stream.properties["application.name"] || "") : (player?.trackArtist || "")
+    readonly property string art: fake ? (fake.art || "") : streamOnly ? "" : (player?.trackArtUrl || "")
 
     // Пилюля держится и пару секунд после паузы, чтобы не мигать между треками.
     property bool recent: false

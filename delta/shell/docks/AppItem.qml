@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Widgets
 import qs.common
 import qs.common.ui
+import qs.docks.parts
 
 // Значок дока приложений: приложение, ярлык, файл/папка, кнопка «Приложения»,
 // «Добавить» или разделитель. Увеличение при наведении растёт от края,
@@ -81,11 +82,43 @@ Item {
         readonly property string pullKey: root.screenName + "/" + (root.kind === "launcher" ? "@launcher" : root.kind === "add" ? "@add" : root.modelData.key)
         property real pull: ShellState.pullKey === pullKey ? ShellState.pull : 0
         Behavior on pull { SpringAnimation { spring: 4.5; damping: 0.2; epsilon: 0.002 } }
-        transform: Scale {
-            origin.x: root.edge === "left" ? 0 : root.edge === "right" ? tile.width : tile.width / 2
-            origin.y: root.edge === "top" ? 0 : root.edge === "bottom" ? tile.height : tile.height / 2
-            xScale: root.vertical ? 1 + 0.3 * tile.pull : 1 - 0.14 * tile.pull
-            yScale: root.vertical ? 1 - 0.14 * tile.pull : 1 + 0.3 * tile.pull
+        transform: [
+            Scale {
+                origin.x: root.edge === "left" ? 0 : root.edge === "right" ? tile.width : tile.width / 2
+                origin.y: root.edge === "top" ? 0 : root.edge === "bottom" ? tile.height : tile.height / 2
+                xScale: root.vertical ? 1 + 0.3 * tile.pull : 1 - 0.14 * tile.pull
+                yScale: root.vertical ? 1 - 0.14 * tile.pull : 1 + 0.3 * tile.pull
+            },
+            // «желе» плитки: в плиточном режиме у каждого значка своё стекло,
+            // и оно колышется само — как общее тело дока в других режимах
+            Scale {
+                origin.x: tile.width / 2
+                origin.y: tile.height / 2
+                xScale: 1 + tjx.value
+                yScale: 1 + tjy.value
+            }
+        ]
+        Spring { id: tjx; stiffness: 320; damping: 10 }
+        Spring { id: tjy; stiffness: 320; damping: 10 }
+        function wobble(k) { if (!root.tiles || root.sep) return; tjx.kick(k); tjy.kick(-0.8 * k); }
+        Connections {
+            target: area
+            function onContainsMouseChanged() { if (area.containsMouse) tile.wobble(0.8); }
+            function onPressedChanged() {
+                if (area.pressed) { tjx.kick(root.tiles ? 1.3 : 0); tjy.kick(root.tiles ? -1.6 : 0); }
+                else tile.wobble(-0.9);
+            }
+        }
+        // толчок дока (открылось окно) — волна по плиткам
+        Timer { id: tileRipple; property real k: 0; onTriggered: tile.wobble(k) }
+        Connections {
+            target: ShellState
+            function onDockPoked(dockId, strength) {
+                if (dockId !== "apps") return;
+                tileRipple.k = 1.3 * strength;
+                tileRipple.interval = 30 + 40 * root.index;
+                tileRipple.restart();
+            }
         }
 
         // плитка (режим «плитки»)

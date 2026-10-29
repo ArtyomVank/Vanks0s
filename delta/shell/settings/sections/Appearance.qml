@@ -13,7 +13,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Оформление"
+    property string title: I18n.tr("Оформление")
     property string icon: "palette"
     property string keywords: "тема цвет акцент тёмная светлая прозрачность стекло скругление шрифт значки курсор gtk qt"
     spacing: 18
@@ -24,7 +24,7 @@ ColumnLayout {
 
     // --- тема ---
     Card {
-        title: "Тема"
+        title: I18n.tr("Тема")
 
         Item {
             Layout.fillWidth: true
@@ -108,7 +108,7 @@ ColumnLayout {
                             color: Theme.soft2
                             Sym { anchors.centerIn: parent; name: "plus"; size: 16 }
                         }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Своя тема"; size: "caption"; font.weight: Font.Bold }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: I18n.tr("Своя тема"); size: "caption"; font.weight: Font.Bold }
                     }
                     HoverHandler { id: addHov; cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: themeDlg.openFor(null) }
@@ -143,7 +143,7 @@ ColumnLayout {
     Dialog {
         id: themeDlg
         title: editId ? "Изменить тему" : "Своя тема"
-        subtitle: "Выберите цвет панелей и акцент — превью покажет, как это будет выглядеть"
+        subtitle: I18n.tr("Выберите цвет панелей и акцент — превью покажет, как это будет выглядеть")
         cardWidth: 460
 
         property string editId: ""
@@ -202,23 +202,23 @@ ColumnLayout {
                 anchors { left: parent.left; top: parent.top; margins: 14 }
                 width: 150; height: 40; radius: 12
                 color: themeDlg.glassColor
-                Label { anchors.centerIn: parent; text: "Привет!"; color: themeDlg.ink; font.weight: Font.DemiBold }
+                Label { anchors.centerIn: parent; text: I18n.tr("Привет!"); color: themeDlg.ink; font.weight: Font.DemiBold }
             }
             Rectangle {
                 anchors { right: parent.right; top: parent.top; margins: 14 }
                 width: 90; height: 32; radius: 16
                 color: themeDlg.accentHex
-                Label { anchors.centerIn: parent; text: "Кнопка"; color: Theme.onColor(Qt.color(themeDlg.accentHex)); size: "small"; font.weight: Font.DemiBold }
+                Label { anchors.centerIn: parent; text: I18n.tr("Кнопка"); color: Theme.onColor(Qt.color(themeDlg.accentHex)); size: "small"; font.weight: Font.DemiBold }
             }
         }
 
-        Field { id: nameF; Layout.fillWidth: true; icon: "palette"; placeholder: "Название, например «Моя ночь»"; maxLength: 24; onAccepted: themeDlg.save() }
+        Field { id: nameF; Layout.fillWidth: true; icon: "palette"; placeholder: I18n.tr("Название, например «Моя ночь»"); maxLength: 24; onAccepted: themeDlg.save() }
 
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
             Repeater {
-                model: [{ key: "base", label: "Панели" }, { key: "accent", label: "Акцент" }]
+                model: [{ key: "base", label: I18n.tr("Панели") }, { key: "accent", label: I18n.tr("Акцент") }]
                 delegate: Rectangle {
                     id: pick
                     required property var modelData
@@ -255,7 +255,7 @@ ColumnLayout {
         SliderRow {
             Layout.fillWidth: true
             icon: "eye"
-            title: "Прозрачность панелей"
+            title: I18n.tr("Прозрачность панелей")
             from: 0.3; to: 1; step: 0.01
             value: themeDlg.glass
             format: v => Math.round(v * 100) + " %"
@@ -263,7 +263,7 @@ ColumnLayout {
         }
 
         buttons: [
-            Btn { text: "Отмена"; onClicked: themeDlg.close() },
+            Btn { text: I18n.tr("Отмена"); onClicked: themeDlg.close() },
             Btn { text: themeDlg.editId ? "Сохранить" : "Создать тему"; kind: "accent"; onClicked: themeDlg.save() }
         ]
     }
@@ -275,12 +275,12 @@ ColumnLayout {
 
     // --- цвет и стекло ---
     Card {
-        title: "Цвет и стекло"
+        title: I18n.tr("Цвет и стекло")
 
         SettingRow {
             icon: "palette"
-            title: "Цвет оформления"
-            subtitle: "Кнопки, выделение и рамка окна"
+            title: I18n.tr("Цвет оформления")
+            subtitle: I18n.tr("Кнопки, выделение и рамка окна")
             RowLayout {
                 spacing: 8
                 Repeater {
@@ -338,8 +338,8 @@ ColumnLayout {
 
         SliderRow {
             icon: "eye"
-            title: "Непрозрачность доков и окон"
-            subtitle: "Меньше — сквозь панели больше видно обои"
+            title: I18n.tr("Непрозрачность доков и окон")
+            subtitle: I18n.tr("Меньше — сквозь панели больше видно обои")
             from: 0.2; to: 0.98; step: 0.01
             value: Theme.opacity
             live: true
@@ -349,8 +349,8 @@ ColumnLayout {
 
         SliderRow {
             icon: "grid"
-            title: "Скругление углов"
-            subtitle: "Доки, меню и карточки"
+            title: I18n.tr("Скругление углов")
+            subtitle: I18n.tr("Доки, меню и карточки")
             from: 0; to: 32; step: 1
             value: Theme.radius
             unit: " px"
@@ -360,7 +360,7 @@ ColumnLayout {
 
         SettingRow {
             icon: "font"
-            title: "Шрифт"
+            title: I18n.tr("Шрифт")
             subtitle: Theme.font === (root.a.font || "Inter") ? "Интерфейс Delta и приложения GTK/Qt" : "«" + (root.a.font || "") + "» не найден, используется " + Theme.font
             Select {
                 text: Theme.font
@@ -371,11 +371,11 @@ ColumnLayout {
 
     // --- значки и курсор ---
     Card {
-        title: "Значки и курсор"
+        title: I18n.tr("Значки и курсор")
 
         SettingRow {
             icon: "apps"
-            title: "Значки приложений"
+            title: I18n.tr("Значки приложений")
             subtitle: root.iconThemes.length ? "Тема значков для доков, меню и приложений" : "Темы значков не найдены"
             Select {
                 text: root.title2(root.iconThemes, root.a.iconTheme || "Papirus-Dark")
@@ -385,7 +385,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "cursor"
-            title: "Курсор"
+            title: I18n.tr("Курсор")
             Select {
                 text: root.title2(root.cursorThemes, root.a.cursorTheme || "Adwaita")
                 enabled: root.cursorThemes.length > 0
@@ -394,7 +394,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "scale"
-            title: "Размер курсора"
+            title: I18n.tr("Размер курсора")
             Chips {
                 model: [24, 32, 40, 48, 64].map(n => ({ value: n, label: String(n) }))
                 current: root.a.cursorSize ?? 24
@@ -405,12 +405,12 @@ ColumnLayout {
 
     // --- приложения ---
     Card {
-        title: "Приложения"
+        title: I18n.tr("Приложения")
 
         SettingRow {
             icon: "windows"
-            title: "Применять к приложениям GTK и Qt"
-            subtitle: "Программы будут в тех же цветах, что и Delta"
+            title: I18n.tr("Применять к приложениям GTK и Qt")
+            subtitle: I18n.tr("Программы будут в тех же цветах, что и Delta")
             Toggle {
                 checked: root.a.applyApps ?? true
                 onToggled: v => Settings.set("appearance.applyApps", v)
@@ -418,9 +418,9 @@ ColumnLayout {
         }
         SettingRow {
             icon: "refresh"
-            title: "Применить сейчас"
+            title: I18n.tr("Применить сейчас")
             subtitle: root.applyState
-            Btn { text: "Применить"; enabled: !root.applying; onClicked: root.applyApps() }
+            Btn { text: I18n.tr("Применить"); enabled: !root.applying; onClicked: root.applyApps() }
         }
     }
 
@@ -445,7 +445,7 @@ ColumnLayout {
                   "--accent", String(Theme.accent),
                   "--base", t.rgb.join(","),
                   "--font", Theme.font], {
-            label: "оформление для GTK/Qt",
+            label: I18n.tr("оформление для GTK/Qt"),
             selfDry: true,
             toast: false,
             done: (code, out, err) => {
@@ -483,7 +483,7 @@ ColumnLayout {
 
     Picker {
         id: fontPicker
-        title: "Шрифт интерфейса"
+        title: I18n.tr("Шрифт интерфейса")
         searchHint: "Название шрифта"
         current: Theme.font
         model: Theme.families.filter(f => !/^(Noto Color Emoji|.*Symbols?|.*Emoji.*|Cursor|D050000L)$/.test(f))
@@ -492,14 +492,14 @@ ColumnLayout {
     }
     Picker {
         id: iconPicker
-        title: "Тема значков"
+        title: I18n.tr("Тема значков")
         current: root.a.iconTheme || "Papirus-Dark"
         model: root.iconThemes
         onPicked: v => Settings.set("appearance.iconTheme", v)
     }
     Picker {
         id: cursorPicker
-        title: "Тема курсора"
+        title: I18n.tr("Тема курсора")
         current: root.a.cursorTheme || "Adwaita"
         model: root.cursorThemes
         onPicked: v => Settings.set("appearance.cursorTheme", v)

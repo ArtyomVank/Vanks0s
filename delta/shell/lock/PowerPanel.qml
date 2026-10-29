@@ -53,7 +53,7 @@ ColumnLayout {
         Layout.fillWidth: true
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "Уведомления"; size: "small"; font.weight: Font.ExtraBold; Layout.fillWidth: true }
+            Label { text: I18n.tr("Уведомления"); size: "small"; font.weight: Font.ExtraBold; Layout.fillWidth: true }
             Toggle {
                 checked: root.notifOn
                 onToggled: v => {
@@ -187,7 +187,7 @@ ColumnLayout {
             RowLayout {
                 spacing: 8
                 Layout.alignment: Qt.AlignRight
-                Btn { text: "Отмена"; onClicked: root.confirm = "" }
+                Btn { text: I18n.tr("Отмена"); onClicked: root.confirm = "" }
                 Btn {
                     text: PowerActions.labels[root.confirm] || ""
                     kind: root.confirm === "poweroff" ? "danger" : "accent"

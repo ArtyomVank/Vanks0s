@@ -29,6 +29,29 @@ fi
 CFG=${XDG_CONFIG_HOME:-$HOME/.config}/delta
 mkdir -p "${CFG}/hypr"
 
+# язык программ, выбранный в первой настройке (oobe пишет ~/.config/locale.conf)
+LOCALE_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/locale.conf
+if [ -r "${LOCALE_CONF}" ]; then
+    while IFS='=' read -r key value; do
+        case ${key} in
+            LANG|LANGUAGE|LC_MESSAGES) export "${key}=${value//\"/}" ;;
+        esac
+    done < "${LOCALE_CONF}"
+fi
+
+# .exe и .msi открывает delta-exe (обычно или через Proton CachyOS) — один
+# раз, если обработчика нет или это Wine; свой выбор пользователя не трогаем
+EXE_MARK=${XDG_STATE_HOME:-$HOME/.local/state}/delta/exe-mime
+if [ ! -e "${EXE_MARK}" ] && command -v xdg-mime >/dev/null; then
+    cur=$(xdg-mime query default application/x-ms-dos-executable 2>/dev/null)
+    case "${cur}" in
+        ""|wine.desktop|wine-*.desktop)
+            xdg-mime default delta-exe.desktop application/x-ms-dos-executable application/x-msdownload \
+                application/vnd.microsoft.portable-executable application/x-msi 2>/dev/null ;;
+    esac
+    mkdir -p "${EXE_MARK%/*}" && : > "${EXE_MARK}"
+fi
+
 # В файле пользователя — только его изменения: значения по умолчанию
 # подмешивают Settings и delta-apply, поэтому новые умолчания доходят
 # и до старых установок.

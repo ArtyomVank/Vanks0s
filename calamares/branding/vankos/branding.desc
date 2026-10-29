@@ -16,9 +16,9 @@ navigation: widget
 strings:
     productName:         "Vanks OS"
     shortProductName:    "Vanks"
-    version:             "0.3 «Pulsar»"
+    version:             "0.4 «Quasar»"
     shortVersion:        "0.3"
-    versionedName:       "Vanks OS 0.3 «Pulsar»"
+    versionedName:       "Vanks OS 0.4 «Quasar»"
     shortVersionedName:  "Vanks 0.3"
     bootloaderEntryName: "Vanks OS"
     productUrl:          "https://vanksos.local/"

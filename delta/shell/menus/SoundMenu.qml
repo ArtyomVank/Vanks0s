@@ -85,7 +85,7 @@ Item {
         width: parent.width
         spacing: 10
 
-        MenuTitle { text: "Звук и музыка" }
+        MenuTitle { text: I18n.tr("Звук и музыка") }
 
         Player {
             Layout.fillWidth: true
@@ -93,7 +93,7 @@ Item {
             vizDemo: root.vizDemo
         }
 
-        Label { text: "Выход"; size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6 }
+        Label { text: I18n.tr("Выход"); size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6 }
         VolumeRow { node: root.sink }
         Chips {
             Layout.fillWidth: true
@@ -105,7 +105,7 @@ Item {
 
         Label {
             visible: root.source !== null || root.sources.length > 0
-            text: "Микрофон"; size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6
+            text: I18n.tr("Микрофон"); size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6
             Layout.topMargin: 4
         }
         VolumeRow { visible: root.source !== null || root.sources.length > 0; node: root.source; offIcon: "mic-off"; onIcon: "mic" }
@@ -119,7 +119,7 @@ Item {
 
         Label {
             visible: root.streams.length > 0
-            text: "Приложения"; size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6
+            text: I18n.tr("Приложения"); size: "caption"; tone: 3; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.6
             Layout.topMargin: 4
         }
         Repeater {
@@ -153,7 +153,7 @@ Item {
             Layout.alignment: Qt.AlignLeft
             kind: "ghost"
             icon: "settings"
-            text: "Настройки звука…"
+            text: I18n.tr("Настройки звука…")
             implicitHeight: 32
             onClicked: { ShellState.openSettings("sound", null); root.close(); }
         }

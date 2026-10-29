@@ -57,7 +57,7 @@ Glass {
                     color: root.grid.caption ? Theme.accents[4] : Theme.fg3
                 }
             }
-            Btn { text: "Готово"; kind: "accent"; onClicked: root.grid.finish() }
+            Btn { text: I18n.tr("Готово"); kind: "accent"; onClicked: root.grid.finish() }
         }
 
         // ---- галерея: карточка на каждый вид виджета ----
@@ -144,7 +144,7 @@ Glass {
             Layout.fillWidth: true
             Layout.bottomMargin: 2
             horizontalAlignment: Text.AlignHCenter
-            text: "Нажмите на виджет на столе — здесь появятся его настройки"
+            text: I18n.tr("Нажмите на виджет на столе — здесь появятся его настройки")
             tone: 3
         }
 
@@ -159,7 +159,7 @@ Glass {
                 Sym { anchors.centerIn: parent; name: root.info ? root.info.icon : "widgets"; size: 18; color: Theme.accent }
             }
             Label { text: root.info ? root.info.name : ""; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-            Btn { text: "Убрать со стола"; kind: "danger"; icon: "trash"; onClicked: root.grid.remove(root.it.id) }
+            Btn { text: I18n.tr("Убрать со стола"); kind: "danger"; icon: "trash"; onClicked: root.grid.remove(root.it.id) }
         }
 
         GridLayout {
@@ -170,7 +170,7 @@ Glass {
             rowSpacing: 10
 
             // вид (режим)
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.info && root.info.modes.length > 0; text: "Вид" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.info && root.info.modes.length > 0; text: I18n.tr("Вид") }
             Chips {
                 Layout.fillWidth: true
                 visible: !!root.info && root.info.modes.length > 0
@@ -180,7 +180,7 @@ Glass {
             }
 
             // часы
-            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isClock; text: "Стиль цифр" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isClock; text: I18n.tr("Стиль цифр") }
             Chips {
                 Layout.fillWidth: true
                 visible: root.isClock
@@ -188,7 +188,7 @@ Glass {
                 current: root.it ? (root.it.style || Settings.get("clock.style", "ios")) : ""
                 onPicked: v => root.grid.setStyle("clock", v)
             }
-            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isClock; text: "Цвет" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isClock; text: I18n.tr("Цвет") }
             Chips {
                 Layout.fillWidth: true
                 visible: root.isClock
@@ -196,7 +196,7 @@ Glass {
                 current: root.it ? (root.it.color || Settings.get("clock.color", "white")) : ""
                 onPicked: v => root.grid.setColor("clock", v)
             }
-            Label { Layout.preferredWidth: 104; tone: 3; visible: root.tallClock; text: "Ширина цифр" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.tallClock; text: I18n.tr("Ширина цифр") }
             Slider {
                 visible: root.tallClock
                 Layout.preferredWidth: 220
@@ -207,7 +207,7 @@ Glass {
             }
 
             // погода
-            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isWeather; text: "Город" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isWeather; text: I18n.tr("Город") }
             RowLayout {
                 visible: root.isWeather
                 spacing: 8
@@ -216,11 +216,11 @@ Glass {
                     implicitWidth: 200
                     implicitHeight: 32
                     icon: "search"
-                    placeholder: "Например, Москва"
+                    placeholder: I18n.tr("Например, Москва")
                     text: Settings.get("weather.city", "")
                     onAccepted: v => { Settings.set("weather.city", v.trim()); root.grid.forceActiveFocus(); }
                 }
-                Btn { text: "Найти"; onClicked: { Settings.set("weather.city", city.text.trim()); root.grid.forceActiveFocus(); } }
+                Btn { text: I18n.tr("Найти"); onClicked: { Settings.set("weather.city", city.text.trim()); root.grid.forceActiveFocus(); } }
                 Label {
                     tone: 3
                     size: "small"
@@ -232,7 +232,7 @@ Glass {
             }
 
             // размер
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: "Размер" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: I18n.tr("Размер") }
             RowLayout {
                 visible: !!root.it
                 spacing: 10
@@ -244,19 +244,19 @@ Glass {
                         root.grid.resizeTo(root.it.id, p[0], p[1]);
                     }
                 }
-                Label { text: "или тяните за уголок"; size: "caption"; tone: 3 }
+                Label { text: I18n.tr("или тяните за уголок"); size: "caption"; tone: 3 }
             }
 
             // фон и прозрачность — у любого виджета
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: "Подложка" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: I18n.tr("Подложка") }
             Chips {
                 Layout.fillWidth: true
                 visible: !!root.it
-                model: [{ value: true, label: "Стекло" }, { value: false, label: "Без подложки" }]
+                model: [{ value: true, label: I18n.tr("Стекло") }, { value: false, label: I18n.tr("Без подложки") }]
                 current: root.it ? root.it.bg !== false : true
                 onPicked: v => root.grid.setBg(root.it.id, v)
             }
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: "Прозрачность" }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: I18n.tr("Прозрачность") }
             RowLayout {
                 visible: !!root.it
                 spacing: 10

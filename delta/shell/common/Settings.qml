@@ -107,6 +107,24 @@ Singleton {
         }
     }
 
+    // Сбросить всё к значениям по умолчанию. keep — ключи «раздел.ключ», которые
+    // оставить (например, что первая настройка уже пройдена). Hyprland
+    // перечитывает конфиг через delta-apply.
+    function reset(keep) {
+        const next = {};
+        for (const key of keep || []) {
+            const v = get(key, undefined);
+            if (v === undefined) continue;
+            const parts = key.split(".");
+            let node = next;
+            for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]] = isObject(node[parts[i]]) ? node[parts[i]] : {};
+            node[parts[parts.length - 1]] = clone(v);
+        }
+        user = next;
+        pendingApply = true;
+        saveTimer.restart();
+    }
+
     // Записать сейчас, не дожидаясь таймера: перед Qt.quit() (иначе последнее
     // изменение пропадёт вместе с процессом).
     function flush() {
@@ -115,6 +133,10 @@ Singleton {
         userFile.blockWrites = true;
         userFile.setText(JSON.stringify(root.user, null, 2) + "\n");
         userFile.blockWrites = false;
+        if (root.pendingApply) {
+            root.pendingApply = false;
+            applyProc.running = true;
+        }
     }
 
     // Несколько быстрых изменений (ползунок) — одна запись на диск.

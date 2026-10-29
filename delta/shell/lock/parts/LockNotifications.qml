@@ -17,7 +17,7 @@ Column {
     visible: items.length > 0
 
     Text {
-        text: "Уведомления · " + root.items.length
+        text: I18n.tr("Уведомления · ") + root.items.length
         color: "#ffffff"
         opacity: 0.8
         font.family: Theme.font

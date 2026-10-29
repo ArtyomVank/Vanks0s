@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import qs.common
 import Quickshell
 import Quickshell.Io
 
@@ -34,28 +35,28 @@ Singleton {
     // ---------- библиотеки ----------
     readonly property var libs: [
         { id: "vulkan", icon: "layers", title: "Vulkan", on: true,
-          text: "Основа современных игр и DXVK: через него Steam запускает игры для Windows",
+          text: I18n.tr("Основа современных игр и DXVK: через него Steam запускает игры для Windows"),
           pkgs: ["vulkan-icd-loader", "lib32-vulkan-icd-loader", "vulkan-tools"] },
-        { id: "lib32", icon: "cpu", title: "32-битные библиотеки", on: true,
-          text: "Графика и звук для старых игр и самого Steam",
+        { id: "lib32", icon: "cpu", title: I18n.tr("32-битные библиотеки"), on: true,
+          text: I18n.tr("Графика и звук для старых игр и самого Steam"),
           pkgs: ["lib32-mesa", "lib32-pipewire", "lib32-libpulse", "lib32-alsa-plugins"] },
         { id: "gamemode", icon: "rocket", title: "GameMode", on: true,
-          text: "Пока идёт игра, процессор работает на полную, а фоновые задачи ждут",
+          text: I18n.tr("Пока идёт игра, процессор работает на полную, а фоновые задачи ждут"),
           pkgs: ["gamemode", "lib32-gamemode"] },
-        { id: "codecs", icon: "video", title: "Кодеки", on: true,
-          text: "Видео и музыка в любых форматах — в играх, браузере и плеерах",
+        { id: "codecs", icon: "video", title: I18n.tr("Кодеки"), on: true,
+          text: I18n.tr("Видео и музыка в любых форматах — в играх, браузере и плеерах"),
           pkgs: ["gst-plugins-good", "gst-plugins-bad", "gst-plugins-ugly", "gst-libav"] },
-        { id: "fonts", icon: "font", title: "Шрифты для игр", on: true,
-          text: "Без них в лаунчерах и играх вместо букв бывают квадратики",
+        { id: "fonts", icon: "font", title: I18n.tr("Шрифты для игр"), on: true,
+          text: I18n.tr("Без них в лаунчерах и играх вместо букв бывают квадратики"),
           pkgs: ["ttf-liberation", "noto-fonts-cjk"] },
         { id: "mangohud", icon: "gauge", title: "MangoHud", on: false,
-          text: "Счётчик кадров, температура и загрузка поверх игры",
+          text: I18n.tr("Счётчик кадров, температура и загрузка поверх игры"),
           pkgs: ["mangohud", "lib32-mangohud"] },
         { id: "gamescope", icon: "monitor", title: "Gamescope", on: false,
-          text: "Отдельный экран для игры: своё разрешение, FSR, ограничение кадров",
+          text: I18n.tr("Отдельный экран для игры: своё разрешение, FSR, ограничение кадров"),
           pkgs: ["gamescope"] },
         { id: "wine", icon: "windows", title: "Wine", on: false, steam: true,
-          text: "Программы и игры для Windows вне Steam",
+          text: I18n.tr("Программы и игры для Windows вне Steam"),
           pkgs: ["wine", "winetricks"] }
     ]
 
@@ -69,42 +70,42 @@ Singleton {
         for (const g of gpus) {
             if (g.kind === "nvidia" && g.device >= 0x1e00) {
                 // Turing (GTX 16xx, RTX 20xx) и новее — открытые модули NVIDIA
-                add({ id: "nvidia", icon: "gpu", title: "Драйвер NVIDIA", on: true,
-                      text: "Официальный драйвер для " + g.name + ": полный FPS, DLSS, видеоускорение",
+                add({ id: "nvidia", icon: "gpu", title: I18n.tr("Драйвер NVIDIA"), on: true,
+                      text: I18n.tr("Официальный драйвер для ") + g.name + ": полный FPS, DLSS, видеоускорение",
                       pkgs: ["nvidia-open-dkms", "nvidia-utils", "lib32-nvidia-utils", "nvidia-settings"].concat(headers()) });
             } else if (g.kind === "nvidia" && g.device >= 0x1340) {
                 // Maxwell и Pascal (GTX 900/1000): NVIDIA выпускает для них ветку 580
                 // только в AUR — собираем из рецепта
-                add({ id: "nvidia580", icon: "gpu", title: "Драйвер NVIDIA 580", on: true,
-                      text: "Последний драйвер для " + g.name + ". В Arch его нет — соберём из AUR, это займёт несколько минут",
+                add({ id: "nvidia580", icon: "gpu", title: I18n.tr("Драйвер NVIDIA 580"), on: true,
+                      text: I18n.tr("Последний драйвер для ") + g.name + ". В Arch его нет — соберём из AUR, это займёт несколько минут",
                       pkgs: headers(), aur: ["nvidia-580xx-utils", "lib32-nvidia-580xx-utils"],
                       check: ["nvidia-580xx-utils", "nvidia-580xx-dkms", "lib32-nvidia-580xx-utils"] });
-                add({ id: "nouveau", icon: "gpu", title: "Открытый драйвер Nouveau", on: false,
-                      text: "Ставится сразу и работает без AUR, но в играх заметно медленнее",
+                add({ id: "nouveau", icon: "gpu", title: I18n.tr("Открытый драйвер Nouveau"), on: false,
+                      text: I18n.tr("Ставится сразу и работает без AUR, но в играх заметно медленнее"),
                       pkgs: ["mesa", "lib32-mesa", "vulkan-nouveau", "lib32-vulkan-nouveau"] });
             } else if (g.kind === "nvidia") {
-                add({ id: "nouveau", icon: "gpu", title: "Открытый драйвер Nouveau", on: true,
-                      text: "Для " + g.name + " NVIDIA больше не выпускает драйвер — только открытый",
+                add({ id: "nouveau", icon: "gpu", title: I18n.tr("Открытый драйвер Nouveau"), on: true,
+                      text: I18n.tr("Для ") + g.name + " NVIDIA больше не выпускает драйвер — только открытый",
                       pkgs: ["mesa", "lib32-mesa", "vulkan-nouveau", "lib32-vulkan-nouveau"] });
             } else if (g.kind === "amd") {
-                add({ id: "amd", icon: "gpu", title: "Драйвер AMD", on: true,
-                      text: "Открытый драйвер для " + g.name + ": Vulkan RADV, OpenGL и видеоускорение",
+                add({ id: "amd", icon: "gpu", title: I18n.tr("Драйвер AMD"), on: true,
+                      text: I18n.tr("Открытый драйвер для ") + g.name + ": Vulkan RADV, OpenGL и видеоускорение",
                       pkgs: ["mesa", "lib32-mesa", "vulkan-radeon", "lib32-vulkan-radeon"] });
             } else if (g.kind === "intel") {
-                add({ id: "intel", icon: "gpu", title: "Драйвер Intel", on: true,
-                      text: "Vulkan и видеоускорение для " + g.name,
+                add({ id: "intel", icon: "gpu", title: I18n.tr("Драйвер Intel"), on: true,
+                      text: I18n.tr("Vulkan и видеоускорение для ") + g.name,
                       pkgs: ["mesa", "lib32-mesa", "vulkan-intel", "lib32-vulkan-intel", "intel-media-driver"] });
             } else if (g.kind === "vm") {
-                add({ id: "vm", icon: "monitor", title: "Графика виртуальной машины", on: true,
-                      text: "Программный Vulkan: игры пойдут медленно, но запустятся",
+                add({ id: "vm", icon: "monitor", title: I18n.tr("Графика виртуальной машины"), on: true,
+                      text: I18n.tr("Программный Vulkan: игры пойдут медленно, но запустятся"),
                       pkgs: ["mesa", "lib32-mesa", "vulkan-swrast", "lib32-vulkan-swrast"] });
             }
         }
-        add({ id: "zen", icon: "cpu", title: "Игровое ядро linux-zen", on: true,
-              text: "Меньше задержек в играх и под нагрузкой. Заработает после перезагрузки",
+        add({ id: "zen", icon: "cpu", title: I18n.tr("Игровое ядро linux-zen"), on: true,
+              text: I18n.tr("Меньше задержек в играх и под нагрузкой. Заработает после перезагрузки"),
               pkgs: ["linux-zen", "linux-zen-headers"] });
-        add({ id: "firmware", icon: "disk", title: "Прошивки устройств", on: true,
-              text: "Wi-Fi, Bluetooth и звук на ноутбуках",
+        add({ id: "firmware", icon: "disk", title: I18n.tr("Прошивки устройств"), on: true,
+              text: I18n.tr("Wi-Fi, Bluetooth и звук на ноутбуках"),
               pkgs: ["linux-firmware", "sof-firmware"] });
         return out;
     }
@@ -123,34 +124,34 @@ Singleton {
     // ---------- приложения ----------
     readonly property var apps: [
         { id: "steam", icon: "gamepad", title: "Steam", on: true, steam: true,
-          text: "Магазин игр и Proton — тысячи игр для Windows прямо в Vanks OS",
+          text: I18n.tr("Магазин игр и Proton — тысячи игр для Windows прямо в Vanks OS"),
           pkgs: ["steam"] },
         { id: "chromium", icon: "globe", title: "Chromium", on: true,
-          text: "Быстрый браузер с синхронизацией закладок",
+          text: I18n.tr("Быстрый браузер с синхронизацией закладок"),
           pkgs: ["chromium"] },
         { id: "discord", icon: "send", title: "Discord", on: false,
-          text: "Голосовые каналы и чаты с друзьями",
+          text: I18n.tr("Голосовые каналы и чаты с друзьями"),
           pkgs: ["discord"] },
         { id: "obs", icon: "video", title: "OBS Studio", on: false,
-          text: "Запись экрана и стримы",
+          text: I18n.tr("Запись экрана и стримы"),
           pkgs: ["obs-studio"] },
         { id: "lutris", icon: "gamepad", title: "Lutris", on: false, steam: true,
-          text: "Игры из Epic, GOG, Battle.net и эмуляторы в одном месте",
+          text: I18n.tr("Игры из Epic, GOG, Battle.net и эмуляторы в одном месте"),
           pkgs: ["lutris"] },
         { id: "telegram", icon: "send", title: "Telegram", on: false,
-          text: "Мессенджер",
+          text: I18n.tr("Мессенджер"),
           pkgs: ["telegram-desktop"] },
         { id: "vlc", icon: "play", title: "VLC", on: false,
-          text: "Плеер, который открывает всё",
+          text: I18n.tr("Плеер, который открывает всё"),
           pkgs: ["vlc"] }
     ]
 
     readonly property var store: ({ id: "store", pkgs: ["gnome-software", "flatpak"] })
 
     readonly property var tabs: [
-        { id: "libs", title: "Библиотеки", icon: "layers", items: libs },
-        { id: "drivers", title: "Драйверы", icon: "gpu", items: drivers },
-        { id: "apps", title: "Приложения", icon: "apps", items: apps }
+        { id: "libs", title: I18n.tr("Библиотеки"), icon: "layers", items: libs },
+        { id: "drivers", title: I18n.tr("Драйверы"), icon: "gpu", items: drivers },
+        { id: "apps", title: I18n.tr("Приложения"), icon: "apps", items: apps }
     ]
 
     // ---------- состояние ----------

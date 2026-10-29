@@ -18,7 +18,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Профиль"
+    property string title: I18n.tr("Профиль")
     property string icon: "user"
     property string keywords: "имя аватар фото пароль автовход вход без пароля блокировка"
     spacing: 18
@@ -56,16 +56,16 @@ ColumnLayout {
                 Label { text: Accounts.displayName; size: "h1"; Layout.fillWidth: true }
                 Label { text: root.me.userName + (root.me.admin ? " · администратор" : " · обычный пользователь"); tone: 3 }
             }
-            Btn { text: "Сменить фото"; icon: "image"; onClicked: avatarDlg.openDlg() }
+            Btn { text: I18n.tr("Сменить фото"); icon: "image"; onClicked: avatarDlg.openDlg() }
         }
     }
 
     Card {
-        title: "Учётная запись"
+        title: I18n.tr("Учётная запись")
         SettingRow {
             icon: "user"
-            title: "Имя"
-            subtitle: "Так вас видно на экране входа"
+            title: I18n.tr("Имя")
+            subtitle: I18n.tr("Так вас видно на экране входа")
             RowLayout {
                 spacing: 8
                 Field {
@@ -76,7 +76,7 @@ ColumnLayout {
                     onAccepted: root.saveName()
                 }
                 Btn {
-                    text: "Сохранить"
+                    text: I18n.tr("Сохранить")
                     kind: "accent"
                     visible: nameField.text !== (root.me.realName || "")
                     onClicked: root.saveName()
@@ -85,18 +85,18 @@ ColumnLayout {
         }
         SettingRow {
             icon: "key"
-            title: "Пароль"
-            subtitle: "Для входа и важных изменений"
-            Btn { text: "Сменить…"; onClicked: pwDlg.open() }
+            title: I18n.tr("Пароль")
+            subtitle: I18n.tr("Для входа и важных изменений")
+            Btn { text: I18n.tr("Сменить…"); onClicked: pwDlg.open() }
         }
     }
 
     Card {
-        title: "Вход"
+        title: I18n.tr("Вход")
         SettingRow {
             icon: "unlock"
-            title: "Входить без пароля"
-            subtitle: "Компьютер включается сразу на рабочий стол. Браузер может один раз спросить пароль"
+            title: I18n.tr("Входить без пароля")
+            subtitle: I18n.tr("Компьютер включается сразу на рабочий стол. Браузер может один раз спросить пароль")
             Toggle {
                 checked: root.autologinUser === root.me.userName
                 onToggled: v => root.setAutologin(v)
@@ -104,7 +104,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "lock"
-            title: "Блокировать при входе"
+            title: I18n.tr("Блокировать при входе")
             subtitle: root.autologinUser === root.me.userName ? "При автовходе сначала показывается экран блокировки" : "Показывать экран блокировки сразу после входа"
             Toggle { checked: Settings.get("lock.onStart", false); onToggled: v => Settings.set("lock.onStart", v) }
         }
@@ -151,8 +151,8 @@ ColumnLayout {
     // ------------------------------------------------------------ аватар
     Dialog {
         id: avatarDlg
-        title: "Фото профиля"
-        subtitle: "Картинка или готовый аватар"
+        title: I18n.tr("Фото профиля")
+        subtitle: I18n.tr("Картинка или готовый аватар")
         cardWidth: 560
 
         // "" — текущее; "color:<hex>" — инициалы на цвете; иначе путь к файлу
@@ -190,7 +190,7 @@ ColumnLayout {
             ColumnLayout {
                 spacing: 10
                 Layout.fillWidth: true
-                Label { text: "Стандартные"; size: "small"; tone: 3 }
+                Label { text: I18n.tr("Стандартные"); size: "small"; tone: 3 }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 8
@@ -208,7 +208,7 @@ ColumnLayout {
                         }
                     }
                 }
-                Label { text: "Картинки"; size: "small"; tone: 3; visible: avatarDlg.images.length > 0 }
+                Label { text: I18n.tr("Картинки"); size: "small"; tone: 3; visible: avatarDlg.images.length > 0 }
                 Flickable {
                     Layout.fillWidth: true
                     implicitHeight: Math.min(110, imgFlow.implicitHeight)
@@ -242,7 +242,7 @@ ColumnLayout {
             id: pathField
             Layout.fillWidth: true
             icon: "folder"
-            placeholder: "Или путь к файлу: ~/Изображения/я.jpg"
+            placeholder: I18n.tr("Или путь к файлу: ~/Изображения/я.jpg")
             onAccepted: {
                 const p = text.trim().replace(/^~(?=\/)/, root.home);
                 if (p.length) avatarDlg.choice = p;
@@ -250,8 +250,8 @@ ColumnLayout {
         }
 
         buttons: [
-            Btn { text: "Отмена"; onClicked: avatarDlg.close() },
-            Btn { text: "Сохранить"; kind: "accent"; enabled: avatarDlg.choice.length > 0 && (shot.hasImage || avatarDlg.choice.startsWith("color:")); onClicked: root.saveAvatar() }
+            Btn { text: I18n.tr("Отмена"); onClicked: avatarDlg.close() },
+            Btn { text: I18n.tr("Сохранить"); kind: "accent"; enabled: avatarDlg.choice.length > 0 && (shot.hasImage || avatarDlg.choice.startsWith("color:")); onClicked: root.saveAvatar() }
         ]
 
         Process {

@@ -68,7 +68,7 @@ Scope {
     function finishUnlock() {
         persist.locked = false;
         unlocking = false;
-        Sounds.play("service-login");
+        Sounds.play("unlock");
         ShellState.unlocking = false;
         ShellState.desktopShown = true;
         lockedHint(false);

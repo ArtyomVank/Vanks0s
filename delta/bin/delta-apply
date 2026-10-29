@@ -129,14 +129,15 @@ lua=$(jq -r '
      "hl.animation({ leaf = \"windowsOut\", enabled = true, speed = 1.6, bezier = \"deltaInOut\", style = \(.[1] | @json) })"),
   "",
   # «Желе»: пружина с недостаточным демпфированием — окно при перетаскивании
-  # и изменении размера немного проскакивает и покачивается.
+  # догоняет курсор с покачиванием. Только перемещение: при растягивании
+  # пружины нет, а на разворачивание её снимает оболочка (window/Motion.qml).
   ((.windows.jelly | num(0) | clamp(0; 1.7)) as $jelly
    | if $jelly > 0 then
        # без animate_mouse_windowdragging Hyprland двигает окно за курсором
        # мгновенно, и пружине нечего делать — «желе» не было видно вовсе
-       [ "hl.curve(\"deltaJelly\", { type = \"spring\", mass = 1, stiffness = 200, dampening = \((30 - 14 * $jelly) | if . < 6 then 6 else . end | floor) })",
+       [ "hl.curve(\"deltaJelly\", { type = \"spring\", mass = 1, stiffness = 230, dampening = \((26 - 12 * $jelly) | if . < 5 then 5 else . end | floor) })",
          "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = 6, spring = \"deltaJelly\" })",
-         "hl.config({ misc = { animate_mouse_windowdragging = true, animate_manual_resizes = true } })" ]
+         "hl.config({ misc = { animate_mouse_windowdragging = true, animate_manual_resizes = false } })" ]
      else [ "hl.config({ misc = { animate_mouse_windowdragging = false } })" ] end
    | .[]),
   "",

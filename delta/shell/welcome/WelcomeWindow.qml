@@ -36,7 +36,7 @@ FloatingWindow {
     readonly property var planned: Catalog.plan(Catalog.chosen)
     readonly property int total: planned.pkgs.length + planned.aur.length
 
-    title: "Добро пожаловать"
+    title: I18n.tr("Добро пожаловать")
     implicitWidth: 1000
     implicitHeight: 680
     minimumSize: Qt.size(820, 560)
@@ -78,7 +78,7 @@ FloatingWindow {
         afterInstall = then || null;
         if (Exec.dryRun) {
             // пробный режим: весь путь интерфейса без установки
-            Exec.run(cmd, { label: "установка рекомендованного", done: () => finish(0, "") });
+            Exec.run(cmd, { label: I18n.tr("установка рекомендованного"), done: () => finish(0, "") });
             return;
         }
         proc.command = cmd;
@@ -91,7 +91,9 @@ FloatingWindow {
             stage = "";
             Catalog.picked = ({});
             Catalog.refresh();
-            Nav.toast(needReboot ? "Готово — перезагрузите компьютер" : "Всё установлено");
+            Nav.toast(needReboot ? I18n.tr("Готово — перезагрузите компьютер") : I18n.tr("Всё установлено"));
+            boom.burst(width / 2, height - 90);
+            Sounds.play("oobe-done", 0);
             if (afterInstall) afterInstall();
         } else if (code === 126 || code === 127) {
             stage = "";
@@ -166,9 +168,9 @@ FloatingWindow {
             ColumnLayout {
                 spacing: 2
                 Layout.fillWidth: true
-                Label { text: "Добро пожаловать в Vanks OS"; size: "h1"; Layout.fillWidth: true }
+                Label { text: I18n.tr("Добро пожаловать в Vanks OS"); size: "h1"; Layout.fillWidth: true }
                 Label {
-                    text: "Отметьте, что поставить, — остальное система сделает сама. Вернуться сюда можно из «Настроек»."
+                    text: I18n.tr("Отметьте, что поставить, — остальное система сделает сама. Вернуться сюда можно из «Настроек».")
                     tone: 2; Layout.fillWidth: true
                 }
             }
@@ -271,7 +273,7 @@ FloatingWindow {
             Label {
                 anchors.centerIn: parent
                 visible: !Catalog.detected
-                text: "Смотрим, что за компьютер…"
+                text: I18n.tr("Смотрим, что за компьютер…")
                 tone: 3
             }
         }
@@ -334,9 +336,9 @@ FloatingWindow {
                     }
                 }
                 Btn {
-                    text: "Перезагрузить"
+                    text: I18n.tr("Перезагрузить")
                     visible: win.finished && win.needReboot && !win.installing
-                    onClicked: Exec.run(["systemctl", "reboot"], { label: "перезагрузка" })
+                    onClicked: Exec.run(["systemctl", "reboot"], { label: I18n.tr("перезагрузка") })
                 }
                 Btn {
                     text: win.total > 0 ? "Установить" : "Закрыть"
@@ -403,14 +405,14 @@ FloatingWindow {
                     ColumnLayout {
                         spacing: 2
                         Layout.fillWidth: true
-                        Label { text: "Магазин приложений"; size: "title"; Layout.fillWidth: true }
+                        Label { text: I18n.tr("Магазин приложений"); size: "title"; Layout.fillWidth: true }
                         Label {
                             text: Catalog.isInstalled(Catalog.store) ? "Тысячи программ из Arch и Flathub — ищите, ставьте, обновляйте"
                                                                      : "Тысячи программ из Arch и Flathub. Сначала поставим сам магазин"
                             tone: 2; size: "small"; Layout.fillWidth: true
                         }
                     }
-                    Btn { text: "Открыть магазин"; kind: "accent"; icon: "store"; enabled: !win.installing; onClicked: win.openStore() }
+                    Btn { text: I18n.tr("Открыть магазин"); kind: "accent"; icon: "store"; enabled: !win.installing; onClicked: win.openStore() }
                 }
             }
         }
@@ -450,4 +452,7 @@ FloatingWindow {
         }
         function quit(): void { Qt.quit(); }
     }
+
+    // установилось — залп конфетти
+    Confetti { id: boom; anchors.fill: parent; z: 100 }
 }

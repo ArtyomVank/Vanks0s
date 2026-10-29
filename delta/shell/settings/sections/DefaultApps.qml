@@ -14,20 +14,20 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Приложения по умолчанию"
+    property string title: I18n.tr("Приложения по умолчанию")
     property string icon: "apps"
     property string keywords: "браузер почта файлы терминал изображения видео музыка текст mime открывать"
     spacing: 18
 
     readonly property var kinds: [
-        { id: "browser",  title: "Браузер",      icon: "globe",    mimes: ["x-scheme-handler/http", "x-scheme-handler/https", "text/html"] },
-        { id: "mail",     title: "Почта",        icon: "bell",     mimes: ["x-scheme-handler/mailto"] },
-        { id: "files",    title: "Файлы",        icon: "folder",   mimes: ["inode/directory"] },
-        { id: "terminal", title: "Терминал",     icon: "terminal", mimes: [] },
-        { id: "images",   title: "Изображения",  icon: "image",    mimes: ["image/png", "image/jpeg", "image/webp", "image/gif"] },
-        { id: "video",    title: "Видео",        icon: "video",    mimes: ["video/mp4", "video/x-matroska", "video/webm"] },
-        { id: "music",    title: "Музыка",       icon: "music",    mimes: ["audio/mpeg", "audio/flac", "audio/ogg"] },
-        { id: "text",     title: "Текст",        icon: "file",     mimes: ["text/plain"] }
+        { id: "browser",  title: I18n.tr("Браузер"),      icon: "globe",    mimes: ["x-scheme-handler/http", "x-scheme-handler/https", "text/html"] },
+        { id: "mail",     title: I18n.tr("Почта"),        icon: "bell",     mimes: ["x-scheme-handler/mailto"] },
+        { id: "files",    title: I18n.tr("Файлы"),        icon: "folder",   mimes: ["inode/directory"] },
+        { id: "terminal", title: I18n.tr("Терминал"),     icon: "terminal", mimes: [] },
+        { id: "images",   title: I18n.tr("Изображения"),  icon: "image",    mimes: ["image/png", "image/jpeg", "image/webp", "image/gif"] },
+        { id: "video",    title: I18n.tr("Видео"),        icon: "video",    mimes: ["video/mp4", "video/x-matroska", "video/webm"] },
+        { id: "music",    title: I18n.tr("Музыка"),       icon: "music",    mimes: ["audio/mpeg", "audio/flac", "audio/ogg"] },
+        { id: "text",     title: I18n.tr("Текст"),        icon: "file",     mimes: ["text/plain"] }
     ]
     // { browser: { default: "x.desktop", apps: [...] }, … }
     property var appState: ({})
@@ -74,13 +74,13 @@ ColumnLayout {
         };
         if (kind === "terminal")
             Exec.run(["sh", "-c", "mkdir -p \"${XDG_CONFIG_HOME:-$HOME/.config}\" && printf '%s\\n' \"$1\" > \"${XDG_CONFIG_HOME:-$HOME/.config}/xdg-terminals.list\"", "sh", app],
-                     { label: "терминал по умолчанию " + app, home: true, toast: false, done: done });
+                     { label: I18n.tr("терминал по умолчанию ") + app, home: true, toast: false, done: done });
         else
             Exec.run(["xdg-mime", "default", app].concat(k.mimes), { label: k.title + " по умолчанию " + app, home: true, toast: false, done: done });
     }
 
     Card {
-        title: "Чем открывать"
+        title: I18n.tr("Чем открывать")
         Rows {
             Repeater {
                 model: root.kinds

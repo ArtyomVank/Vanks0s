@@ -12,7 +12,7 @@ import qs.common.ui
 ColumnLayout {
     id: root
 
-    property string title: "Звук"
+    property string title: I18n.tr("Звук")
     property string icon: "volume"
     property string keywords: "громкость динамики наушники микрофон выход вход приложения"
     spacing: 18
@@ -69,7 +69,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Выход"
+        title: I18n.tr("Выход")
         SettingRow {
             icon: "speaker"
             title: root.devName(root.sink)
@@ -79,7 +79,7 @@ ColumnLayout {
         }
         SettingRow {
             visible: root.sinks.length > 1
-            title: "Устройство"
+            title: I18n.tr("Устройство")
             wide: true
             DeviceChoice {
                 list: root.sinks
@@ -90,7 +90,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Вход"
+        title: I18n.tr("Вход")
         SettingRow {
             icon: "mic"
             title: root.source ? root.devName(root.source) : "Микрофон не выбран"
@@ -100,7 +100,7 @@ ColumnLayout {
         }
         SettingRow {
             visible: root.sources.length > 1 || (root.source === null && root.sources.length > 0)
-            title: "Устройство"
+            title: I18n.tr("Устройство")
             wide: true
             DeviceChoice {
                 list: root.sources
@@ -111,14 +111,14 @@ ColumnLayout {
     }
 
     Card {
-        title: "Звуки системы"
+        title: I18n.tr("Звуки системы")
         SettingRow {
-            icon: "bell"; title: "Звуки оболочки"; subtitle: "Тихие звуки на уведомления, громкость и блокировку"
+            icon: "bell"; title: I18n.tr("Звуки оболочки"); subtitle: I18n.tr("Тихие звуки на уведомления, громкость и блокировку")
             Toggle { checked: Settings.get("sounds.enabled", true) !== false; onToggled: v => Settings.set("sounds.enabled", v) }
         }
         SettingRow {
             visible: Settings.get("sounds.enabled", true) !== false
-            icon: "volume"; title: "Громкость звуков"; wide: true
+            icon: "volume"; title: I18n.tr("Громкость звуков"); wide: true
             RowLayout {
                 spacing: 10
                 Slider {
@@ -133,11 +133,11 @@ ColumnLayout {
     }
 
     Card {
-        title: "Приложения"
+        title: I18n.tr("Приложения")
         SettingRow {
             visible: root.playback.length === 0 && root.recording.length === 0
             icon: "music"
-            title: "Сейчас звук не воспроизводит ни одно приложение"
+            title: I18n.tr("Сейчас звук не воспроизводит ни одно приложение")
         }
         Repeater {
             model: root.playback.concat(root.recording)

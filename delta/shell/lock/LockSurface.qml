@@ -315,7 +315,7 @@ Item {
             }
             Text {
                 visible: root.mode === "lock"
-                text: "Несохранённые данные в программах пропадут"
+                text: I18n.tr("Несохранённые данные в программах пропадут")
                 color: "#ffffff"
                 opacity: 0.75
                 font.family: Theme.font
@@ -323,7 +323,7 @@ Item {
             }
             Row {
                 spacing: 8
-                GlassBtn { text: "Отмена"; onClicked: root.confirm = "" }
+                GlassBtn { text: I18n.tr("Отмена"); onClicked: root.confirm = "" }
                 GlassBtn {
                     text: PowerActions.labels[root.confirm] || ""
                     active: true
@@ -348,9 +348,9 @@ Item {
             id: editRow
             anchors.centerIn: parent
             spacing: 14
-            Label { anchors.verticalCenter: parent.verticalCenter; text: "Экран блокировки"; font.weight: Font.Bold; leftPadding: 6 }
-            Label { anchors.verticalCenter: parent.verticalCenter; text: "сетка виджетов недоступна"; tone: 3; size: "small" }
-            Btn { text: "Готово"; kind: "accent"; onClicked: root.editDone() }
+            Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.tr("Экран блокировки"); font.weight: Font.Bold; leftPadding: 6 }
+            Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.tr("сетка виджетов недоступна"); tone: 3; size: "small" }
+            Btn { text: I18n.tr("Готово"); kind: "accent"; onClicked: root.editDone() }
         }
     }
 

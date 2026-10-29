@@ -78,7 +78,7 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 6
                 Sym { name: "check"; size: 14; color: "#3FB37A"; anchors.verticalCenter: parent.verticalCenter }
-                Label { text: "Установлено"; size: "small"; color: "#3FB37A"; anchors.verticalCenter: parent.verticalCenter }
+                Label { text: I18n.tr("Установлено"); size: "small"; color: "#3FB37A"; anchors.verticalCenter: parent.verticalCenter }
             }
         }
         Toggle {

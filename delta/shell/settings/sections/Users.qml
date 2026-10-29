@@ -13,7 +13,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Пользователи"
+    property string title: I18n.tr("Пользователи")
     property string icon: "users"
     property string keywords: "учётные записи добавить удалить администратор пользователь"
     spacing: 18
@@ -21,7 +21,7 @@ ColumnLayout {
     readonly property bool admin: Accounts.me.admin === true
 
     Card {
-        title: "На этом компьютере"
+        title: I18n.tr("На этом компьютере")
         Rows {
             Repeater {
                 model: Accounts.users
@@ -48,14 +48,14 @@ ColumnLayout {
             }
             SettingRow {
                 visible: Accounts.loaded && Accounts.users.length === 0
-                title: "AccountsService недоступен"
-                subtitle: "Список пользователей сейчас недоступен"
+                title: I18n.tr("AccountsService недоступен")
+                subtitle: I18n.tr("Список пользователей сейчас недоступен")
             }
             SettingRow {
                 icon: "plus"
-                title: "Добавить пользователя"
+                title: I18n.tr("Добавить пользователя")
                 subtitle: root.admin ? "Понадобится пароль администратора" : "Доступно только администратору"
-                Btn { text: "Добавить…"; icon: "plus"; enabled: root.admin; onClicked: addDlg.open() }
+                Btn { text: I18n.tr("Добавить…"); icon: "plus"; enabled: root.admin; onClicked: addDlg.open() }
             }
         }
     }
@@ -63,8 +63,8 @@ ColumnLayout {
     // ----------------------------------------------------------- добавить
     Dialog {
         id: addDlg
-        title: "Новый пользователь"
-        subtitle: "Латиницей, с маленькой буквы"
+        title: I18n.tr("Новый пользователь")
+        subtitle: I18n.tr("Латиницей, с маленькой буквы")
         property string error: ""
         property bool isAdmin: false
         onShownChanged: if (shown) { error = ""; fullF.text = ""; loginF.text = ""; pwF.text = ""; isAdmin = false; fullF.focusInput(); }
@@ -72,26 +72,26 @@ ColumnLayout {
         readonly property bool loginOk: /^[a-z_][a-z0-9_-]{0,31}$/.test(loginF.text)
 
         Field {
-            id: fullF; Layout.fillWidth: true; placeholder: "Полное имя: Мария Иванова"; icon: "user"
+            id: fullF; Layout.fillWidth: true; placeholder: I18n.tr("Полное имя: Мария Иванова"); icon: "user"
             onEdited: if (!loginF.edited2) loginF.text = root.suggestLogin(text)
         }
         Field {
-            id: loginF; Layout.fillWidth: true; placeholder: "Имя для входа: maria"; icon: "users"
+            id: loginF; Layout.fillWidth: true; placeholder: I18n.tr("Имя для входа: maria"); icon: "users"
             property bool edited2: false
             error: text.length > 0 && !addDlg.loginOk
             onEdited: edited2 = true
         }
-        Field { id: pwF; Layout.fillWidth: true; placeholder: "Пароль (не меньше 8 символов)"; icon: "key"; password: true }
+        Field { id: pwF; Layout.fillWidth: true; placeholder: I18n.tr("Пароль (не меньше 8 символов)"); icon: "key"; password: true }
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "Администратор"; Layout.fillWidth: true }
+            Label { text: I18n.tr("Администратор"); Layout.fillWidth: true }
             Toggle { checked: addDlg.isAdmin; onToggled: v => addDlg.isAdmin = v }
         }
         Label { visible: addDlg.error.length > 0; text: addDlg.error; color: "#ff6b6b"; size: "small"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
         buttons: [
-            Btn { text: "Отмена"; onClicked: addDlg.close() },
-            Btn { text: "Создать"; kind: "accent"; enabled: addDlg.loginOk && pwF.text.length >= 8 && !addDlg.busy; onClicked: root.create() }
+            Btn { text: I18n.tr("Отмена"); onClicked: addDlg.close() },
+            Btn { text: I18n.tr("Создать"); kind: "accent"; enabled: addDlg.loginOk && pwF.text.length >= 8 && !addDlg.busy; onClicked: root.create() }
         ]
     }
 
@@ -109,7 +109,7 @@ ColumnLayout {
         addDlg.busy = true;
         Exec.run(["busctl", "--json=short", "call", "org.freedesktop.Accounts", "/org/freedesktop/Accounts", "org.freedesktop.Accounts",
                   "CreateUser", "ssi", login, full, type], {
-            label: "создать пользователя " + login,
+            label: I18n.tr("создать пользователя ") + login,
             dryOut: JSON.stringify({ type: "o", data: ["/org/freedesktop/Accounts/User9999"] }),
             done: (code, out, err) => {
                 if (code !== 0) { addDlg.busy = false; addDlg.error = root.explainBus(err); return; }
@@ -124,7 +124,7 @@ ColumnLayout {
     function setPassword(path, pw, login) {
         const apply = hash => Exec.run(["busctl", "call", "org.freedesktop.Accounts", path, "org.freedesktop.Accounts.User",
                                         "SetPassword", "ss", hash, ""], {
-            label: "пароль пользователя " + login, redact: [7], toast: false,
+            label: I18n.tr("пароль пользователя ") + login, redact: [7], toast: false,
             done: code => {
                 addDlg.busy = false;
                 if (code !== 0) { addDlg.error = "Пользователь создан, но пароль не задан"; return; }
@@ -155,30 +155,30 @@ ColumnLayout {
         property string error: ""
         function ask(u) { user = u; removeFiles = false; error = ""; open(); }
 
-        title: "Удалить «" + (user.realName || user.userName || "") + "»?"
-        subtitle: "Его файлы и вход пропадут насовсем"
+        title: I18n.tr("Удалить «") + (user.realName || user.userName || "") + "»?"
+        subtitle: I18n.tr("Его файлы и вход пропадут насовсем")
 
         RowLayout {
             Layout.fillWidth: true
             ColumnLayout {
                 spacing: 2
                 Layout.fillWidth: true
-                Label { text: "Удалить и его файлы" }
-                Label { text: "Домашняя папка /home/" + (delDlg.user.userName || ""); size: "small"; tone: 3 }
+                Label { text: I18n.tr("Удалить и его файлы") }
+                Label { text: I18n.tr("Домашняя папка /home/") + (delDlg.user.userName || ""); size: "small"; tone: 3 }
             }
             Toggle { checked: delDlg.removeFiles; onToggled: v => delDlg.removeFiles = v }
         }
         Label { visible: delDlg.error.length > 0; text: delDlg.error; color: "#ff6b6b"; size: "small"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
 
         buttons: [
-            Btn { text: "Отмена"; onClicked: delDlg.close() },
+            Btn { text: I18n.tr("Отмена"); onClicked: delDlg.close() },
             Btn {
-                text: "Удалить"; kind: "danger"; enabled: !delDlg.busy
+                text: I18n.tr("Удалить"); kind: "danger"; enabled: !delDlg.busy
                 onClicked: {
                     delDlg.busy = true;
                     Exec.run(["busctl", "call", "org.freedesktop.Accounts", "/org/freedesktop/Accounts", "org.freedesktop.Accounts",
                               "DeleteUser", "xb", String(delDlg.user.uid), delDlg.removeFiles ? "true" : "false"], {
-                        label: "удалить пользователя " + delDlg.user.userName,
+                        label: I18n.tr("удалить пользователя ") + delDlg.user.userName,
                         done: (code, out, err) => {
                             delDlg.busy = false;
                             if (code !== 0) { delDlg.error = root.explainBus(err); return; }

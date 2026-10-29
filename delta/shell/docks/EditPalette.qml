@@ -39,14 +39,14 @@ PopupLayer {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
-                Label { text: "Верхний док — сетка модулей"; size: "title"; Layout.fillWidth: true }
+                Label { text: I18n.tr("Верхний док — сетка модулей"); size: "title"; Layout.fillWidth: true }
                 Label {
-                    text: "Перетащите модуль в другую ячейку — занятые меняются местами. Крестик убирает модуль."
+                    text: I18n.tr("Перетащите модуль в другую ячейку — занятые меняются местами. Крестик убирает модуль.")
                     size: "small"; tone: 3; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
-            Btn { text: "Сбросить"; onClicked: DockService.resetModules() }
-            Btn { text: "Готово"; kind: "accent"; onClicked: ShellState.dockEditing = false }
+            Btn { text: I18n.tr("Сбросить"); onClicked: DockService.resetModules() }
+            Btn { text: I18n.tr("Готово"); kind: "accent"; onClicked: ShellState.dockEditing = false }
         }
 
         Flow {
@@ -65,7 +65,7 @@ PopupLayer {
             }
             Label {
                 visible: pop.missing.length === 0
-                text: "Все модули уже в доке"
+                text: I18n.tr("Все модули уже в доке")
                 size: "small"
                 tone: 3
             }

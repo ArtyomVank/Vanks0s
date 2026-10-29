@@ -9,7 +9,7 @@ Rectangle {
     id: root
 
     property bool busy: false
-    property string placeholder: "Пароль"
+    property string placeholder: I18n.tr("Пароль")
     property bool echo: false       // PAM может попросить ввод, который видно (например, код)
     readonly property alias text: input.text
     signal submitted(string text)

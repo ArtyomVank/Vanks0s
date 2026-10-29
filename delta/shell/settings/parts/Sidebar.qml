@@ -33,14 +33,14 @@ Rectangle {
                 color: Theme.accent
                 Label { anchors.centerIn: parent; text: "V"; color: Theme.onAccent; font.weight: Font.Black; font.pixelSize: 15 }
             }
-            Label { text: "Настройки"; font.pixelSize: 16; font.weight: Font.Bold }
+            Label { text: I18n.tr("Настройки"); font.pixelSize: 16; font.weight: Font.Bold }
         }
 
         Field {
             id: search
             Layout.fillWidth: true
             icon: "search"
-            placeholder: "Поиск настроек"
+            placeholder: I18n.tr("Поиск настроек")
             clearable: true
             onEdited: Nav.query = text
             onAccepted: if (root.found.length) Nav.open(root.found[0].id)
@@ -120,7 +120,7 @@ Rectangle {
                     width: list.width
                     topPadding: 20
                     horizontalAlignment: Text.AlignHCenter
-                    text: "Ничего не найдено"
+                    text: I18n.tr("Ничего не найдено")
                     tone: 3
                 }
             }

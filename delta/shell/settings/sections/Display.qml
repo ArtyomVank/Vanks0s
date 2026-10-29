@@ -17,7 +17,7 @@ import "../../display/layout.js" as L
 ColumnLayout {
     id: page
 
-    property string title: "Экран"
+    property string title: I18n.tr("Экран")
     property string icon: "monitor"
     property string keywords: "монитор разрешение частота масштаб поворот расположение основной hdr vrr 10 бит icc зеркало яркость ночной свет"
 
@@ -130,7 +130,7 @@ ColumnLayout {
     readonly property var scaleModel: cfg ? L.validScales(cfg.mode.w, cfg.mode.h).map(s => ({ value: s, label: L.scaleLabel(s) })) : []
     readonly property var logical: cfg ? L.logicalSize(cfg) : ({ w: 0, h: 0 })
     readonly property var mirrorModel: {
-        const out = [{ value: "", label: "Нет" }];
+        const out = [{ value: "", label: I18n.tr("Нет") }];
         for (const m of Displays.monitors) {
             const c = draft[m.name];
             if (m.name === selected || !c || !c.enabled || c.mirror) continue;
@@ -167,7 +167,7 @@ ColumnLayout {
     // --- расположение ----------------------------------------------------------
 
     Card {
-        title: "Расположение"
+        title: I18n.tr("Расположение")
 
         Item {
             Layout.fillWidth: true
@@ -207,7 +207,7 @@ ColumnLayout {
                 Label {
                     Layout.fillWidth: true
                     visible: Displays.monitors.length > 1
-                    text: "Перетащите мониторы так, как они стоят на столе. Значок дока — основной экран."
+                    text: I18n.tr("Перетащите мониторы так, как они стоят на столе. Значок дока — основной экран.")
                     size: "small"
                     tone: 3
                     wrapMode: Text.WordWrap
@@ -246,8 +246,8 @@ ColumnLayout {
                 size: "small"
                 tone: page.dirty || Displays.error ? 1 : 3
             }
-            Btn { text: "Сбросить"; kind: "ghost"; enabled: page.dirty && !Displays.pending; onClicked: page.reset() }
-            Btn { text: "Применить"; kind: "accent"; enabled: page.dirty && !Displays.pending; onClicked: page.apply() }
+            Btn { text: I18n.tr("Сбросить"); kind: "ghost"; enabled: page.dirty && !Displays.pending; onClicked: page.reset() }
+            Btn { text: I18n.tr("Применить"); kind: "accent"; enabled: page.dirty && !Displays.pending; onClicked: page.apply() }
         }
     }
 
@@ -259,7 +259,7 @@ ColumnLayout {
 
         SettingRow {
             icon: "power"
-            title: "Включён"
+            title: I18n.tr("Включён")
             subtitle: page.lastShown ? "Единственный работающий экран выключить нельзя" : page.mon ? page.mon.name : ""
             Toggle {
                 checked: page.cfg ? page.cfg.enabled : false
@@ -272,7 +272,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled
             SettingRow {
                 icon: "dock"
-                title: "Основной экран"
+                title: I18n.tr("Основной экран")
                 subtitle: Displays.primaryName === page.selected ? "Доки и уведомления — на этом экране" : "Доки показываются на основном экране"
                 Btn {
                     text: Displays.primaryName === page.selected ? "Основной" : "Сделать основным"
@@ -287,7 +287,7 @@ ColumnLayout {
             show: Brightness.has(page.selected) && page.cfg !== null && page.cfg.enabled
             SettingRow {
                 icon: "sun"
-                title: "Яркость"
+                title: I18n.tr("Яркость")
                 subtitle: Brightness.devices[page.selected] && Brightness.devices[page.selected].kind === "ddc"
                     ? "Через DDC/CI — монитор применяет с небольшой задержкой" : ""
                 wide: true
@@ -302,7 +302,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
             SettingRow {
                 icon: "monitor"
-                title: "Разрешение"
+                title: I18n.tr("Разрешение")
                 Dropdown {
                     id: resDrop
                     model: page.resolutionModel
@@ -321,7 +321,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror && page.rateModel.length > 0
             SettingRow {
                 icon: "refresh-rate"
-                title: "Частота обновления"
+                title: I18n.tr("Частота обновления")
                 wide: true
                 Chips {
                     model: page.rateModel
@@ -335,8 +335,8 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
             SettingRow {
                 icon: "scale"
-                title: "Масштаб"
-                subtitle: "Всё на экране будет как при " + page.logical.w + " × " + page.logical.h
+                title: I18n.tr("Масштаб")
+                subtitle: I18n.tr("Всё на экране будет как при ") + page.logical.w + " × " + page.logical.h
                 wide: true
                 Chips {
                     model: page.scaleModel
@@ -350,7 +350,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
             SettingRow {
                 icon: "rotate"
-                title: "Поворот"
+                title: I18n.tr("Поворот")
                 wide: true
                 RowLayout {
                     spacing: 14
@@ -360,7 +360,7 @@ ColumnLayout {
                         onPicked: v => page.edit(page.selected, { transform: v + (page.cfg.transform >= 4 ? 4 : 0) })
                     }
                     Item { Layout.fillWidth: true }
-                    Label { text: "Отразить"; size: "small"; tone: 2 }
+                    Label { text: I18n.tr("Отразить"); size: "small"; tone: 2 }
                     Toggle {
                         checked: page.cfg ? page.cfg.transform >= 4 : false
                         onToggled: v => page.edit(page.selected, { transform: page.cfg.transform % 4 + (v ? 4 : 0) })
@@ -373,11 +373,11 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
             SettingRow {
                 icon: "refresh-rate"
-                title: "Переменная частота (VRR)"
-                subtitle: "Игры идут плавнее, без разрывов картинки. Нужен монитор с FreeSync или G-Sync"
+                title: I18n.tr("Переменная частота (VRR)")
+                subtitle: I18n.tr("Игры идут плавнее, без разрывов картинки. Нужен монитор с FreeSync или G-Sync")
                 wide: true
                 Chips {
-                    model: [{ value: 0, label: "Выкл" }, { value: 1, label: "Вкл" }, { value: 2, label: "Только полноэкранные" }, { value: 3, label: "Игры и видео" }]
+                    model: [{ value: 0, label: I18n.tr("Выкл") }, { value: 1, label: I18n.tr("Вкл") }, { value: 2, label: I18n.tr("Только полноэкранные") }, { value: 3, label: I18n.tr("Игры и видео") }]
                     current: page.cfg ? page.cfg.vrr : 0
                     onPicked: v => page.edit(page.selected, { vrr: v })
                 }
@@ -388,7 +388,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.enabled && page.mirrorModel.length > 1
             SettingRow {
                 icon: "windows"
-                title: "Повторять экран"
+                title: I18n.tr("Повторять экран")
                 subtitle: page.cfg && page.cfg.mirror ? "Показывает то же, что и выбранный монитор" : "Показывать то же изображение, что на другом мониторе"
                 Dropdown {
                     model: page.mirrorModel
@@ -403,7 +403,7 @@ ColumnLayout {
 
     Card {
         visible: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
-        title: "Цвет"
+        title: I18n.tr("Цвет")
 
         Maybe {
             show: page.mon !== null && page.mon.hdr.hdr
@@ -421,15 +421,15 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.hdr
             Note {
                 kind: "warn"
-                text: "HDR в Hyprland пока экспериментальный: возможны неверные цвета и мерцание. 10 бит на канал ломают часть программ записи экрана."
+                text: I18n.tr("HDR в Hyprland пока экспериментальный: возможны неверные цвета и мерцание. 10 бит на канал ломают часть программ записи экрана.")
             }
         }
         Maybe {
             show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "sun"
-                title: "Яркость обычной картинки: " + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
-                subtitle: "Как выглядят окна и рабочий стол в режиме HDR"
+                title: I18n.tr("Яркость обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
+                subtitle: I18n.tr("Как выглядят окна и рабочий стол в режиме HDR")
                 wide: true
                 Slider {
                     from: 0.5; to: 2; step: 0.05
@@ -442,7 +442,7 @@ ColumnLayout {
             show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "palette"
-                title: "Насыщенность обычной картинки: " + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
+                title: I18n.tr("Насыщенность обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
                 wide: true
                 Slider {
                     from: 0.5; to: 1.5; step: 0.05
@@ -455,8 +455,8 @@ ColumnLayout {
             show: Displays.anyHdr
             SettingRow {
                 icon: "hdr"
-                title: "Авто-HDR в полноэкранных играх"
-                subtitle: "HDR включается сам, когда вы запускаете игру или видео в HDR"
+                title: I18n.tr("Авто-HDR в полноэкранных играх")
+                subtitle: I18n.tr("HDR включается сам, когда вы запускаете игру или видео в HDR")
                 Toggle {
                     checked: Settings.get("display.autoHdr", false) === true
                     onToggled: v => Displays.setAutoHdr(v)
@@ -466,7 +466,7 @@ ColumnLayout {
 
         SettingRow {
             icon: "palette"
-            title: "10 бит на канал"
+            title: I18n.tr("10 бит на канал")
             subtitle: page.cfg && page.cfg.hdr ? "В режиме HDR всегда включено" : "Плавнее градиенты. Может сломать запись экрана в части программ"
             Toggle {
                 checked: page.cfg ? page.cfg.tenBit : false
@@ -478,11 +478,11 @@ ColumnLayout {
             show: page.cfg !== null && !page.cfg.hdr
             SettingRow {
                 icon: "palette"
-                title: "Цветовой охват"
+                title: I18n.tr("Цветовой охват")
                 subtitle: page.cfg && page.cfg.cm === "wide" ? "BT.2020 — только для мониторов с широким охватом" : page.cfg && page.cfg.cm === "edid" ? "Основные цвета из EDID — бывают неточными" : "sRGB подходит почти всем мониторам"
                 wide: true
                 Chips {
-                    model: [{ value: "srgb", label: "sRGB" }, { value: "auto", label: "Авто" }, { value: "wide", label: "Широкий" }, { value: "edid", label: "Из EDID" }]
+                    model: [{ value: "srgb", label: "sRGB" }, { value: "auto", label: I18n.tr("Авто") }, { value: "wide", label: I18n.tr("Широкий") }, { value: "edid", label: I18n.tr("Из EDID") }]
                     current: page.cfg ? page.cfg.cm : "srgb"
                     onPicked: v => page.edit(page.selected, { cm: v })
                 }
@@ -490,7 +490,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "file"
-            title: "Цветовой профиль (ICC)"
+            title: I18n.tr("Цветовой профиль (ICC)")
             subtitle: page.cfg && page.cfg.hdr && page.cfg.icc ? "С HDR профиль не используется" : "Полный путь к файлу .icc или .icm; пусто — без профиля"
             wide: true
             RowLayout {
@@ -499,7 +499,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     mono: true
                     text: page.cfg ? page.cfg.icc : ""
-                    placeholder: "/usr/share/color/icc/монитор.icc"
+                    placeholder: I18n.tr("/usr/share/color/icc/монитор.icc")
                     invalid: text.length > 0 && !text.startsWith("/")
                     onEdited: v => page.edit(page.selected, { icc: v.trim() })
                 }
@@ -515,18 +515,18 @@ ColumnLayout {
     // --- ночной свет ----------------------------------------------------------------
 
     Card {
-        title: "Ночной свет"
+        title: I18n.tr("Ночной свет")
 
         Maybe {
             show: NightLight.checked && !NightLight.usable
             Note {
                 kind: "info"
-                text: "Для ночного света нужна программа hyprsunset — её нет в системе. Установите пакет hyprsunset: он делает цвета теплее и не попадает на снимки и записи экрана."
+                text: I18n.tr("Для ночного света нужна программа hyprsunset — её нет в системе. Установите пакет hyprsunset: он делает цвета теплее и не попадает на снимки и записи экрана.")
             }
         }
         SettingRow {
             icon: "night-light"
-            title: "Ночной свет"
+            title: I18n.tr("Ночной свет")
             subtitle: !NightLight.usable ? "Недоступно без hyprsunset"
                 : !NightLight.enabled ? "Тёплые цвета вечером — меньше нагрузка на глаза"
                 : NightLight.active ? "Сейчас включён" : "Включится по расписанию"
@@ -538,8 +538,8 @@ ColumnLayout {
         }
         SettingRow {
             icon: "thermometer"
-            title: "Теплота: " + NightLight.temperature + " K"
-            subtitle: "Левее — теплее, глазам спокойнее"
+            title: I18n.tr("Теплота: ") + NightLight.temperature + " K"
+            subtitle: I18n.tr("Левее — теплее, глазам спокойнее")
             wide: true
             Slider {
                 enabled: NightLight.usable
@@ -550,7 +550,7 @@ ColumnLayout {
         }
         SettingRow {
             icon: "clock"
-            title: "Расписание"
+            title: I18n.tr("Расписание")
             subtitle: NightLight.schedule === "sun"
                 ? (NightLight.sunToday
                     ? "Сегодня закат в " + NightLight.fmt(NightLight.sunToday.sunset) + ", рассвет в " + NightLight.fmt(NightLight.sunToday.sunrise)
@@ -561,7 +561,7 @@ ColumnLayout {
             RowLayout {
                 spacing: 8
                 Chips {
-                    model: [{ value: "sun", label: "Закат — рассвет" }, { value: "time", label: "По времени" }, { value: "always", label: "Всегда" }]
+                    model: [{ value: "sun", label: I18n.tr("Закат — рассвет") }, { value: "time", label: I18n.tr("По времени") }, { value: "always", label: I18n.tr("Всегда") }]
                     current: NightLight.schedule
                     onPicked: v => { if (NightLight.usable) Settings.set("display.nightLight.schedule", v); }
                 }
@@ -570,7 +570,7 @@ ColumnLayout {
                 RowLayout {
                     visible: NightLight.schedule === "time"
                     spacing: 6
-                    Label { text: "с"; tone: 2 }
+                    Label { text: I18n.tr("с"); tone: 2 }
                     TextField {
                         implicitWidth: 70
                         enabled: NightLight.usable
@@ -578,7 +578,7 @@ ColumnLayout {
                         invalid: !/^\d{1,2}:\d{2}$/.test(text)
                         onEdited: v => { if (/^\d{1,2}:\d{2}$/.test(v.trim())) Settings.set("display.nightLight.from", v.trim()); }
                     }
-                    Label { text: "до"; tone: 2 }
+                    Label { text: I18n.tr("до"); tone: 2 }
                     TextField {
                         implicitWidth: 70
                         enabled: NightLight.usable

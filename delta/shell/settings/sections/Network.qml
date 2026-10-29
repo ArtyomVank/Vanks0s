@@ -11,7 +11,7 @@ import qs.common.ui
 ColumnLayout {
     id: root
 
-    property string title: "Сеть"
+    property string title: I18n.tr("Сеть")
     property string icon: "wifi"
     property string keywords: "wi-fi wifi интернет ethernet кабель пароль сохранённые сети"
     spacing: 18
@@ -53,7 +53,7 @@ ColumnLayout {
     property string error: ""
 
     Card {
-        title: "Состояние"
+        title: I18n.tr("Состояние")
         SettingRow {
             icon: Networking.connectivity === NetworkConnectivity.Full ? "globe" : "warning"
             title: Networking.backend === NetworkBackendType.None ? "NetworkManager не запущен" : root.connectivity
@@ -78,7 +78,7 @@ ColumnLayout {
         }
         SettingRow {
             visible: root.wifi !== null && Networking.wifiEnabled && root.networks.length === 0
-            title: "Поиск сетей…"
+            title: I18n.tr("Поиск сетей…")
         }
         Repeater {
             model: root.networks
@@ -124,18 +124,18 @@ ColumnLayout {
                             passwordCharacter: "•"
                             clip: true
                             onAccepted: if (text.length >= 8) net.modelData.connectWithPsk(text)
-                            Label { anchors.fill: parent; visible: psk.text.length === 0; text: "Пароль сети"; tone: 3 }
+                            Label { anchors.fill: parent; visible: psk.text.length === 0; text: I18n.tr("Пароль сети"); tone: 3 }
                         }
                     }
                     Btn {
                         visible: net.ask
-                        text: "Подключить"; kind: "accent"
+                        text: I18n.tr("Подключить"); kind: "accent"
                         enabled: psk.text.length >= 8
                         onClicked: { root.error = ""; net.modelData.connectWithPsk(psk.text); }
                     }
                     Btn {
                         visible: net.ask
-                        text: "Отмена"; kind: "ghost"
+                        text: I18n.tr("Отмена"); kind: "ghost"
                         onClicked: { root.asking = ""; root.error = ""; }
                     }
                     Btn {
@@ -156,12 +156,12 @@ ColumnLayout {
     }
 
     Card {
-        title: "Сохранённые сети"
+        title: I18n.tr("Сохранённые сети")
         visible: root.wifi !== null
         SettingRow {
             visible: root.saved.length === 0
-            title: "Рядом нет сохранённых сетей"
-            subtitle: "Сети, к которым вы уже подключались"
+            title: I18n.tr("Рядом нет сохранённых сетей")
+            subtitle: I18n.tr("Сети, к которым вы уже подключались")
         }
         Repeater {
             model: root.saved
@@ -171,13 +171,13 @@ ColumnLayout {
                 icon: "lock"
                 title: modelData.name
                 subtitle: modelData.connected ? "Подключено" : "Подключаться автоматически"
-                Btn { text: "Забыть"; kind: "danger"; onClicked: sv.modelData.forget() }
+                Btn { text: I18n.tr("Забыть"); kind: "danger"; onClicked: sv.modelData.forget() }
             }
         }
     }
 
     Card {
-        title: "Кабель"
+        title: I18n.tr("Кабель")
         visible: root.wired.length > 0
         Repeater {
             model: root.wired
@@ -192,7 +192,7 @@ ColumnLayout {
                       + (modelData.address ? " · " + modelData.address : "")
                 Btn {
                     visible: w.modelData.connected
-                    text: "Отключить"
+                    text: I18n.tr("Отключить")
                     onClicked: w.modelData.disconnect()
                 }
             }

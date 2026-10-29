@@ -5,6 +5,7 @@ import Quickshell
 import qs.common
 import qs.common.ui
 import qs.docks
+import qs.docks.parts
 
 // Сетка верхнего дока: 16 ячеек вдоль края, модуль занимает span ячеек.
 //
@@ -135,6 +136,14 @@ Item {
             color: Theme.glass
             border.width: 1
             border.color: Theme.line
+            // капсула вздрагивает вместе с плитками
+            transform: Scale { origin.x: capsule.width / 2; origin.y: capsule.height / 2; xScale: 1 + cj.value * 0.6; yScale: 1 - cj.value }
+            id: capsule
+            Spring { id: cj; stiffness: 280; damping: 10 }
+            Connections {
+                target: ShellState
+                function onDockPoked(dockId, strength) { if (dockId === "top") cj.kick(0.9 * strength); }
+            }
             Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
             Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
         }
@@ -236,11 +245,47 @@ Item {
                 // тянется за ней от края и пружинит (как плитки дока приложений)
                 property real pull: ShellState.pullKey === (grid.screen?.name ?? "") + "/top:" + slot.mid ? ShellState.pull : 0
                 Behavior on pull { SpringAnimation { spring: 4.5; damping: 0.2; epsilon: 0.002 } }
-                transform: Scale {
-                    origin.x: grid.edge === "left" ? 0 : grid.edge === "right" ? btn.width : btn.width / 2
-                    origin.y: grid.edge === "top" ? 0 : grid.edge === "bottom" ? btn.height : btn.height / 2
-                    xScale: grid.vertical ? 1 + 0.32 * btn.pull : 1 - 0.1 * btn.pull
-                    yScale: grid.vertical ? 1 - 0.1 * btn.pull : 1 + 0.32 * btn.pull
+                transform: [
+                    Scale {
+                        origin.x: grid.edge === "left" ? 0 : grid.edge === "right" ? btn.width : btn.width / 2
+                        origin.y: grid.edge === "top" ? 0 : grid.edge === "bottom" ? btn.height : btn.height / 2
+                        xScale: grid.vertical ? 1 + 0.32 * btn.pull : 1 - 0.1 * btn.pull
+                        yScale: grid.vertical ? 1 - 0.1 * btn.pull : 1 + 0.32 * btn.pull
+                    },
+                    // «желе» плитки: колышется от наведения, нажатия и толчков дока
+                    Scale {
+                        origin.x: btn.width / 2
+                        origin.y: btn.height / 2
+                        xScale: 1 + jx.value
+                        yScale: 1 + jy.value
+                    }
+                ]
+
+                // в плиточном режиме у плитки своё стекло — пусть она и живёт
+                readonly property real jk: slot.tiles ? 1 : 0.45
+                Spring { id: jx; stiffness: 320; damping: 10 }
+                Spring { id: jy; stiffness: 320; damping: 10 }
+                function wobble(k) { jx.kick(k * btn.jk); jy.kick(-0.8 * k * btn.jk); }
+                Connections {
+                    target: area
+                    function onContainsMouseChanged() { if (area.containsMouse && !grid.editing) btn.wobble(0.9); }
+                    function onPressedChanged() {
+                        if (grid.editing) return;
+                        // нажатие сплющивает, отпускание подбрасывает
+                        if (area.pressed) { jx.kick(1.3 * btn.jk); jy.kick(-1.6 * btn.jk); }
+                        else { jx.kick(-0.8 * btn.jk); jy.kick(1.1 * btn.jk); }
+                    }
+                }
+                // толчок дока (смена стола, раскладки) расходится волной по плиткам
+                Timer { id: ripple; property real k: 0; onTriggered: btn.wobble(k) }
+                Connections {
+                    target: ShellState
+                    function onDockPoked(dockId, strength) {
+                        if (dockId !== "top" || grid.editing) return;
+                        ripple.k = 1.4 * strength;
+                        ripple.interval = 30 + 45 * slot.index;
+                        ripple.restart();
+                    }
                 }
 
                 Rectangle {

@@ -18,6 +18,8 @@ import qs.minimize
 import qs.window
 import qs.appearance
 import qs.polkit
+import qs.oobe
+import qs.fx
 
 // Меню доков и разделы грузятся через Loader по пути. Модули qs.*, которые
 // импортируют только они, Quickshell без статического импорта не находит
@@ -60,6 +62,8 @@ ShellRoot {
     ThemeSync {}           // оформление для программ GTK/Qt
     Polkit {}              // окно «Нужно подтверждение» (агент polkit)
     UpdateCheck {}         // фоновая проверка обновлений и уведомление о них
+    ShellFx {}             // звуки рабочих столов, меню, острова; вспышка снимка (ipc fx flash)
+    Oobe {}                // первая настройка при первом входе (delta-shell ipc call oobe start)
 
     // Раскладка мониторов по набору подключённых экранов; ночной свет
     // запускается при первом обращении к синглтону.
@@ -78,8 +82,9 @@ ShellRoot {
         onPower: ShellState.toggleOverlay("power")
         onVolume: action => osd.volume(action)
         onBrightness: action => osd.brightness(action)
-        onScreenshot: Quickshell.execDetached(["sh", "-c", 'g=$(slurp) && grim -g "$g" - | wl-copy -t image/png' + Sounds.shell("camera-shutter")])
+        onScreenshot: Quickshell.execDetached(["sh", "-c", 'g=$(slurp) && grim -g "$g" - | wl-copy -t image/png && delta-shell ipc call fx flash' + Sounds.shell("camera-shutter")])
         onMinimize: Minimizer.minimizeActive()
+        onFullscreen: Motion.fullscreen()
     }
 
     // delta-shell ipc call shell <функция>

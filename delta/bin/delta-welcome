@@ -5,7 +5,8 @@
 #   delta-welcome               открыть (или поднять уже открытое окно)
 #   delta-welcome <раздел>      открыть раздел: libs, drivers, apps
 #   delta-welcome --first-run   при входе в систему: только если помощник ещё
-#                               не закрывали и это не live-сессия установщика
+#                               не закрывали, первая настройка пройдена и это
+#                               не live-сессия установщика
 #   delta-welcome ipc <...>     команда окну: delta-welcome ipc call welcome open apps
 #
 # Закрыли окно — при входе оно больше не появляется; открыть снова:
@@ -33,6 +34,11 @@ case "${1:-}" in
         # вложенная сессия разработчика
         [ -n "${DELTA_NESTED:-}" ] && exit 0
         if [ -f "${CONFIG}" ] && jq -e '.welcome.done == true' "${CONFIG}" >/dev/null 2>&1; then
+            exit 0
+        fi
+        # первый вход: сначала первая настройка (oobe/ в оболочке), помощник
+        # она откроет сама, когда пользователь нажмёт «Начать»
+        if ! { [ -f "${CONFIG}" ] && jq -e '.oobe.done == true or ((keys - ["version", "monitors", "display", "oobe"]) | length > 0)' "${CONFIG}" >/dev/null 2>&1; }; then
             exit 0
         fi
         set --

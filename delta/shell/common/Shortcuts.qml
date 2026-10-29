@@ -16,6 +16,7 @@ Scope {
     signal lock()
     signal power()
     signal minimize()
+    signal fullscreen()
     signal screenshot()
     signal volume(string action)
     signal brightness(string action)
@@ -30,6 +31,7 @@ Scope {
     Key { name: "lock";            description: "Заблокировать экран";    onPressed: root.lock() }
     Key { name: "power";           description: "Меню питания";           onPressed: root.power() }
     Key { name: "minimize";        description: "Свернуть окно";          onPressed: root.minimize() }
+    Key { name: "fullscreen";      description: "Развернуть окно";        onPressed: root.fullscreen() }
     Key { name: "screenshot";      description: "Снимок экрана";          onPressed: root.screenshot() }
     Key { name: "volume-up";       description: "Громче";                 onPressed: root.volume("up") }
     Key { name: "volume-down";     description: "Тише";                   onPressed: root.volume("down") }

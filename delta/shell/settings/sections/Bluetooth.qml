@@ -43,7 +43,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Адаптер"
+        title: I18n.tr("Адаптер")
         SettingRow {
             icon: "bluetooth"
             title: root.adapter ? (root.adapter.name || "Bluetooth") : "Bluetooth недоступен"
@@ -60,8 +60,8 @@ ColumnLayout {
         SettingRow {
             visible: root.on
             icon: "eye"
-            title: "Виден другим устройствам"
-            subtitle: "Телефон и наушники увидят этот компьютер"
+            title: I18n.tr("Виден другим устройствам")
+            subtitle: I18n.tr("Телефон и наушники увидят этот компьютер")
             Toggle {
                 checked: root.adapter?.discoverable ?? false
                 onToggled: v => root.adapter.discoverable = v
@@ -70,11 +70,11 @@ ColumnLayout {
     }
 
     Card {
-        title: "Мои устройства"
+        title: I18n.tr("Мои устройства")
         visible: root.on
         SettingRow {
             visible: root.paired.length === 0
-            title: "Сопряжённых устройств нет"
+            title: I18n.tr("Сопряжённых устройств нет")
         }
         Repeater {
             model: root.paired
@@ -91,19 +91,19 @@ ColumnLayout {
                         kind: dev.modelData.connected ? "soft" : "accent"
                         onClicked: dev.modelData.connected ? dev.modelData.disconnect() : dev.modelData.connect()
                     }
-                    Btn { text: "Забыть"; kind: "danger"; onClicked: dev.modelData.forget() }
+                    Btn { text: I18n.tr("Забыть"); kind: "danger"; onClicked: dev.modelData.forget() }
                 }
             }
         }
     }
 
     Card {
-        title: "Другие устройства"
+        title: I18n.tr("Другие устройства")
         visible: root.on
         SettingRow {
             icon: "search"
             title: root.adapter?.discovering ? "Идёт поиск…" : "Поиск новых устройств"
-            subtitle: "Включите на устройстве поиск пары"
+            subtitle: I18n.tr("Включите на устройстве поиск пары")
             Btn {
                 text: root.adapter?.discovering ? "Остановить" : "Искать"
                 active: root.adapter?.discovering ?? false

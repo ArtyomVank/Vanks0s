@@ -47,7 +47,7 @@ Item {
             spacing: 8
             visible: root.editCity || Weather.city.length === 0
             Label { text: Weather.city.length ? "Другой город" : "Город не указан"; size: "title" }
-            Label { text: "Прогноз Open-Meteo для вашего города"; size: "small"; tone: 3; visible: Weather.city.length === 0 }
+            Label { text: I18n.tr("Прогноз Open-Meteo для вашего города"); size: "small"; tone: 3; visible: Weather.city.length === 0 }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
@@ -55,11 +55,11 @@ Item {
                     id: cityField
                     Layout.fillWidth: true
                     icon: "search"
-                    placeholder: "Например, Москва"
+                    placeholder: I18n.tr("Например, Москва")
                     text: Weather.city
                     onAccepted: v => { Settings.set("weather.city", v.trim()); root.editCity = false; }
                 }
-                Btn { text: "Найти"; kind: "accent"; implicitHeight: 32; onClicked: { Settings.set("weather.city", cityField.text.trim()); root.editCity = false; } }
+                Btn { text: I18n.tr("Найти"); kind: "accent"; implicitHeight: 32; onClicked: { Settings.set("weather.city", cityField.text.trim()); root.editCity = false; } }
             }
         }
 
@@ -169,7 +169,7 @@ Item {
 
         Label {
             visible: root.cur !== null
-            text: "Данные: Open-Meteo"
+            text: I18n.tr("Данные: Open-Meteo")
             size: "caption"
             tone: 3
         }

@@ -77,7 +77,7 @@ Item {
         width: parent.width
         spacing: 6
 
-        MenuTitle { text: "Язык ввода" }
+        MenuTitle { text: I18n.tr("Язык ввода") }
 
         Repeater {
             model: root.layouts
@@ -96,7 +96,7 @@ Item {
 
         Label {
             visible: root.keys.length > 0
-            text: "Переключение: " + root.keys
+            text: I18n.tr("Переключение: ") + root.keys
             size: "caption"; tone: 3
             Layout.leftMargin: 4
             Layout.topMargin: 2
@@ -105,7 +105,7 @@ Item {
             Layout.alignment: Qt.AlignLeft
             kind: "ghost"
             icon: "keyboard"
-            text: "Раскладки…"
+            text: I18n.tr("Раскладки…")
             implicitHeight: 32
             onClicked: { ShellState.openSettings("keyboard", null); root.close(); }
         }

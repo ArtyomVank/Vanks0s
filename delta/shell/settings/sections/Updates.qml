@@ -17,7 +17,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Обновления"
+    property string title: I18n.tr("Обновления")
     property string icon: "download"
     property string keywords: "pacman пакеты обновить система checkupdates delta по воздуху автоматически"
     spacing: 18
@@ -80,7 +80,7 @@ ColumnLayout {
         lastLine = "";
         if (Exec.dryRun) {
             // пробный режим: путь интерфейса без установки
-            Exec.run(["pkexec", "delta-update", "apply"], { label: "установка обновлений", done: () => finish(0, "") });
+            Exec.run(["pkexec", "delta-update", "apply"], { label: I18n.tr("установка обновлений"), done: () => finish(0, "") });
             return;
         }
         apply.running = true;
@@ -167,9 +167,9 @@ ColumnLayout {
                         elide: Text.ElideRight
                     }
                 }
-                Btn { text: "Проверить"; icon: "refresh"; visible: !root.installing && !(root.done && root.needReboot); enabled: !root.checking; onClicked: root.check() }
-                Btn { text: "Обновить"; kind: "accent"; visible: root.updates.length > 0 && !root.installing; enabled: !root.checking; onClicked: root.install() }
-                Btn { text: "Перезагрузить"; kind: "accent"; visible: root.done && root.needReboot; onClicked: Exec.run(["systemctl", "reboot"], { label: "перезагрузка" }) }
+                Btn { text: I18n.tr("Проверить"); icon: "refresh"; visible: !root.installing && !(root.done && root.needReboot); enabled: !root.checking; onClicked: root.check() }
+                Btn { text: I18n.tr("Обновить"); kind: "accent"; visible: root.updates.length > 0 && !root.installing; enabled: !root.checking; onClicked: root.install() }
+                Btn { text: I18n.tr("Перезагрузить"); kind: "accent"; visible: root.done && root.needReboot; onClicked: Exec.run(["systemctl", "reboot"], { label: I18n.tr("перезагрузка") }) }
             }
             // бегущая полоса, пока идёт установка
             Rectangle {
@@ -196,7 +196,7 @@ ColumnLayout {
     }
 
     Card {
-        title: "Пакеты"
+        title: I18n.tr("Пакеты")
         visible: root.updates.length > 0
         Rows {
             Repeater {
@@ -218,17 +218,17 @@ ColumnLayout {
     }
 
     Card {
-        title: "Автоматически"
+        title: I18n.tr("Автоматически")
         SettingRow {
             icon: "bell"
-            title: "Проверять обновления"
-            subtitle: "Система сама сообщит, когда выйдет что-то новое"
+            title: I18n.tr("Проверять обновления")
+            subtitle: I18n.tr("Система сама сообщит, когда выйдет что-то новое")
             Toggle { checked: Settings.get("updates.auto", true) !== false; onToggled: v => Settings.set("updates.auto", v) }
         }
         SettingRow {
             icon: "info"
-            title: "Как это работает"
-            subtitle: "Обновляются программы Arch и сама Delta" + (root.deltaVersion ? " (сейчас " + root.deltaVersion + ")" : "")
+            title: I18n.tr("Как это работает")
+            subtitle: I18n.tr("Обновляются программы Arch и сама Delta") + (root.deltaVersion ? " (сейчас " + root.deltaVersion + ")" : "")
                 + ". Нужен только пароль администратора. После обновления ядра, драйвера или Hyprland компьютер попросит перезагрузку."
         }
     }
@@ -238,7 +238,7 @@ ColumnLayout {
         function onAction(name, arg) {
             if (name === "updates.check") root.check();
             else if (name === "updates.install") root.install();
-            else if (name === "updates.fake") root.updates = [{ name: "linux", from: "6.17.1", to: "6.17.2" }, { name: "delta", from: "0.1.0-1", to: "0.3.0-1" }, { name: "firefox", from: "144.0", to: "144.0.1" }];
+            else if (name === "updates.fake") root.updates = [{ name: "linux", from: "6.17.1", to: "6.17.2" }, { name: "delta", from: "0.1.0-1", to: "0.4.0-1" }, { name: "firefox", from: "144.0", to: "144.0.1" }];
         }
     }
 }

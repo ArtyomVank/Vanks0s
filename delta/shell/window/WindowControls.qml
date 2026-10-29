@@ -154,14 +154,9 @@ Scope {
         }
     }
     function fullscreen(addr) {
-        if (Hyprland.usingLua) {
-            // без window диспетчер действует на активное окно — сначала фокус
-            focus(addr);
-            Hyprland.dispatch('hl.dsp.window.fullscreen()');
-        } else {
-            focus(addr);
-            Hyprland.dispatch("fullscreen 0");
-        }
+        // без window диспетчер действует на активное окно — сначала фокус
+        focus(addr);
+        Motion.fullscreen();
     }
     function minimize(addr) {
         const h = Minimizer.byAddress(addr);

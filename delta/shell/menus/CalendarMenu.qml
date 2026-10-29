@@ -73,7 +73,7 @@ Item {
                 font.weight: Font.Bold
                 Layout.fillWidth: true
             }
-            Btn { visible: root.offset !== 0; text: "Сегодня"; implicitHeight: 28; kind: "ghost"; onClicked: root.offset = 0 }
+            Btn { visible: root.offset !== 0; text: I18n.tr("Сегодня"); implicitHeight: 28; kind: "ghost"; onClicked: root.offset = 0 }
             Btn { icon: "chevron-left"; iconSize: 16; implicitHeight: 28; kind: "ghost"; border.width: 0; onClicked: root.offset-- }
             Btn { icon: "chevron-right"; iconSize: 16; implicitHeight: 28; kind: "ghost"; border.width: 0; onClicked: root.offset++ }
         }

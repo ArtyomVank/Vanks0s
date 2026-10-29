@@ -166,7 +166,11 @@ PanelWindow {
                 videoOutput: out
                 // audioOutput не задан — звука нет вовсе
                 onPlaybackStateChanged: if (playbackState === MediaPlayer.PlayingState) frameDelay.restart()
-                onSourceChanged: vbox.hasFrame = false
+                // смена файла останавливает плеер, а root.playing при этом не
+                // меняется (видео → видео) — запускаем сами, иначе обои стоят
+                // до перевключения видеообоев в настройках
+                onSourceChanged: { vbox.hasFrame = false; Qt.callLater(vbox.sync); }
+                onMediaStatusChanged: if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.EndOfMedia) vbox.sync()
                 onErrorOccurred: (error, message) => console.warn("[delta] видеообои: " + message)
             }
             Timer { id: frameDelay; interval: 120; onTriggered: vbox.hasFrame = true }
@@ -178,7 +182,7 @@ PanelWindow {
             }
 
             function sync() {
-                if (root.playing) player.play();
+                if (root.playing) { if (player.playbackState !== MediaPlayer.PlayingState) player.play(); }
                 else if (player.playbackState === MediaPlayer.PlayingState) player.pause();
             }
             Connections {

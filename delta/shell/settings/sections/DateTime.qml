@@ -12,7 +12,7 @@ import qs.settings.parts
 ColumnLayout {
     id: root
 
-    property string title: "Дата и время"
+    property string title: I18n.tr("Дата и время")
     property string icon: "clock"
     property string keywords: "часовой пояс время дата ntp синхронизация 24 часа формат"
     spacing: 18
@@ -79,34 +79,34 @@ ColumnLayout {
     }
 
     Card {
-        title: "Время"
+        title: I18n.tr("Время")
         SettingRow {
             icon: "refresh"
-            title: "Устанавливать время автоматически"
+            title: I18n.tr("Устанавливать время автоматически")
             subtitle: root.td.CanNTP === "no" ? "Служба синхронизации времени не установлена"
                     : root.td.NTPSynchronized === "yes" ? "Синхронизировано по сети (NTP)" : "Синхронизация по сети (NTP)"
             Toggle {
                 checked: root.td.NTP === "yes"
                 enabled: root.td.CanNTP !== "no"
                 onToggled: v => Exec.run(["timedatectl", "set-ntp", v ? "true" : "false"], {
-                    label: "синхронизация времени: " + (v ? "вкл" : "выкл"),
+                    label: I18n.tr("синхронизация времени: ") + (v ? "вкл" : "выкл"),
                     done: code => { if (code === 0 && !Exec.dryRun) root.refresh(); }
                 })
             }
         }
         SettingRow {
             icon: "globe"
-            title: "Часовой пояс"
+            title: I18n.tr("Часовой пояс")
             subtitle: root.td.Timezone || ""
             Select { text: root.td.Timezone ? root.zoneLabel(root.td.Timezone) : "…"; onClicked: tzPicker.openWith() }
         }
     }
 
     Card {
-        title: "Формат"
+        title: I18n.tr("Формат")
         SettingRow {
             icon: "clock"
-            title: "24-часовой формат"
+            title: I18n.tr("24-часовой формат")
             subtitle: root.h24 ? "Сейчас " + Qt.formatTime(root.now, "HH:mm") : "Сейчас " + Qt.formatTime(root.now, "h:mm AP")
             Toggle { checked: root.h24; onToggled: v => Settings.set("clock.hours24", v) }
         }
@@ -114,12 +114,12 @@ ColumnLayout {
 
     Picker {
         id: tzPicker
-        title: "Часовой пояс"
+        title: I18n.tr("Часовой пояс")
         searchHint: "Город или регион: Москва, Europe/Berlin"
         model: root.zones
         current: root.td.Timezone
         onPicked: v => Exec.run(["timedatectl", "set-timezone", v], {
-            label: "часовой пояс " + v,
+            label: I18n.tr("часовой пояс ") + v,
             done: code => { if (code === 0 && !Exec.dryRun) root.refresh(); }
         })
     }

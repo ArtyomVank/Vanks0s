@@ -69,7 +69,7 @@ Item {
         spacing: 8
 
         MenuTitle {
-            text: "Сеть"
+            text: I18n.tr("Сеть")
             Toggle {
                 visible: root.wifi !== null
                 enabled: Networking.wifiHardwareEnabled
@@ -87,7 +87,7 @@ Item {
                 clickable: false
                 icon: "ethernet"
                 iconColor: modelData.connected ? Theme.accent : Theme.fg3
-                title: "Кабель"
+                title: I18n.tr("Кабель")
                 subtitle: (modelData.connected ? "Подключено" : "Не подключено") + " · " + modelData.name
                 Sym { visible: wire.modelData.connected; name: "check"; size: 18; color: Theme.accent }
             }
@@ -97,14 +97,14 @@ Item {
             visible: Networking.backend === NetworkBackendType.None
             clickable: false
             icon: "warning"
-            title: "NetworkManager не запущен"
-            subtitle: "Списка сетей не будет"
+            title: I18n.tr("NetworkManager не запущен")
+            subtitle: I18n.tr("Списка сетей не будет")
         }
         MenuRow {
             visible: Networking.backend !== NetworkBackendType.None && root.wifi === null
             clickable: false
             icon: "wifi-off"
-            title: "Wi‑Fi-адаптер не найден"
+            title: I18n.tr("Wi‑Fi-адаптер не найден")
         }
         MenuRow {
             visible: root.wifi !== null && !Networking.wifiEnabled
@@ -114,7 +114,7 @@ Item {
         }
         Label {
             visible: root.wifi !== null && Networking.wifiEnabled && root.networks.length === 0
-            text: "Поиск сетей…"
+            text: I18n.tr("Поиск сетей…")
             tone: 3
             size: "small"
             Layout.leftMargin: 4
@@ -159,7 +159,7 @@ Item {
                         height: 36
                         icon: "lock"
                         password: !showPsk.active
-                        placeholder: "Пароль"
+                        placeholder: I18n.tr("Пароль")
                         fontSize: 13
                         onAccepted: if (text.length >= 8) { root.error = ""; item.modelData.connectWithPsk(text); }
                         onKey: e => { if (e.key === Qt.Key_Escape) { root.expanded = ""; e.accepted = true; } }
@@ -167,7 +167,7 @@ Item {
                     }
                     Btn { id: showPsk; icon: psk.password ? "eye" : "eye-off"; iconSize: 16; onClicked: active = !active }
                     Btn {
-                        text: "Подключить"
+                        text: I18n.tr("Подключить")
                         kind: "accent"
                         enabled: psk.text.length >= 8
                         onClicked: { root.error = ""; item.modelData.connectWithPsk(psk.text); }
@@ -178,8 +178,8 @@ Item {
                     Layout.fillWidth: true
                     spacing: 6
                     Item { Layout.fillWidth: true }
-                    Btn { visible: item.modelData.known; text: "Забыть"; kind: "ghost"; onClicked: { root.expanded = ""; item.modelData.forget(); } }
-                    Btn { text: "Отключить"; onClicked: { root.expanded = ""; item.modelData.disconnect(); } }
+                    Btn { visible: item.modelData.known; text: I18n.tr("Забыть"); kind: "ghost"; onClicked: { root.expanded = ""; item.modelData.forget(); } }
+                    Btn { text: I18n.tr("Отключить"); onClicked: { root.expanded = ""; item.modelData.disconnect(); } }
                 }
 
                 Connections {
@@ -207,7 +207,7 @@ Item {
             Layout.topMargin: 2
             kind: "ghost"
             icon: "settings"
-            text: "Настройки сети…"
+            text: I18n.tr("Настройки сети…")
             implicitHeight: 32
             onClicked: { ShellState.openSettings("network", null); root.close(); }
         }

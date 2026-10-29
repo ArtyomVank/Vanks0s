@@ -79,21 +79,21 @@ ColumnLayout {
             ColumnLayout {
                 spacing: 4
                 Layout.fillWidth: true
-                Label { text: "Vanks OS на GitHub"; size: "h1"; Layout.fillWidth: true }
+                Label { text: I18n.tr("Vanks OS на GitHub"); size: "h1"; Layout.fillWidth: true }
                 Label {
                     text: root.repo ? "github.com/" + root.repo : root.loaded ? "Репозиторий не указан" : "…"
                     tone: 2
                     Layout.fillWidth: true
                     elide: Text.ElideRight
                 }
-                Label { text: "Отсюда приходят обновления Delta"; tone: 3; size: "small"; visible: root.repo !== "" }
+                Label { text: I18n.tr("Отсюда приходят обновления Delta"); tone: 3; size: "small"; visible: root.repo !== "" }
             }
-            Btn { text: "Открыть"; icon: "link"; kind: "accent"; enabled: root.repo !== ""; onClicked: root.open(root.base, "Открыть репозиторий") }
+            Btn { text: I18n.tr("Открыть"); icon: "link"; kind: "accent"; enabled: root.repo !== ""; onClicked: root.open(root.base, "Открыть репозиторий") }
         }
     }
 
     Card {
-        title: "Последний выпуск"
+        title: I18n.tr("Последний выпуск")
         visible: root.repo !== ""
         SettingRow {
             icon: "rocket"
@@ -103,40 +103,40 @@ ColumnLayout {
                 : root.releaseError
             RowLayout {
                 spacing: 8
-                Btn { text: "Повторить"; icon: "refresh"; visible: root.releaseError !== ""; onClicked: root.fetchRelease() }
-                Btn { text: "Что нового"; visible: root.release !== null; onClicked: root.open(root.release.url, "Открыть выпуск " + root.release.tag) }
+                Btn { text: I18n.tr("Повторить"); icon: "refresh"; visible: root.releaseError !== ""; onClicked: root.fetchRelease() }
+                Btn { text: I18n.tr("Что нового"); visible: root.release !== null; onClicked: root.open(root.release.url, "Открыть выпуск " + root.release.tag) }
             }
         }
         SettingRow {
             icon: "disk"
-            title: "Образ для флешки"
-            subtitle: "Чтобы поставить Vanks OS на другой компьютер"
+            title: I18n.tr("Образ для флешки")
+            subtitle: I18n.tr("Чтобы поставить Vanks OS на другой компьютер")
             visible: root.release !== null && root.release.iso === true
-            Btn { text: "Скачать ISO"; icon: "download"; onClicked: root.open(root.release.url, "Скачать ISO") }
+            Btn { text: I18n.tr("Скачать ISO"); icon: "download"; onClicked: root.open(root.release.url, "Скачать ISO") }
         }
     }
 
     Card {
-        title: "Помочь проекту"
+        title: I18n.tr("Помочь проекту")
         visible: root.repo !== ""
         Rows {
             SettingRow {
                 icon: "warning"
-                title: "Что-то сломалось?"
-                subtitle: "Расскажите, что случилось, — разберёмся"
-                Btn { text: "Сообщить"; onClicked: root.open(root.base + "/issues/new", "Сообщить о проблеме") }
+                title: I18n.tr("Что-то сломалось?")
+                subtitle: I18n.tr("Расскажите, что случилось, — разберёмся")
+                Btn { text: I18n.tr("Сообщить"); onClicked: root.open(root.base + "/issues/new", "Сообщить о проблеме") }
             }
             SettingRow {
                 icon: "file"
-                title: "Исходный код"
-                subtitle: "Всё открыто: оболочка, установщик, сборка образа"
-                Btn { text: "Смотреть"; onClicked: root.open(root.base, "Открыть исходный код") }
+                title: I18n.tr("Исходный код")
+                subtitle: I18n.tr("Всё открыто: оболочка, установщик, сборка образа")
+                Btn { text: I18n.tr("Смотреть"); onClicked: root.open(root.base, "Открыть исходный код") }
             }
             SettingRow {
                 icon: "download"
-                title: "Все выпуски"
-                subtitle: "Прошлые версии и списки изменений"
-                Btn { text: "Открыть"; onClicked: root.open(root.base + "/releases", "Открыть выпуски") }
+                title: I18n.tr("Все выпуски")
+                subtitle: I18n.tr("Прошлые версии и списки изменений")
+                Btn { text: I18n.tr("Открыть"); onClicked: root.open(root.base + "/releases", "Открыть выпуски") }
             }
         }
     }
