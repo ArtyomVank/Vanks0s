@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# Delta — установка рекомендованного из помощника «Добро пожаловать»
+# (delta-welcome): библиотеки для игр, драйвер видеокарты, приложения.
+#
+#   delta-setup detect           видеокарты и ядра (без root, систему не меняет):
+#                                gpu<TAB>nvidia|amd|intel|vm|other<TAB>0xDEVICE<TAB>название
+#                                kernel<TAB>linux-zen …  (установленные ядра)
+#                                multilib<TAB>on|off
+#   delta-setup install <пакеты> [--aur <pkgbase>…]
+#                                поставить (root; помощник зовёт через pkexec,
+#                                пароль спрашивает окно polkit оболочки)
+#
+# --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
+# рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
+#
+# install печатает для помощника строки-метки, остальное — вывод pacman:
+#   ::step:: <текст>   начался этап
+#   ::reboot::         поставили ядро или драйвер — нужна перезагрузка
+#
+# Ставим всегда через pacman -Syu: -Sy без -u с последующим -S — частичное
+# обновление, которое в Arch ломает систему.
+set -u
+export LC_ALL=C
+
+LOCK=/var/lib/pacman/db.lck
+LOG=/var/log/delta-setup.log
+PACMAN_CONF=/etc/pacman.conf
+GRUB_DEFAULTS=/etc/default/grub
+# после их установки нужна перезагрузка
+REBOOT_PKGS=(linux-zen nvidia-open-dkms nvidia-utils nvidia-580xx-dkms mesa vulkan-radeon vulkan-intel vulkan-nouveau)
+# что можно собрать из AUR: pkgbase -> пакеты, которые из него ставим
+declare -A AUR_PKGS=(
+    [nvidia-580xx-utils]="nvidia-580xx-utils nvidia-580xx-dkms"
+    [lib32-nvidia-580xx-utils]="lib32-nvidia-580xx-utils"
+)
+
+say()  { printf '%s\n' "$*" 2>/dev/null || true; [ -w "${LOG}" ] && printf '%s\n' "$*" >>"${LOG}"; return 0; }
+step() { say "::step:: $*"; }
+die()  { printf '%s\n' "$*" >&2 2>/dev/null; [ -w "${LOG}" ] && printf 'ОШИБКА: %s\n' "$*" >>"${LOG}"; exit 1; }
+run()  {
+    "$@" 2>&1 | while IFS= read -r line; do say "${line}"; done
+    return "${PIPESTATUS[0]}"
+}
+
+cmd_detect() {
+    local dev cls vendor device kind name
+    for dev in /sys/bus/pci/devices/*; do
+        cls=$(cat "${dev}/class" 2>/dev/null) || continue
+        # 0x03xxxx — видеоадаптеры (VGA, 3D, дисплейные)
+        [[ ${cls} == 0x03* ]] || continue
+        vendor=$(cat "${dev}/vendor"); device=$(cat "${dev}/device")
+        case ${vendor} in
+            0x10de) kind=nvidia ;;
+            0x1002) kind=amd ;;
+            0x8086) kind=intel ;;
+            0x1af4|0x15ad|0x1234|0x80ee|0x1414) kind=vm ;;
+            *) kind=other ;;
+        esac
+        name=""
+        command -v lspci >/dev/null && name=$(lspci -vmm -s "${dev##*/}" 2>/dev/null | sed -n 's/^Device:\t//p' | head -n1)
+        printf 'gpu\t%s\t%s\t%s\n' "${kind}" "${device}" "${name:-${kind}}"
+    done
+    printf 'kernel\t%s\n' "$(pacman -Qq linux linux-zen linux-lts linux-hardened 2>/dev/null | tr '\n' ' ')"
+    if grep -q '^\[multilib\]' "${PACMAN_CONF}" 2>/dev/null; then echo $'multilib\ton'; else echo $'multilib\toff'; fi
+}
+
+# [multilib] нужен для Steam, Wine и lib32-драйверов. В системах до 0.3 его нет.
+enable_multilib() {
+    grep -q '^\[multilib\]' "${PACMAN_CONF}" && return 0
+    step "Включаю 32-битные библиотеки (multilib)"
+    cp -a "${PACMAN_CONF}" "${PACMAN_CONF}.delta-setup.bak"
+    if grep -q '^#\[multilib\]' "${PACMAN_CONF}"; then
+        # закомментированный блок из стандартного pacman.conf
+        sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' "${PACMAN_CONF}"
+    else
+        printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' >>"${PACMAN_CONF}"
+    fi
+}
+
+# linux-zen рядом со старым linux: GRUB по умолчанию грузит игровое ядро
+grub_prefer_zen() {
+    [ -f /boot/vmlinuz-linux-zen ] && [ -f "${GRUB_DEFAULTS}" ] || return 0
+    command -v grub-mkconfig >/dev/null || return 0
+    step "Делаю игровое ядро основным"
+    if grep -q '^#\?GRUB_TOP_LEVEL=' "${GRUB_DEFAULTS}"; then
+        sed -i 's|^#\?GRUB_TOP_LEVEL=.*|GRUB_TOP_LEVEL="/boot/vmlinuz-linux-zen"|' "${GRUB_DEFAULTS}"
+    else
+        echo 'GRUB_TOP_LEVEL="/boot/vmlinuz-linux-zen"' >>"${GRUB_DEFAULTS}"
+    fi
+    run grub-mkconfig -o /boot/grub/grub.cfg || say "предупреждение: grub-mkconfig не сработал — ядро можно выбрать в меню загрузки"
+}
+
+# Драйвер NVIDIA: nouveau не должен попасть в initramfs раньше него
+nvidia_initramfs() {
+    step "Готовлю загрузку с драйвером NVIDIA"
+    sed -i -E '/^HOOKS=/s/ kms( |\))/\1/' /etc/mkinitcpio.conf
+    run mkinitcpio -P || say "предупреждение: mkinitcpio завершился с ошибкой"
+}
+
+# сборка из AUR от nobody: makepkg от root не работает, и так рецепт не
+# получает прав на систему; собранное ставит pacman -U
+aur_install() {
+    local tmp base pkg files=() f
+    tmp=$(mktemp -d /var/tmp/delta-aur.XXXXXX) || die "Нет места для сборки"
+    # shellcheck disable=SC2064
+    trap "rm -rf '${tmp}'" EXIT
+    chown nobody: "${tmp}"
+    for base in "$@"; do
+        step "Скачиваю рецепт ${base} из AUR"
+        curl -fsSL --retry 3 --max-time 60 "https://aur.archlinux.org/cgit/aur.git/snapshot/${base}.tar.gz" \
+            | runuser -u nobody -- tar xz -C "${tmp}" || die "Не удалось скачать ${base} из AUR"
+        step "Собираю ${base} (несколько минут)"
+        ( cd "${tmp}/${base}" && run runuser -u nobody -- env HOME="${tmp}" PKGDEST="${tmp}/out" \
+            SRCDEST="${tmp}/src" BUILDDIR="${tmp}/build" makepkg --nodeps --noconfirm ) \
+            || die "Не удалось собрать ${base}"
+        for pkg in ${AUR_PKGS[${base}]}; do
+            f=$(find "${tmp}/out" -maxdepth 1 -name "${pkg}-[0-9]*.pkg.tar.zst" | head -n1)
+            [ -n "${f}" ] || die "После сборки ${base} нет пакета ${pkg}"
+            files+=("${f}")
+        done
+        # lib32-… требует nvidia-…-utils той же версии: ставим по очереди
+        run pacman -U --needed --noconfirm "${files[@]}" || die "Не удалось установить ${base}"
+        files=()
+    done
+}
+
+cmd_install() {
+    [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup install …"
+    local p pkgs=() aur=() in_aur=0
+    for p in "$@"; do
+        [ "${p}" = --aur ] && { in_aur=1; continue; }
+        # только имена пакетов: никаких ключей pacman и путей
+        [[ ${p} =~ ^[a-z0-9][a-z0-9@._+-]*$ ]] || die "странное имя пакета: ${p}"
+        if [ "${in_aur}" = 1 ]; then
+            [ -n "${AUR_PKGS[${p}]:-}" ] || die "${p} нельзя ставить из AUR"
+            aur+=("${p}")
+        else
+            pkgs+=("${p}")
+        fi
+    done
+    [ $((${#pkgs[@]} + ${#aur[@]})) -gt 0 ] || die "не выбрано, что ставить"
+    # сборке из AUR нужны makepkg и dkms
+    [ "${#aur[@]}" -gt 0 ] && pkgs+=(base-devel dkms)
+    set -- "${pkgs[@]}"
+    # окно закрыли — установку не прерываем (pacman, убитый посреди
+    # транзакции, оставил бы систему наполовину обновлённой)
+    trap '' HUP PIPE
+    : >"${LOG}" 2>/dev/null
+    for _ in $(seq 60); do [ -e "${LOCK}" ] || break; pgrep -x pacman >/dev/null || break; sleep 1; done
+    if [ -e "${LOCK}" ]; then
+        pgrep -x pacman >/dev/null && die "Сейчас уже идёт установка пакетов. Попробуйте через пару минут."
+        say "убираю оставшийся замок базы пакетов ${LOCK}"
+        rm -f "${LOCK}"
+    fi
+
+    local before after
+    before=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
+
+    enable_multilib || die "Не удалось включить multilib в ${PACMAN_CONF}"
+    step "Обновляю ключи подписи"
+    run pacman -Sy --needed --noconfirm archlinux-keyring || die "Не удалось получить списки пакетов — нет интернета?"
+    step "Скачиваю и устанавливаю (${#} пакетов)"
+    run pacman -Su --needed --noconfirm "$@" || die "Установка не удалась — подробности в ${LOG}"
+    [ "${#aur[@]}" -gt 0 ] && aur_install "${aur[@]}"
+
+    if printf '%s\n' "$@" | grep -qx linux-zen; then grub_prefer_zen; fi
+    if [ "${#aur[@]}" -gt 0 ] || printf '%s\n' "$@" | grep -qx nvidia-open-dkms; then nvidia_initramfs; fi
+    if printf '%s\n' "$@" | grep -qx flatpak; then
+        step "Подключаю Flathub"
+        run flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+            || say "предупреждение: Flathub не подключился — магазин покажет только пакеты Arch"
+    fi
+
+    after=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
+    [ "${before}" != "${after}" ] && say "::reboot::"
+    step "Готово"
+}
+
+case "${1:-}" in
+    detect) cmd_detect ;;
+    install) shift; cmd_install "$@" ;;
+    -h|--help|"")
+        sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
+        [ -n "${1:-}" ] || exit 2
+        ;;
+    *) die "неизвестная команда: $1 (detect | install)" ;;
+esac

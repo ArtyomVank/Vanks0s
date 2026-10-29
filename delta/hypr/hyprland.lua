@@ -243,6 +243,13 @@ hl.window_rule({
     no_anim = true,
 })
 hl.window_rule({
+    name  = "delta-welcome",
+    match = { class = "^delta-welcome$" },
+    float = true,
+    size  = "1000 680",
+    center = true,
+})
+hl.window_rule({
     name  = "calamares",
     match = { class = "^(calamares|io.calamares.calamares)$" },
     float = true,
@@ -272,6 +279,9 @@ hl.on("hyprland.start", function()
         hl.exec_cmd("dex -a")
     end
     hl.exec_cmd("delta-shell")
+    -- помощник первого запуска: после того как стол проявился; сам решает,
+    -- нужно ли показываться (закрывали, live-ISO, вложенная сессия)
+    hl.exec_cmd("sh -c 'sleep 3; exec delta-welcome --first-run'")
 end)
 
 ----------------------------------

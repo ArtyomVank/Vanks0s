@@ -101,7 +101,7 @@ printf '%s\n' "${CHOICE}" > "${ROOT}/etc/vankos/shell"
 cat > "${ROOT}/etc/vankos/release" <<EOF
 VANKS_SHELL=${CHOICE}
 VANKS_DISPLAY_MANAGER=${DM}
-VANKS_VERSION=0.2
+VANKS_VERSION=0.3
 EOF
 
 log "рабочий стол ${CHOICE} установлен"

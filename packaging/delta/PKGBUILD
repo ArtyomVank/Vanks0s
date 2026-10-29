@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
@@ -71,6 +71,8 @@ package() {
     install -Dm755 "${_src}/bin/delta-greeter-sync" "${pkgdir}/usr/bin/delta-greeter-sync"
     install -Dm755 "${_src}/bin/delta-autologin" "${pkgdir}/usr/bin/delta-autologin"
     install -Dm755 "${_src}/bin/delta-update"    "${pkgdir}/usr/bin/delta-update"
+    install -Dm755 "${_src}/bin/delta-welcome"   "${pkgdir}/usr/bin/delta-welcome"
+    install -Dm755 "${_src}/bin/delta-setup"     "${pkgdir}/usr/bin/delta-setup"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
@@ -86,6 +88,11 @@ package() {
 
     install -Dm644 "${_src}/session/delta.desktop" \
         "${pkgdir}/usr/share/wayland-sessions/delta.desktop"
+    # помощник «Добро пожаловать»: значок в доке и в списке приложений
+    install -Dm644 "${_src}/session/delta-welcome.desktop" \
+        "${pkgdir}/usr/share/applications/delta-welcome.desktop"
+    install -Dm644 "${_src}/session/delta-welcome.svg" \
+        "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \
         "${pkgdir}/usr/share/xdg-desktop-portal/delta-portals.conf"
 
@@ -104,4 +111,7 @@ package() {
     # установка обновлений из «Настроек»: pkexec delta-update apply
     install -Dm644 "${_src}/session/polkit/org.vankos.delta.update.policy" \
         "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.update.policy"
+    # помощник «Добро пожаловать»: pkexec delta-setup install …
+    install -Dm644 "${_src}/session/polkit/org.vankos.delta.setup.policy" \
+        "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.setup.policy"
 }

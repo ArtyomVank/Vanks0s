@@ -36,6 +36,7 @@ Singleton {
         { id: "defaultapps",   file: "DefaultApps",   group: "Общие",            title: "Приложения по умолчанию",  icon: "apps",      keywords: "браузер почта файлы терминал изображения видео музыка текст mime" },
         { id: "autostart",     file: "Autostart",     group: "Общие",            title: "Автозапуск",               icon: "rocket",    keywords: "запуск при входе программы" },
         { id: "notifications", file: "Notifications", group: "Общие",            title: "Уведомления",              icon: "bell",      keywords: "не беспокоить приложения экран блокировки" },
+        { id: "recommendations", file: "Recommendations", group: "Общие",        title: "Рекомендации",             icon: "gamepad",   keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd vulkan steam игры библиотеки магазин приложения" },
         { id: "updates",       file: "Updates",       group: "Общие",            title: "Обновления",               icon: "download",  keywords: "pacman пакеты обновить система" },
         { id: "github",        file: "GitHub",        group: "Общие",            title: "GitHub",                   icon: "github",    keywords: "репозиторий синхронизация" },
         { id: "about",         file: "About",         group: "Общие",            title: "О системе",                icon: "info",      keywords: "система версия процессор видеокарта память диск имя компьютера ядро" }
@@ -49,7 +50,8 @@ Singleton {
         monitor: "display", monitors: "display", screen: "display", audio: "sound",
         wifi: "network", mouse: "mouse", touchpad: "mouse", input: "keyboard",
         account: "profile", time: "datetime", date: "datetime", locale: "language",
-        apps: "defaultapps", system: "about", update: "updates"
+        apps: "defaultapps", system: "about", update: "updates",
+        welcome: "recommendations", drivers: "recommendations", games: "recommendations"
     })
 
     // { "Display": true, … } — какие файлы разделов есть на диске

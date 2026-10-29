@@ -147,5 +147,8 @@
   },
   "updates": {
     "lastCheck": ""
+  },
+  "welcome": {
+    "done": false
   }
 }

@@ -107,6 +107,16 @@ Singleton {
         }
     }
 
+    // Записать сейчас, не дожидаясь таймера: перед Qt.quit() (иначе последнее
+    // изменение пропадёт вместе с процессом).
+    function flush() {
+        if (!saveTimer.running) return;
+        saveTimer.stop();
+        userFile.blockWrites = true;
+        userFile.setText(JSON.stringify(root.user, null, 2) + "\n");
+        userFile.blockWrites = false;
+    }
+
     // Несколько быстрых изменений (ползунок) — одна запись на диск.
     Timer {
         id: saveTimer

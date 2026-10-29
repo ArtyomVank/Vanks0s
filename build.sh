@@ -314,7 +314,7 @@ mkarchiso -v -w "${WORK_DIR}" -o "${OUT_DIR}" "${PROFILE_DIR}"
 # initramfs сжат (zstd/xz), поэтому grep по нему бесполезен — только lsinitcpio
 # или распаковка. Ошибка здесь не фатальна: образ уже собран, а правду скажет
 # только загрузка, поэтому предупреждаем, а не выбрасываем результат.
-initrd_file=$(find "${WORK_DIR}" -name 'initramfs-linux.img' -type f 2>/dev/null | head -n1)
+initrd_file=$(find "${WORK_DIR}" -name 'initramfs-linux-zen.img' -type f 2>/dev/null | head -n1)
 if [[ -n "${initrd_file}" ]]; then
     initrd_ok=0
     if command -v lsinitcpio >/dev/null 2>&1 \

@@ -40,8 +40,13 @@ FloatingWindow {
     }
 
     function close() {
+        Settings.flush();
         if (quitOnClose) Qt.quit();
         else visible = false;
+    }
+    Connections {
+        target: Nav
+        function onCloseRequested() { win.close(); }
     }
 
     // поднять уже открытое окно (повторный запуск delta-settings)

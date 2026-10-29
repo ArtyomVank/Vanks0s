@@ -23,6 +23,8 @@ Singleton {
     signal action(string name, string arg)
     // прокрутить открытый раздел (IPC, для снимков)
     signal scrollTo(real y)
+    // раздел просит закрыть окно (например, «Рекомендации» открывают помощник)
+    signal closeRequested()
 
     property string toastText: ""
     property int toastSerial: 0

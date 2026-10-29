@@ -11,7 +11,7 @@ pretty=$(osr PRETTY_NAME)
 # версия Delta: файл пакета, затем pacman, иначе «разработка»
 data=${DELTA_DATA:-/usr/share/delta}
 delta=$(cat "${data}/VERSION" 2>/dev/null || pacman -Q delta 2>/dev/null | awk '{print $2}')
-[ -n "${delta}" ] || delta="0.2 (разработка)"
+[ -n "${delta}" ] || delta="0.3 (разработка)"
 
 cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -n1)
 [ -n "${cpu}" ] || cpu=$(sed -n 's/^Hardware[[:space:]]*: //p' /proc/cpuinfo | head -n1)

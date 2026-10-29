@@ -4,7 +4,7 @@
 
 ```
 UEFI ──► systemd-boot (efiboot/) ──┐
-                                   ├──► vmlinuz-linux + initramfs-linux.img
+                                   ├──► vmlinuz-linux-zen + initramfs-linux-zen.img
 BIOS ──► syslinux (syslinux/) ─────┘        │
                                             ▼
                              mkinitcpio-archiso hook

@@ -27,8 +27,8 @@ DELTA_REPO=""
 CACHE=/var/cache/delta-update
 LOCK=/var/lib/pacman/db.lck
 # после их обновления нужна перезагрузка
-REBOOT_PKGS=(linux linux-lts linux-zen linux-hardened linux-firmware nvidia nvidia-open nvidia-utils
-             mesa systemd glibc hyprland aquamarine quickshell)
+REBOOT_PKGS=(linux linux-lts linux-zen linux-hardened linux-firmware nvidia nvidia-open nvidia-open-dkms nvidia-utils
+             mesa systemd glibc hyprland aquamarine quickshell delta)
 
 LOG=/var/log/delta-update.log
 

@@ -142,7 +142,7 @@ ssd и 8+ ядер ускоряют сборку примерно вдвое.
 `root=`. Проверяется одной командой на сборочной машине:
 
 ```bash
-grep -ao 'archisosearchuuid' build/work/*/airootfs/boot/initramfs-linux.img | head -1
+grep -ao 'archisosearchuuid' build/work/*/airootfs/boot/initramfs-linux-zen.img | head -1
 ```
 
 Если вывода нет — отсутствует или испорчен

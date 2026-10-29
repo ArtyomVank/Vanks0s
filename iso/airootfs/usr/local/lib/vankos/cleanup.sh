@@ -37,6 +37,11 @@ Include = /etc/pacman.d/mirrorlist
 
 [extra]
 Include = /etc/pacman.d/mirrorlist
+
+# 32-битные библиотеки: Steam, Wine и lib32-драйверы Vulkan (их предлагает
+# помощник первого запуска delta-welcome)
+[multilib]
+Include = /etc/pacman.d/mirrorlist
 EOF
 
 # В mirrorlist из пакета все зеркала закомментированы — без этого pacman -Syu

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+Name[ru]=Добро пожаловать
+Comment=Install game libraries, graphics drivers and recommended apps
+Comment[ru]=Библиотеки для игр, драйвер видеокарты и рекомендованные приложения
+Keywords=drivers;vulkan;steam;games;nvidia;amd;store;
+Keywords[ru]=драйверы;вулкан;стим;игры;рекомендации;магазин;библиотеки;
+Exec=delta-welcome
+Icon=delta-welcome
+Terminal=false
+Categories=System;Settings;
+StartupWMClass=delta-welcome

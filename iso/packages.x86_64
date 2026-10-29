@@ -5,7 +5,8 @@
 
 # --- базовая система ---
 base
-linux
+# игровое ядро: планировщик и настройки под отзывчивость (официальный пакет Arch)
+linux-zen
 linux-firmware
 intel-ucode
 amd-ucode

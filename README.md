@@ -15,7 +15,8 @@
        → установщик Calamares → выбор стола → pacstrap → готовый Arch
 ```
 
-Версия **0.2 «Nebula»**. Готовый ISO — в [релизах](https://github.com/ArtyomVank/Vanks0s/releases/latest)
+Версия **0.3 «Pulsar»**: игровое ядро `linux-zen` и помощник первого запуска
+(библиотеки для игр, драйвер под вашу видеокарту, Steam и магазин приложений). Готовый ISO — в [релизах](https://github.com/ArtyomVank/Vanks0s/releases/latest)
 (образ разделён на две части, как склеить — в описании релиза). Собрать ISO
 самому можно на Arch-машине (см. [docs/BUILD.md](docs/BUILD.md)).
 
@@ -115,7 +116,7 @@ sudo ./tools/build-calamares.sh    # только установщик
 
 Подробности — в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Ограничения версии 0.2
+## Ограничения версии 0.3
 
 * ISO ни разу не собирался на этой машине: здесь нет Linux/Arch. Все конфиги
   сверены с upstream, но первый прогон `build.sh` — за вами.

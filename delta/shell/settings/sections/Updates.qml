@@ -238,7 +238,7 @@ ColumnLayout {
         function onAction(name, arg) {
             if (name === "updates.check") root.check();
             else if (name === "updates.install") root.install();
-            else if (name === "updates.fake") root.updates = [{ name: "linux", from: "6.17.1", to: "6.17.2" }, { name: "delta", from: "0.1.0-1", to: "0.2.0-1" }, { name: "firefox", from: "144.0", to: "144.0.1" }];
+            else if (name === "updates.fake") root.updates = [{ name: "linux", from: "6.17.1", to: "6.17.2" }, { name: "delta", from: "0.1.0-1", to: "0.3.0-1" }, { name: "firefox", from: "144.0", to: "144.0.1" }];
         }
     }
 }

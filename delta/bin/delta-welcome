@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Delta — помощник «Добро пожаловать» (отдельный процесс Quickshell):
+# библиотеки для игр, драйвер видеокарты, рекомендованные приложения.
+#
+#   delta-welcome               открыть (или поднять уже открытое окно)
+#   delta-welcome <раздел>      открыть раздел: libs, drivers, apps
+#   delta-welcome --first-run   при входе в систему: только если помощник ещё
+#                               не закрывали и это не live-сессия установщика
+#   delta-welcome ipc <...>     команда окну: delta-welcome ipc call welcome open apps
+#
+# Закрыли окно — при входе оно больше не появляется; открыть снова:
+# «Настройки» → «Рекомендации».
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_WELCOME_ENTRY:-${SHELL_DIR}/welcome-app.qml}
+CONFIG=${XDG_CONFIG_HOME:-${HOME}/.config}/delta/settings.json
+export DELTA_DATA
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    ipc)
+        shift
+        exec qs -p "${ENTRY}" ipc "$@"
+        ;;
+    --first-run)
+        # live-ISO: там работает установщик
+        [ -d /run/archiso ] && exit 0
+        # вложенная сессия разработчика
+        [ -n "${DELTA_NESTED:-}" ] && exit 0
+        if [ -f "${CONFIG}" ] && jq -e '.welcome.done == true' "${CONFIG}" >/dev/null 2>&1; then
+            exit 0
+        fi
+        set --
+        ;;
+esac
+
+section=${1:-}
+
+if qs -p "${ENTRY}" ipc call welcome open "${section}" >/dev/null 2>&1; then
+    exit 0
+fi
+
+export DELTA_WELCOME_SECTION=${section}
+exec qs -p "${ENTRY}" -n -d

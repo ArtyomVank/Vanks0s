@@ -2,13 +2,13 @@
 # ============================================================================
 #  Vanks OS — новая версия Delta для обновлений «по воздуху».
 #
-#      tools/delta-release.sh 0.2.0
+#      tools/delta-release.sh 0.3.0
 #
 #  1. ставит pkgver в packaging/delta/PKGBUILD (pkgrel=1);
 #  2. собирает пакет без root во временной папке (на NTFS makepkg не работает);
-#  3. кладёт dist/delta-0.2.0-1-any.pkg.tar.zst и .sha256.
+#  3. кладёт dist/delta-0.3.0-1-any.pkg.tar.zst и .sha256.
 #
-#  Дальше — релиз на GitHub (тег v0.2.0) с этим файлом. Установленные системы
+#  Дальше — релиз на GitHub (тег v0.3.0) с этим файлом. Установленные системы
 #  найдут его сами: delta-update берёт последний релиз репозитория DELTA_REPO
 #  (delta/defaults/update.conf). Файл delta-*.pkg.tar.zst должен быть в каждом
 #  релизе, иначе «последний» релиз (например, только с ISO) его не даст.
@@ -23,13 +23,15 @@ log() { printf '\033[1;35m[delta-release]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[delta-release] ОШИБКА:\033[0m %s\n' "$*" >&2; exit 1; }
 
 ver=${1:-}
-[[ ${ver} =~ ^[0-9]+(\.[0-9]+)*$ ]] || die "укажите версию: tools/delta-release.sh 0.2.0"
+[[ ${ver} =~ ^[0-9]+(\.[0-9]+)*$ ]] || die "укажите версию: tools/delta-release.sh 0.3.0"
 [[ ${EUID} -ne 0 ]] || die "запускайте без sudo: makepkg не работает от root"
 command -v makepkg >/dev/null || die "нет makepkg — установите base-devel"
 
 old=$(sed -n 's/^pkgver=//p' "${PKGBUILD}")
-if [[ $(vercmp "${ver}" "${old}") -le 0 ]]; then
-    die "версия ${ver} не новее текущей ${old}: установленные системы её не возьмут"
+# pkgver в PKGBUILD поднимают вместе с версией системы, поэтому та же версия —
+# норма; старее — нет: установленные системы её не возьмут
+if [[ $(vercmp "${ver}" "${old}") -lt 0 ]]; then
+    die "версия ${ver} старее текущей ${old}: установленные системы её не возьмут"
 fi
 
 # shellcheck source=/dev/null
