@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "appearance": {
+    "theme": "graphite",
+    "accent": "#7C5CFF",
+    "glass": 0.62,
+    "radius": 18,
+    "font": "Inter",
+    "iconTheme": "Papirus-Dark",
+    "cursorTheme": "Adwaita",
+    "cursorSize": 24,
+    "applyApps": true
+  },
+  "docks": {
+    "top": {
+      "edge": "top",
+      "length": "full",
+      "autohide": false,
+      "media": true,
+      "modules": [
+        { "id": "launcher", "cell": 0, "span": 1 },
+        { "id": "workspaces", "cell": 1, "span": 3 },
+        { "id": "calendar", "cell": 4, "span": 2 },
+        { "id": "weather", "cell": 6, "span": 2 },
+        { "id": "notifications", "cell": 10, "span": 1 },
+        { "id": "lang", "cell": 11, "span": 1 },
+        { "id": "wifi", "cell": 12, "span": 1 },
+        { "id": "sound", "cell": 13, "span": 1 },
+        { "id": "battery", "cell": 14, "span": 1 },
+        { "id": "power", "cell": 15, "span": 1 }
+      ]
+    },
+    "apps": {
+      "edge": "bottom",
+      "length": "compact",
+      "autohide": true,
+      "magnify": true,
+      "showRunning": true,
+      "pinned": ["org.gnome.Nautilus", "kitty", "firefox", "org.gnome.TextEditor", "delta-settings"]
+    }
+  },
+  "windows": {
+    "gapsIn": 6,
+    "gapsOut": 14,
+    "border": 2,
+    "rounding": 16,
+    "blur": true,
+    "animations": true,
+    "openAnim": "popin",
+    "genie": true,
+    "jelly": 0.5,
+    "floating": true,
+    "buttons": true,
+    "buttonsSkip": [
+      "^(firefox|librewolf|zen|zen-browser|floorp|waterfox)$",
+      "^(chromium|google-chrome|brave-browser|vivaldi-stable|microsoft-edge|yandex-browser|opera)",
+      "^(code|code-oss|codium|vscodium|cursor|zed|dev\\.zed\\.Zed)$",
+      "^(discord|vesktop|webcord|obsidian|spotify|slack|teams-for-linux|com\\.anthropic\\.Claude|claude)$",
+      "^(org\\.telegram\\.desktop|telegramdesktop|org\\.gnome\\..*|nautilus|io\\.missioncenter\\..*|com\\.mattjakeman\\..*)$",
+      "^(steam|heroic|lutris|org\\.kde\\.dolphin-csd)$"
+    ]
+  },
+  "input": {
+    "layouts": ["us", "ru"],
+    "switchKeys": "grp:alt_shift_toggle",
+    "repeatRate": 30,
+    "repeatDelay": 300,
+    "sensitivity": 0,
+    "naturalScroll": true,
+    "tapToClick": true
+  },
+  "monitors": [],
+  "display": {
+    "primary": "",
+    "primaryDesc": "",
+    "layouts": {},
+    "autoHdr": false,
+    "nightLight": {
+      "enabled": false,
+      "temperature": 4500,
+      "schedule": "sun",
+      "from": "22:00",
+      "to": "07:00",
+      "lat": null,
+      "lon": null
+    }
+  },
+  "wallpaper": {
+    "path": "",
+    "folder": "~/Pictures/Wallpapers",
+    "fill": "cover",
+    "video": false,
+    "allowVideo": true,
+    "pauseOnBattery": true,
+    "rotate": 0,
+    "poster": ""
+  },
+  "clock": {
+    "style": "ios",
+    "color": "white",
+    "hours24": true
+  },
+  "weather": {
+    "city": "",
+    "units": "c"
+  },
+  "widgets": {
+    "desktop": [
+      { "id": "clock", "c": 5, "r": 1, "w": 7, "h": 3, "bg": false }
+    ],
+    "lock": [
+      { "id": "clock", "c": 5, "r": 0, "w": 7, "h": 3, "bg": false },
+      { "id": "weather", "c": 1, "r": 0, "w": 4, "h": 2, "bg": true },
+      { "id": "calendar", "c": 12, "r": 0, "w": 4, "h": 2, "bg": true }
+    ]
+  },
+  "notifications": {
+    "dnd": false,
+    "onLock": true,
+    "timeout": 6
+  },
+  "osd": {
+    "enabled": true,
+    "layout": true
+  },
+  "lock": {
+    "wallpaper": "",
+    "onStart": false,
+    "smoothTransitions": true,
+    "clock": { "style": "ios", "color": "white" }
+  },
+  "greeter": {
+    "sync": true,
+    "widgets": true
+  },
+  "session": {
+    "autologin": false
+  },
+  "power": {
+    "lockAfter": 300,
+    "screenOffAfter": 600,
+    "sleepAfter": 1800,
+    "screenOffLockedAfter": 60,
+    "lockBeforeSleep": true,
+    "lid": "suspend"
+  },
+  "updates": {
+    "lastCheck": ""
+  }
+}

@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Delta — копирует вид пользователя для экрана входа.
+#
+#   delta-greeter-sync            скопировать тему, обои, аватар в /var/lib/delta-greeter/users/$USER
+#   delta-greeter-sync --remove   убрать свою копию (экран входа покажет вид по умолчанию)
+#   -q                            молча, если каталога экрана входа нет (greeter не установлен)
+#
+# Работает от имени самого пользователя, без root. Права (ставит пакет,
+# session/greetd/tmpfiles.conf):
+#   /var/lib/delta-greeter         root:root 0755
+#   /var/lib/delta-greeter/users   root:root 1733 — создать свой каталог может каждый,
+#                                  читать список и трогать чужие — нельзя (sticky + без r)
+#   users/<логин>                  <логин> 0755 — greeter читает, только если владелец совпадает
+# Вызывает оболочка (lock/Lock.qml) через 5 с после смены оформления, обоев,
+# часов или виджетов экрана блокировки.
+#
+# DELTA_GREETER_DIR — другой каталог (отладка во вложенной сессии).
+set -u
+
+BASE=${DELTA_GREETER_DIR:-/var/lib/delta-greeter}
+CFG=${XDG_CONFIG_HOME:-$HOME/.config}/delta/settings.json
+USER_NAME=${USER:-$(id -un)}
+QUIET=0
+REMOVE=0
+for a in "$@"; do
+    case "$a" in
+        -q) QUIET=1 ;;
+        --remove) REMOVE=1 ;;
+        *) echo "использование: delta-greeter-sync [-q] [--remove]" >&2; exit 2 ;;
+    esac
+done
+
+say() { [ "$QUIET" = 1 ] || printf '[delta-greeter-sync] %s\n' "$*" >&2; }
+
+if [ ! -d "$BASE/users" ] || [ ! -w "$BASE/users" ]; then
+    say "нет доступного каталога $BASE/users — экран входа Delta не установлен"
+    exit 0
+fi
+
+DIR=$BASE/users/$USER_NAME
+
+if [ "$REMOVE" = 1 ]; then
+    if [ -d "$DIR" ] && [ "$(stat -c %u "$DIR")" = "$(id -u)" ]; then
+        rm -rf -- "$DIR" && say "удалено: $DIR"
+    fi
+    exit 0
+fi
+
+if [ -e "$DIR" ] && [ "$(stat -c %u "$DIR")" != "$(id -u)" ]; then
+    # каталог с нашим именем создал кто-то другой — greeter его всё равно не примет
+    echo "[delta-greeter-sync] $DIR принадлежит другому пользователю — сообщите администратору" >&2
+    exit 1
+fi
+mkdir -p -m 0755 -- "$DIR" || exit 1
+chmod 0755 -- "$DIR"
+
+command -v jq >/dev/null || { say "нужен jq"; exit 1; }
+[ -r "$CFG" ] || { say "нет $CFG"; exit 0; }
+
+# В файле пользователя — только его изменения. Без значений по умолчанию
+# экран входа получил бы пустой widgets.lock и остался без виджетов.
+DEFAULTS=${DELTA_DATA:-/usr/share/delta}/defaults/settings.json
+MERGED=$(mktemp) || exit 1
+trap 'rm -f -- "$MERGED"' EXIT
+if [ -r "$DEFAULTS" ] && jq -e 'type == "object"' "$CFG" >/dev/null 2>&1; then
+    jq -s '.[0] * .[1]' "$DEFAULTS" "$CFG" > "$MERGED" || cp -- "$CFG" "$MERGED"
+else
+    cp -- "$CFG" "$MERGED"
+fi
+CFG=$MERGED
+
+# копия файла через временный: greeter не увидит недописанный файл
+put() { # источник, имя
+    local tmp
+    tmp=$(mktemp "$DIR/.tmp.XXXXXX") || return 1
+    if cp -- "$1" "$tmp" 2>/dev/null; then
+        chmod 0644 "$tmp" && mv -f -- "$tmp" "$DIR/$2"
+    else
+        rm -f -- "$tmp"; return 1
+    fi
+}
+
+# ---------- обои ----------
+# Свои обои экрана блокировки важнее обоев рабочего стола. Видео не копируем,
+# берём кадр-заставку, если он задан.
+WP=$(jq -r '(.lock.wallpaper // "") as $l | if $l != "" then $l else (.wallpaper.path // "") end' "$CFG")
+case "${WP,,}" in
+    *.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) WP=$(jq -r '.wallpaper.poster // ""' "$CFG") ;;
+esac
+WALL=""
+if [ -n "$WP" ] && [ -f "$WP" ] && [ -r "$WP" ]; then
+    if command -v magick >/dev/null; then
+        # уменьшаем до 2560 px по большей стороне: экрану входа хватит, а памяти меньше
+        tmp=$(mktemp --suffix=.jpg "$DIR/.tmp.XXXXXX")
+        if magick "$WP[0]" -auto-orient -resize '2560x2560>' -quality 90 "$tmp" 2>/dev/null; then
+            chmod 0644 "$tmp" && mv -f -- "$tmp" "$DIR/wallpaper.jpg" && WALL=$DIR/wallpaper.jpg
+        else
+            rm -f -- "$tmp"
+        fi
+    fi
+    if [ -z "$WALL" ] && [ "$(stat -c %s "$WP")" -le $((40 * 1024 * 1024)) ]; then
+        ext=${WP##*.}; ext=${ext,,}
+        case "$ext" in jpg|jpeg|png|webp|jxl|avif|bmp) put "$WP" "wallpaper.$ext" && WALL=$DIR/wallpaper.$ext ;; esac
+    fi
+fi
+# старые копии обоев с другим расширением
+for f in "$DIR"/wallpaper.*; do
+    [ -e "$f" ] && [ "$f" != "$WALL" ] && rm -f -- "$f"
+done
+
+# ---------- аватар ----------
+AV=""
+for f in "/var/lib/AccountsService/icons/$USER_NAME" "$HOME/.face" "$HOME/.face.icon"; do
+    [ -f "$f" ] && [ -r "$f" ] && [ -s "$f" ] && { AV=$f; break; }
+done
+if [ -n "$AV" ] && [ "$(stat -c %s "$AV")" -le $((4 * 1024 * 1024)) ]; then
+    put "$AV" avatar
+else
+    rm -f -- "$DIR/avatar"
+fi
+
+# ---------- тема ----------
+# Только то, что нужно экрану входа: оформление, часы, экран блокировки, его виджеты.
+tmp=$(mktemp "$DIR/.tmp.XXXXXX")
+jq --arg wall "$WALL" '{
+    version,
+    appearance: (.appearance // {}),
+    clock: (.clock // {}),
+    lock: ((.lock // {}) | .wallpaper = ""),
+    greeter: (.greeter // {}),
+    wallpaper: { path: $wall, fill: (.wallpaper.fill // "cover") },
+    widgets: { lock: ((.widgets.lock // []) | map(select(.id != "music" and .id != "notifs" and .id != "notifications"))) },
+    input: { layouts: (.input.layouts // ["us", "ru"]) }
+}' "$CFG" > "$tmp" && chmod 0644 "$tmp" && mv -f -- "$tmp" "$DIR/settings.json" || { rm -f -- "$tmp"; exit 1; }
+
+say "готово: $DIR"

@@ -1,0 +1,21 @@
+# Vanks OS — greetd в live-системе. vankos-live-setup копирует этот файл
+# в /etc/greetd/config.toml при каждой загрузке (до старта greetd).
+#
+# После загрузки greetd сразу входит пользователем vanks (initial_session), без
+# экрана входа. Какую сессию запустить — Delta или безопасный режим — решает
+# vankos-live-session (см. комментарий в нём). Экран входа (default_session)
+# появляется, только если из сессии выйти.
+#
+# В установленную систему этот файл не попадает: там конфиг ставит desktop.sh
+# из пакета delta (/usr/share/delta/session/greetd/config.toml).
+
+[terminal]
+vt = 1
+
+[default_session]
+command = "/usr/local/bin/vankos-live-session greeter"
+user = "greeter"
+
+[initial_session]
+command = "/usr/local/bin/vankos-live-session"
+user = "vanks"

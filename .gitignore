@@ -1,0 +1,17 @@
+# Артефакты сборки
+build/
+*.iso
+*.iso.sha256
+*.sfs
+
+# Мусор
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Выпуски Delta (tools/delta-release.sh)
+dist/
+
+# Локальные настройки Claude Code
+.claude/settings.local.json

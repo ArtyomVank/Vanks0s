@@ -1,0 +1,224 @@
+[
+  {
+    "id": 0,
+    "name": "HDMI-A-1",
+    "description": "MKG MJF24F200 005TR9QT8YU",
+    "make": "MKG",
+    "model": "MJF24F200",
+    "serial": "005TR9QT8YU",
+    "width": 1920,
+    "height": 1080,
+    "physicalWidth": 530,
+    "physicalHeight": 290,
+    "refreshRate": 200.00000,
+    "x": 0,
+    "y": 0,
+    "activeWorkspace": {
+      "id": 1,
+      "name": "1"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "transform": 0,
+    "focused": true,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": [
+      "WINDOWED",
+      "CANDIDATE"
+    ],
+    "activelyTearing": false,
+    "tearingBlockedBy": [
+      "NOT_TORN",
+      "CANDIDATE",
+      "HW_CURSOR"
+    ],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": [
+      "USER",
+      "CANDIDATE"
+    ],
+    "disabled": false,
+    "currentFormat": "XBGR2101010",
+    "mirrorOf": "none",
+    "availableModes": [
+      "1920x1080@60.00Hz",
+      "1920x1080@200.00Hz",
+      "1920x1080@180.00Hz",
+      "1920x1080@119.88Hz",
+      "1920x1080@59.94Hz",
+      "1680x1050@59.95Hz",
+      "1600x900@60.00Hz",
+      "1280x1024@60.02Hz",
+      "1440x900@59.89Hz",
+      "1280x960@60.00Hz",
+      "1280x800@59.81Hz",
+      "1152x864@60.00Hz",
+      "1280x720@60.00Hz",
+      "1280x720@59.94Hz",
+      "1024x768@60.00Hz",
+      "800x600@60.32Hz",
+      "720x480@59.94Hz",
+      "640x480@59.94Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1,
+    "sdrSaturation": 1,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80,
+    "hardwareCursorsInUse": true,
+    "edid": "00ffffffffffff0035670224010000002723010380351d782a6631af4f47ab280e5054210800714081c0810081809500a9c0b3008140023a801871382d40582c450055502100001e000000ff0030303554523951543859550a20000000fd003cc819e13c000a202020202020000000fc004d4a463234463230300a20202001cf020333f448100004000003004e2309070783010000e2004ae305c000e6060d0161611c67030c001000387867d85dc401788000d0b680a070382d40582c450055502100001a88a480a070382d40582c450055502100001a00000000000000000000000000000000000000000000000000000000000000000000000000000000c0",
+    "_brightness": "ddc"
+  },
+  {
+    "id": 1,
+    "name": "DP-1",
+    "description": "LG Electronics LG ULTRAGEAR+ 312NTAB5C123",
+    "make": "LG Electronics",
+    "model": "LG ULTRAGEAR+",
+    "serial": "312NTAB5C123",
+    "width": 3840,
+    "height": 2160,
+    "physicalWidth": 700,
+    "physicalHeight": 390,
+    "refreshRate": 143.99,
+    "x": 1920,
+    "y": 0,
+    "activeWorkspace": {
+      "id": 2,
+      "name": "2"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "scale": 1.5,
+    "transform": 0,
+    "focused": false,
+    "dpmsStatus": true,
+    "vrr": true,
+    "solitary": "0",
+    "solitaryBlockedBy": [
+      "WINDOWED",
+      "CANDIDATE"
+    ],
+    "activelyTearing": false,
+    "tearingBlockedBy": [
+      "NOT_TORN",
+      "CANDIDATE",
+      "HW_CURSOR"
+    ],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": [
+      "USER",
+      "CANDIDATE"
+    ],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "3840x2160@143.99Hz",
+      "3840x2160@120.00Hz",
+      "3840x2160@60.00Hz",
+      "3840x2160@59.94Hz",
+      "2560x1440@143.97Hz",
+      "2560x1440@120.00Hz",
+      "2560x1440@59.95Hz",
+      "1920x1080@143.98Hz",
+      "1920x1080@120.00Hz",
+      "1920x1080@60.00Hz",
+      "1280x720@60.00Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1,
+    "sdrSaturation": 1,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80,
+    "hardwareCursorsInUse": true,
+    "edid": "00ffffffffffff001e6d775b010000000a220104b54627783a00000000000000000000000000000000000000000000000000000000004dd000a0f0703e8030203500c48f2100001a000000fc004c4720554c545241474541522b000000ff003331324e54414235433132330a000000fd003090ffff6b010a202020202020017002030ff0e305c000e6060f01735e1a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006d",
+    "_brightness": "ddc"
+  },
+  {
+    "id": 2,
+    "name": "eDP-1",
+    "description": "BOE NE160QDM-NY1 0x0BC9",
+    "make": "BOE",
+    "model": "NE160QDM-NY1",
+    "serial": "",
+    "width": 2560,
+    "height": 1600,
+    "physicalWidth": 344,
+    "physicalHeight": 215,
+    "refreshRate": 165.00,
+    "x": 160,
+    "y": 1080,
+    "activeWorkspace": {
+      "id": 3,
+      "name": "3"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "scale": 1.6,
+    "transform": 0,
+    "focused": false,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": [
+      "WINDOWED",
+      "CANDIDATE"
+    ],
+    "activelyTearing": false,
+    "tearingBlockedBy": [
+      "NOT_TORN",
+      "CANDIDATE",
+      "HW_CURSOR"
+    ],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": [
+      "USER",
+      "CANDIDATE"
+    ],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "2560x1600@165.00Hz",
+      "2560x1600@60.00Hz",
+      "1920x1200@165.00Hz",
+      "1920x1200@60.00Hz",
+      "1280x800@60.00Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1,
+    "sdrSaturation": 1,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80,
+    "hardwareCursorsInUse": true,
+    "_brightness": "backlight"
+  }
+]

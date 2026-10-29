@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# Delta · Настройки — переносит оформление Delta на приложения GTK и Qt.
+#
+#   theme-apply --scheme dark|light --icons Papirus-Dark --cursor Adwaita \
+#               --cursor-size 24 --accent '#7C5CFF' --base 24,25,30 --font Inter
+#
+# Что делает:
+#   GTK 3/4  gsettings org.gnome.desktop.interface: color-scheme, gtk-theme
+#            (adw-gtk3 / adw-gtk3-dark), icon-theme, cursor-theme, cursor-size,
+#            font-name, accent-color (ближайший из цветов libadwaita);
+#            ~/.config/gtk-{3,4}.0/settings.ini и блок акцента в gtk.css
+#   Qt       ~/.config/qt6ct/qt6ct.conf и палитра colors/delta.conf (нужен
+#            QT_QPA_PLATFORMTHEME=qt6ct в окружении сессии)
+#   курсор   ~/.icons/default/index.theme (XWayland) и hyprctl setcursor
+#
+# DELTA_DRY_RUN=1 — системные команды (gsettings, hyprctl) только печатаются.
+# Файлы в домашней папке при этом пишутся, только если DELTA_NESTED=1
+# (вложенная сессия разработчика с отдельным HOME).
+set -u
+
+scheme=dark icons="" cursor="" csize=24 accent="#7C5CFF" base="24,25,30" font=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --scheme) scheme=$2; shift ;;
+        --icons) icons=$2; shift ;;
+        --cursor) cursor=$2; shift ;;
+        --cursor-size) csize=$2; shift ;;
+        --accent) accent=$2; shift ;;
+        --base) base=$2; shift ;;
+        --font) font=$2; shift ;;
+        *) echo "theme-apply: неизвестный параметр $1" >&2; exit 2 ;;
+    esac
+    shift
+done
+[[ "${accent}" =~ ^#[0-9A-Fa-f]{6}$ ]] || accent="#7C5CFF"
+# текст на акценте: на светлом акценте тёмный (как Theme.onAccent в оболочке)
+onacc=$(h=${accent#\#}; awk -v r=$((16#${h:0:2})) -v g=$((16#${h:2:2})) -v b=$((16#${h:4:2})) '
+    function ch(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ^ 2.4 }
+    BEGIN { print (0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b) > 0.5) ? "#17131f" : "#ffffff" }')
+[[ "${csize}" =~ ^[0-9]+$ ]] || csize=24
+IFS=, read -r br bg bb <<<"${base}"
+
+dry=0; [ "${DELTA_DRY_RUN:-0}" = 1 ] && dry=1
+home_ok=1; [ "${dry}" = 1 ] && [ "${DELTA_NESTED:-0}" != 1 ] && home_ok=0
+
+sys() {
+    if [ "${dry}" = 1 ]; then printf 'DRY: %s\n' "$*"; else "$@" 2>/dev/null || printf 'не удалось: %s\n' "$*" >&2; fi
+}
+cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+
+# ключ=значение в секции [Settings]/[Appearance] ini-файла, остальное не трогаем
+ini_set() {
+    local file=$1 section=$2 key=$3 value=$4
+    [ "${home_ok}" = 1 ] || { printf 'DRY: %s: [%s] %s=%s\n' "${file}" "${section}" "${key}" "${value}"; return; }
+    mkdir -p "$(dirname "${file}")"
+    [ -f "${file}" ] || printf '[%s]\n' "${section}" > "${file}"
+    grep -q "^\[${section}\]" "${file}" || printf '\n[%s]\n' "${section}" >> "${file}"
+    awk -v s="[${section}]" -v k="${key}" -v v="${value}" '
+        BEGIN { ins = 0; done = 0 }
+        /^\[/ { if (ins && !done) { print k "=" v; done = 1 } ins = ($0 == s) }
+        ins && index($0, k "=") == 1 { if (!done) { print k "=" v; done = 1 } next }
+        { print }
+        END { if (ins && !done) print k "=" v }
+    ' "${file}" > "${file}.tmp" && mv -f "${file}.tmp" "${file}"
+}
+
+# блок /* delta */ в gtk.css: акцент для libadwaita и adw-gtk3
+css_block() {
+    local file=$1
+    [ "${home_ok}" = 1 ] || { printf 'DRY: %s: accent %s\n' "${file}" "${accent}"; return; }
+    mkdir -p "$(dirname "${file}")"
+    touch "${file}"
+    sed -i '/\/\* delta:begin/,/\/\* delta:end \*\//d' "${file}"
+    cat >> "${file}" <<CSS
+/* delta:begin — пишет «Настройки» Delta, не редактировать */
+@define-color accent_color ${accent};
+@define-color accent_bg_color ${accent};
+@define-color accent_fg_color ${onacc};
+/* delta:end */
+CSS
+}
+
+# ближайший к акценту цвет из набора GNOME (accent-color в GNOME 47+)
+named_accent() {
+    local hex=${accent#\#} r g b best="" bd=999999 n c
+    r=$((16#${hex:0:2})) g=$((16#${hex:2:2})) b=$((16#${hex:4:2}))
+    for n in blue:53,132,228 teal:33,144,164 green:58,148,74 yellow:200,136,0 orange:237,91,0 \
+             red:230,45,66 pink:213,97,153 purple:145,65,172 slate:111,131,150; do
+        IFS=: read -r name c <<<"${n}"
+        IFS=, read -r cr cg cb <<<"${c}"
+        d=$(( (r-cr)*(r-cr) + (g-cg)*(g-cg) + (b-cb)*(b-cb) ))
+        [ "${d}" -lt "${bd}" ] && { bd=${d}; best=${name}; }
+    done
+    printf '%s' "${best}"
+}
+
+dark=1; [ "${scheme}" = light ] && dark=0
+gtk_theme=adw-gtk3-dark; [ "${dark}" = 0 ] && gtk_theme=adw-gtk3
+
+# --- GTK через gsettings (GTK4/libadwaita читают color-scheme через портал) ---
+if command -v gsettings >/dev/null; then
+    sys gsettings set org.gnome.desktop.interface color-scheme "$([ "${dark}" = 1 ] && echo prefer-dark || echo default)"
+    sys gsettings set org.gnome.desktop.interface gtk-theme "${gtk_theme}"
+    [ -n "${icons}" ] && sys gsettings set org.gnome.desktop.interface icon-theme "${icons}"
+    [ -n "${cursor}" ] && sys gsettings set org.gnome.desktop.interface cursor-theme "${cursor}"
+    sys gsettings set org.gnome.desktop.interface cursor-size "${csize}"
+    [ -n "${font}" ] && sys gsettings set org.gnome.desktop.interface font-name "${font} 11"
+    # accent-color есть не во всех версиях схемы
+    if gsettings writable org.gnome.desktop.interface accent-color >/dev/null 2>&1; then
+        sys gsettings set org.gnome.desktop.interface accent-color "$(named_accent)"
+    fi
+fi
+
+# --- GTK: settings.ini (программы без gsettings/портала) и акцент ---
+for v in 3.0 4.0; do
+    f=${cfg}/gtk-${v}/settings.ini
+    [ "${v}" = 3.0 ] && ini_set "${f}" Settings gtk-theme-name "${gtk_theme}"
+    ini_set "${f}" Settings gtk-application-prefer-dark-theme "${dark}"
+    [ -n "${icons}" ] && ini_set "${f}" Settings gtk-icon-theme-name "${icons}"
+    [ -n "${cursor}" ] && ini_set "${f}" Settings gtk-cursor-theme-name "${cursor}"
+    ini_set "${f}" Settings gtk-cursor-theme-size "${csize}"
+    [ -n "${font}" ] && ini_set "${f}" Settings gtk-font-name "${font} 11"
+    css_block "${cfg}/gtk-${v}/gtk.css"
+done
+
+# --- Qt: qt6ct ---
+hexc() { printf '#ff%02x%02x%02x' "$1" "$2" "$3"; }
+mix() { # mix a b t(0..100)
+    echo $(( ($1 * (100 - $3) + $2 * $3) / 100 ))
+}
+if [ "${dark}" = 1 ]; then
+    fg=(236 233 247); win=("${br}" "${bg}" "${bb}")
+    basec=($(mix "${br}" 0 25) $(mix "${bg}" 0 25) $(mix "${bb}" 0 25))
+    btn=($(mix "${br}" 255 8) $(mix "${bg}" 255 8) $(mix "${bb}" 255 8))
+else
+    fg=(23 19 31); win=("${br}" "${bg}" "${bb}")
+    basec=(255 255 255)
+    btn=($(mix "${br}" 255 50) $(mix "${bg}" 255 50) $(mix "${bb}" 255 50))
+fi
+ah=${accent#\#}; acc=($((16#${ah:0:2})) $((16#${ah:2:2})) $((16#${ah:4:2})))
+F=$(hexc "${fg[@]}"); W=$(hexc "${win[@]}"); B=$(hexc "${basec[@]}"); BT=$(hexc "${btn[@]}")
+A=$(hexc "${acc[@]}"); DIM=$(hexc $(mix "${fg[0]}" "${win[0]}" 50) $(mix "${fg[1]}" "${win[1]}" 50) $(mix "${fg[2]}" "${win[2]}" 50))
+HT="#ff${onacc#\#}"
+# порядок QPalette: WindowText Button Light Midlight Dark Mid Text BrightText ButtonText Base Window
+# Shadow Highlight HighlightedText Link LinkVisited AlternateBase NoRole ToolTipBase ToolTipText PlaceholderText Accent
+row="${F}, ${BT}, ${BT}, ${BT}, ${W}, ${DIM}, ${F}, #ffffffff, ${F}, ${B}, ${W}, #ff000000, ${A}, ${HT}, ${A}, ${A}, ${W}, #ff000000, ${W}, ${F}, ${DIM}, ${A}"
+dis="${DIM}, ${BT}, ${BT}, ${BT}, ${W}, ${DIM}, ${DIM}, #ffffffff, ${DIM}, ${B}, ${W}, #ff000000, ${DIM}, ${HT}, ${A}, ${A}, ${W}, #ff000000, ${W}, ${F}, ${DIM}, ${DIM}"
+colors=${cfg}/qt6ct/colors/delta.conf
+if [ "${home_ok}" = 1 ]; then
+    mkdir -p "$(dirname "${colors}")"
+    printf '[ColorScheme]\nactive_colors=%s\ninactive_colors=%s\ndisabled_colors=%s\n' "${row}" "${row}" "${dis}" > "${colors}"
+else
+    printf 'DRY: %s (палитра из темы и акцента %s)\n' "${colors}" "${accent}"
+fi
+q=${cfg}/qt6ct/qt6ct.conf
+ini_set "${q}" Appearance custom_palette true
+ini_set "${q}" Appearance color_scheme_path "${colors}"
+ini_set "${q}" Appearance style Fusion
+[ -n "${icons}" ] && ini_set "${q}" Appearance icon_theme "${icons}"
+[ -n "${font}" ] && ini_set "${q}" Fonts general "\"${font},11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1\""
+
+# --- курсор: XWayland и живая смена в Hyprland ---
+if [ -n "${cursor}" ]; then
+    ini_set "$HOME/.icons/default/index.theme" "Icon Theme" Inherits "${cursor}"
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        sys hyprctl setcursor "${cursor}" "${csize}"
+    fi
+fi
+exit 0

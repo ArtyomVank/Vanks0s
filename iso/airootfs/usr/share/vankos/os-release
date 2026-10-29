@@ -1,0 +1,14 @@
+NAME="Vanks OS"
+PRETTY_NAME="Vanks OS 0.1 «Aurora»"
+ID=vankos
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;124;92;255"
+HOME_URL="https://vanksos.local/"
+DOCUMENTATION_URL="https://vanksos.local/docs"
+SUPPORT_URL="https://vanksos.local/support"
+BUG_REPORT_URL="https://vanksos.local/issues"
+LOGO=vankos-logo
+VERSION_ID=0.1
+VERSION="0.1 (Aurora)"
+VERSION_CODENAME=aurora

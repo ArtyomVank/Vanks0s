@@ -1,0 +1,91 @@
+# Vanks OS — собственный рецепт сборки Calamares.
+#
+# Зачем свой PKGBUILD:
+#   * calamares НЕТ в репозиториях Arch (ни в core, ни в extra) — только AUR;
+#   * AUR-рецепт выкидывает модуль packagechooser (`SKIP_MODULES`), а на нём
+#     держится экран выбора рабочего стола GNOME / Hyprland.
+# Поэтому собираем ту же версию Calamares, но с packagechooser.
+#
+# Сборка: tools/build-calamares.sh (makepkg от непривилегированного пользователя).
+
+_pkgname=calamares
+pkgname=$_pkgname
+pkgver=3.4.2
+pkgrel=2
+pkgdesc="Distribution-independent installer framework (Vanks OS build, with packagechooser)"
+url="https://codeberg.org/Calamares/calamares"
+license=("GPL-3.0-or-later")
+arch=('x86_64')
+
+depends=(
+    'kcoreaddons'
+    # Calamares по умолчанию собирается с BUILD_CRASH_REPORTING=ON и линкуется
+    # с libKF6Crash.so.6. Без этой зависимости пакет собирается на машине,
+    # где kcrash случайно установлен, а в live-образе падает ещё до main():
+    # "error while loading shared libraries: libKF6Crash.so.6".
+    'kcrash'
+    'kpmcore'
+    'libpwquality'
+    'qt6-declarative'
+    'qt6-svg'
+    'yaml-cpp'
+)
+
+makedepends=(
+    'extra-cmake-modules'
+    'libglvnd'
+    'ninja'
+    'qt6-tools'
+    'qt6-translations'
+)
+
+source=("$_pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$_pkgname-$pkgver.tar.gz")
+sha256sums=('733bbbb00dc9f84874bd5c22960952f317ea2537565431179fa2152b2fbfdccc')
+
+build() {
+    # Пропускаем только заведомо ненужное: заглушки и QML-вариант chooser'а.
+    # packagechooser (Qt Widgets) остаётся и используется в установщике.
+    local _skip_modules=(
+        dummycpp
+        dummyprocess
+        dummypython
+        dummypythonqt
+        packagechooserq
+    )
+
+    local _cmake_options=(
+        -B build
+        -S "$srcdir/$_pkgname-$pkgver"
+        -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX='/usr'
+        -DCMAKE_INSTALL_LIBDIR='lib'
+        -DWITH_QT6=ON
+        -DINSTALL_CONFIG=ON
+        # Явно, а не «как найдётся»: зависимость kcrash объявлена выше.
+        -DBUILD_CRASH_REPORTING=ON
+        -DSKIP_MODULES="${_skip_modules[*]}"
+        -DBUILD_TESTING=OFF
+        -DKDE_INSTALL_BINDIR=/usr/bin
+        -DKDE_INSTALL_SBINDIR=/usr/sbin
+        -DKDE_INSTALL_LIBDIR=/usr/lib
+        -DKDE_INSTALL_LIBEXECDIR=/usr/libexec
+        -DKDE_INSTALL_INCLUDEDIR=/usr/include
+        -DKDE_INSTALL_LOCALSTATEDIR=/var
+        -DKDE_INSTALL_SHAREDSTATEDIR=/usr/share
+        -DKDE_INSTALL_DATAROOTDIR=/usr/share
+        -DKDE_INSTALL_DATADIR=/usr/share
+        -DKDE_INSTALL_LOCALEDIR=/usr/share/locale
+        -DKDE_INSTALL_MANDIR=/usr/share/man
+        -DKDE_INSTALL_INFODIR=/usr/share/info
+        -DKDE_INSTALL_SYSCONFDIR=/etc
+        -Wno-dev
+    )
+
+    cmake "${_cmake_options[@]}"
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}

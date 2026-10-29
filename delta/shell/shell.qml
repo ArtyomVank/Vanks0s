@@ -1,0 +1,93 @@
+//@ pragma UseQApplication
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.common
+import qs.wallpaper
+import qs.docks
+import qs.notify
+import qs.osd
+import qs.lock
+import qs.launcher
+import qs.walls
+import qs.widgets
+import qs.display
+import qs.minimize
+import qs.window
+import qs.appearance
+import qs.polkit
+
+// Меню доков и разделы грузятся через Loader по пути. Модули qs.*, которые
+// импортируют только они, Quickshell без статического импорта не находит
+// («module is not installed»), поэтому они перечислены здесь.
+import qs.launcher.parts
+import qs.lock.parts
+import qs.widgets.parts
+import qs.services
+import qs.display.parts
+
+// Delta — точка входа оболочки.
+ShellRoot {
+    id: root
+
+    // Обои, доки и виджеты на каждом мониторе.
+    Variants {
+        model: Quickshell.screens
+
+        delegate: Scope {
+            id: perScreen
+            required property ShellScreen modelData
+
+            Wallpaper { screen: perScreen.modelData }
+            Widgets { screen: perScreen.modelData }
+            Docks { screen: perScreen.modelData }
+        }
+    }
+
+    // По одному на всю оболочку: сервер уведомлений должен быть один.
+    Notifications { id: notifications }
+    Osd { id: osd }
+    Lock { id: lock }          // показывает и окно питания (overlay "power")
+    Launcher {}
+    Wallpapers {}
+    DesktopMenu {}         // правый щелчок по рабочему столу: виджеты, обои, настройки
+    Minimize {}            // слой «джинна» на каждом мониторе
+    DeskClear {}           // окна уходят с рабочего стола на время правки виджетов
+    WindowControls {}      // кнопки свернуть / развернуть / закрыть на активном окне
+    SettingsGhost {}       // «Настройки» выходят каплей из верхнего дока
+    ThemeSync {}           // оформление для программ GTK/Qt
+    Polkit {}              // окно «Нужно подтверждение» (агент polkit)
+    UpdateCheck {}         // фоновая проверка обновлений и уведомление о них
+
+    // Раскладка мониторов по набору подключённых экранов; ночной свет
+    // запускается при первом обращении к синглтону.
+    Component.onCompleted: {
+        Displays.manageProfiles = true;
+        NightLight.checked;
+    }
+
+    Shortcuts {
+        onLauncher: ShellState.toggleOverlay("launcher")
+        onWallpapers: ShellState.toggleOverlay("wallpapers")
+        onNotifications: notifications.toggleCenter()
+        onWidgets: ShellState.widgetEditing = !ShellState.widgetEditing
+        onSettings: ShellState.openSettings("", null)
+        onLock: lock.lock()
+        onPower: ShellState.toggleOverlay("power")
+        onVolume: action => osd.volume(action)
+        onBrightness: action => osd.brightness(action)
+        onScreenshot: Quickshell.execDetached(["sh", "-c", 'g=$(slurp) && grim -g "$g" - | wl-copy -t image/png' + Sounds.shell("camera-shutter")])
+        onMinimize: Minimizer.minimizeActive()
+    }
+
+    // delta-shell ipc call shell <функция>
+    IpcHandler {
+        target: "shell"
+
+        function reload(): void { Quickshell.reload(true); }
+        function get(key: string): string { return JSON.stringify(Settings.get(key, null)); }
+        function set(key: string, json: string): void { Settings.set(key, JSON.parse(json)); }
+    }
+}

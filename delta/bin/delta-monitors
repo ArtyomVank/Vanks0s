@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Delta — помощник раздела «Экран».
+#
+#   delta-monitors edid                 EDID подключённых выходов: «<порт> <hex>» по строке
+#   delta-monitors guard <сек> <lua>    сторож отката: через <сек> выполнить <lua> в Hyprland
+#   delta-monitors cancel               снять сторожа (параметры подтвердили или уже откатили)
+#
+# Сторож нужен, чтобы откат случился, даже если оболочка или «Настройки» упали
+# после применения режима (например, Quickshell не пережил смену выходов) —
+# пользователь не должен остаться с чёрным экраном. Он запускается отдельным
+# процессом и целится в тот же экземпляр Hyprland (HYPRLAND_INSTANCE_SIGNATURE),
+# что и вызвавшая его программа.
+set -u
+
+# свой файл на каждый экземпляр Hyprland: вложенная отладочная сессия не
+# должна снимать сторожа настоящей (и наоборот)
+PIDFILE=${XDG_RUNTIME_DIR:-/tmp}/delta-monitors-guard-${HYPRLAND_INSTANCE_SIGNATURE:-none}.pid
+
+log() { printf '[delta-monitors] %s\n' "$*" >&2; }
+
+cmd_edid() {
+    local d name
+    for d in /sys/class/drm/card*-*; do
+        [ -r "${d}/edid" ] || continue
+        [ "$(cat "${d}/status" 2>/dev/null)" = connected ] || continue
+        # card1-HDMI-A-1 → HDMI-A-1 (так порт называет Hyprland)
+        name=${d##*/}; name=${name#card*-}
+        printf '%s %s\n' "${name}" "$(od -An -tx1 -v "${d}/edid" | tr -d ' \n')"
+    done
+}
+
+cmd_cancel() {
+    local pid
+    [ -f "${PIDFILE}" ] || return 0
+    pid=$(cat "${PIDFILE}" 2>/dev/null)
+    rm -f "${PIDFILE}"
+    [ -n "${pid}" ] && kill -TERM "${pid}" 2>/dev/null
+    return 0
+}
+
+cmd_guard() {
+    local secs=${1:-} lua=${2:-} sig=${HYPRLAND_INSTANCE_SIGNATURE:-}
+    [[ "${secs}" =~ ^[0-9]+$ ]] && [ -n "${lua}" ] || { log "использование: delta-monitors guard <сек> <lua>"; exit 2; }
+    [ -n "${sig}" ] || { log "нет HYPRLAND_INSTANCE_SIGNATURE — откатывать некуда"; exit 1; }
+    # предыдущий сторож больше не нужен: его параметры уже подтверждены или откатаны
+    cmd_cancel
+    printf '%s\n' "$$" > "${PIDFILE}"
+    # sleep в фоне, чтобы TERM от cancel прерывал ожидание сразу
+    trap 'kill "${sp:-}" 2>/dev/null; exit 0' TERM INT
+    sleep "${secs}" & sp=$!
+    wait "${sp}"
+    # cancel мог успеть удалить файл: тогда откат не нужен
+    [ "$(cat "${PIDFILE}" 2>/dev/null)" = "$$" ] || exit 0
+    rm -f "${PIDFILE}"
+    log "ответа нет — возвращаю прежние параметры мониторов"
+    hyprctl -i "${sig}" -q eval "${lua}"
+}
+
+case "${1:-}" in
+    edid)   shift; cmd_edid "$@" ;;
+    guard)  shift; cmd_guard "$@" ;;
+    cancel) shift; cmd_cancel "$@" ;;
+    *) sed -n '2,7p' "$0"; exit 2 ;;
+esac

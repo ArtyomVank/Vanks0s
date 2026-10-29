@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Delta · Настройки — сведения о системе одним JSON-объектом. Только чтение.
+set -u
+
+osr() { sed -n "s/^$1=//p" /etc/os-release 2>/dev/null | head -n1 | sed 's/^"//; s/"$//'; }
+
+os_name=$(osr NAME); os_ver=$(osr VERSION); [ -n "${os_ver}" ] || os_ver=$(osr VERSION_ID)
+[ -n "${os_ver}" ] || os_ver=$(osr BUILD_ID)
+pretty=$(osr PRETTY_NAME)
+
+# версия Delta: файл пакета, затем pacman, иначе «разработка»
+data=${DELTA_DATA:-/usr/share/delta}
+delta=$(cat "${data}/VERSION" 2>/dev/null || pacman -Q delta 2>/dev/null | awk '{print $2}')
+[ -n "${delta}" ] || delta="0.1 (разработка)"
+
+cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -n1)
+[ -n "${cpu}" ] || cpu=$(sed -n 's/^Hardware[[:space:]]*: //p' /proc/cpuinfo | head -n1)
+threads=$(nproc 2>/dev/null || echo 0)
+mem=$(awk '/^MemTotal:/{print $2 * 1024}' /proc/meminfo)
+memfree=$(awk '/^MemAvailable:/{print $2 * 1024}' /proc/meminfo)
+up=$(cut -d. -f1 /proc/uptime)
+host=$(cat /proc/sys/kernel/hostname)
+pretty_host=$(hostnamectl --json=short 2>/dev/null | jq -r '.PrettyHostname // empty' 2>/dev/null)
+
+# видеокарты: «Производитель Модель»
+gpus=$(lspci -mm 2>/dev/null | awk -F'"' '$2 ~ /VGA|3D|Display/ { v=$4; sub(/ Corporation| Inc\.| Technologies.*|, Inc\./, "", v); print v " " $6 }' | jq -R . | jq -s .)
+
+# диски: реальные устройства, одно на раздел
+disks=$(df -B1 --output=source,size,used,avail,target -x tmpfs -x devtmpfs -x efivarfs -x overlay -x squashfs 2>/dev/null \
+    | awk 'NR > 1 && $1 ~ /^\/dev\// && !seen[$1]++ { t=$5; for (i = 6; i <= NF; i++) t = t " " $i; printf "%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, t }' \
+    | while IFS=$'\t' read -r src size used avail target; do
+        model=$(lsblk -no MODEL "/dev/$(lsblk -no PKNAME "${src}" 2>/dev/null | head -n1)" 2>/dev/null | head -n1 | sed 's/[[:space:]]*$//')
+        jq -n --arg s "${src}" --arg t "${target}" --arg m "${model}" --argjson size "${size}" --argjson used "${used}" --argjson avail "${avail}" \
+            '{ source: $s, target: $t, model: $m, size: $size, used: $used, avail: $avail }'
+    done | jq -s .)
+
+jq -n --arg os "${os_name:-Linux}" --arg ver "${os_ver}" --arg pretty "${pretty}" --arg delta "${delta}" \
+      --arg kernel "$(uname -r)" --arg arch "$(uname -m)" --arg cpu "${cpu}" --argjson threads "${threads}" \
+      --argjson mem "${mem:-0}" --argjson memfree "${memfree:-0}" --argjson uptime "${up:-0}" \
+      --arg host "${host}" --arg prettyHost "${pretty_host}" --argjson gpus "${gpus:-[]}" --argjson disks "${disks:-[]}" \
+      '{ os: $os, version: $ver, pretty: $pretty, delta: $delta, kernel: $kernel, arch: $arch, cpu: $cpu,
+         threads: $threads, mem: $mem, memFree: $memfree, uptime: $uptime, hostname: $host,
+         prettyHostname: $prettyHost, gpus: $gpus, disks: $disks }'

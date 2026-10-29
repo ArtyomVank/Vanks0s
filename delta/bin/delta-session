@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Delta — запуск сессии. Вызывается экраном входа (greetd / wayland-sessions).
+#
+# 1. окружение для Wayland-приложений и порталов;
+# 2. первый запуск: пустой ~/.config/delta/settings.json (умолчания подмешиваются);
+# 3. generated.lua из настроек;
+# 4. Hyprland с конфигом Delta под сторожем start-hyprland.
+set -u
+
+export DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+export XDG_CURRENT_DESKTOP=Delta:Hyprland
+export XDG_SESSION_DESKTOP=delta
+export XDG_SESSION_TYPE=wayland
+
+# Журнал Hyprland, оболочки и delta-apply — в журнал systemd, а не на экран:
+# иначе между экраном входа и рабочим столом видна текстовая консоль
+# с бегущим логом и курсором. Читать: journalctl --user -t delta-session
+# (или journalctl -t delta-session). Вложенная сессия пишет как раньше.
+if [ -z "${DELTA_NESTED:-}" ]; then
+    # консоль, на которой стартует сессия: чистый чёрный экран без курсора
+    [ -t 1 ] && printf '\033[2J\033[H\033[?25l'
+    if command -v systemd-cat >/dev/null; then
+        exec > >(exec systemd-cat -t delta-session) 2>&1
+    else
+        exec >/dev/null 2>&1
+    fi
+fi
+
+CFG=${XDG_CONFIG_HOME:-$HOME/.config}/delta
+mkdir -p "${CFG}/hypr"
+
+# В файле пользователя — только его изменения: значения по умолчанию
+# подмешивают Settings и delta-apply, поэтому новые умолчания доходят
+# и до старых установок.
+if [ ! -s "${CFG}/settings.json" ]; then
+    printf '{ "version": 1 }\n' > "${CFG}/settings.json"
+fi
+
+# Плохие настройки не должны мешать входу: delta-apply сам оставляет
+# прежний generated.lua, если новый не прошёл проверку.
+delta-apply --no-reload || true
+
+if [ -n "${DELTA_NESTED:-}" ]; then
+    # отладка: Hyprland в окне внутри текущей сессии, без сторожа
+    exec Hyprland -c "${DELTA_DATA}/hypr/hyprland.lua"
+fi
+
+# Экран входа показывает тему, обои и аватар пользователя: обновляем копию
+# в фоне (вход не ждёт; без greetd помощник просто ничего не делает).
+if command -v delta-greeter-sync >/dev/null; then
+    delta-greeter-sync -q </dev/null >/dev/null 2>&1 &
+fi
+exec start-hyprland -- -c "${DELTA_DATA}/hypr/hyprland.lua"

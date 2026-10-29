@@ -1,0 +1,21 @@
+# Настройки GNOME по умолчанию для Vanks OS (live и установленная система).
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+accent-color='purple'
+clock-format='24h'
+
+[org/gnome/desktop/background]
+picture-uri='file:///usr/share/backgrounds/vankos/wallpaper.png'
+picture-uri-dark='file:///usr/share/backgrounds/vankos/wallpaper.png'
+picture-options='zoom'
+
+[org/gnome/desktop/screensaver]
+picture-uri='file:///usr/share/backgrounds/vankos/wallpaper.png'
+picture-uri-dark='file:///usr/share/backgrounds/vankos/wallpaper.png'
+
+[org/gnome/shell]
+favorite-apps=['vankos-install.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Settings.desktop']
+welcome-dialog-last-shown-version='999'
+
+[org/gnome/mutter]
+experimental-features=['scale-monitor-framebuffer']

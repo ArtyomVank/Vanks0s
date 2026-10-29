@@ -1,0 +1,48 @@
+# Брендинг Vanks OS для Calamares.
+# Схема ключей: src/branding/README.md (Calamares 3.3).
+---
+componentName: vankos
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+windowExpanding: normal
+windowSize: 1040px,660px
+windowPlacement: center
+
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         "Vanks OS"
+    shortProductName:    "Vanks"
+    version:             "0.1 «Aurora»"
+    shortVersion:        "0.1"
+    versionedName:       "Vanks OS 0.1 «Aurora»"
+    shortVersionedName:  "Vanks 0.1"
+    bootloaderEntryName: "Vanks OS"
+    productUrl:          "https://vanksos.local/"
+    supportUrl:          ""
+    knownIssuesUrl:      ""
+    releaseNotesUrl:     ""
+    donateUrl:           ""
+
+images:
+    productIcon:      "logo.png"
+    productLogo:      "logo.png"
+    productWelcome:   "welcome.png"
+    productWallpaper: "wallpaper.png"
+
+style:
+    SidebarBackground:        "#12101B"
+    SidebarText:              "#C9C5E4"
+    SidebarTextCurrent:       "#FFFFFF"
+    SidebarBackgroundCurrent: "#7C5CFF"
+
+slideshow: "show.qml"
+slideshowAPI: 2
+
+uploadServer:
+    type:    "none"
+    url:     ""
+    sizeLimit: 0

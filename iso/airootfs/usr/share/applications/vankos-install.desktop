@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Install Vanks OS
+Name[ru]=Установить Vanks OS
+Comment=Vanks OS installer
+Comment[ru]=Установщик Vanks OS
+Exec=/usr/local/bin/vankos-installer
+Icon=calamares
+Terminal=false
+Categories=System;Settings;
+Keywords=install;installer;vankos;
+StartupNotify=true

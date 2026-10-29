@@ -1,0 +1,11 @@
+// Vanks OS: разрешаем live-пользователю запускать установщик от root
+// без запроса пароля. Правило действует только для /usr/bin/calamares.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.policykit.exec" &&
+        subject.user == "vanks") {
+        var program = action.lookup("program");
+        if (program == "/usr/bin/calamares") {
+            return polkit.Result.YES;
+        }
+    }
+});

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Delta · Настройки — установленные темы значков и курсоров.
+# Вывод: «icon<TAB>имя<TAB>название» и «cursor<TAB>имя<TAB>название», по строке на тему.
+# Только чтение.
+set -u
+
+declare -A seen
+for base in "${XDG_DATA_HOME:-$HOME/.local/share}/icons" "$HOME/.icons" /usr/local/share/icons /usr/share/icons; do
+    [ -d "${base}" ] || continue
+    for d in "${base}"/*/; do
+        d=${d%/}
+        name=${d##*/}
+        [ -n "${seen[$name]:-}" ] && continue
+        seen[$name]=1
+        title=$(sed -n 's/^Name=//p' "${d}/index.theme" 2>/dev/null | head -n1)
+        [ -n "${title}" ] || title=${name}
+        # тема курсоров — есть папка cursors; тема значков — Directories в index.theme
+        [ -d "${d}/cursors" ] && printf 'cursor\t%s\t%s\n' "${name}" "${title}"
+        if [ "${name}" != default ] && [ "${name}" != hicolor ] && grep -q '^Directories=' "${d}/index.theme" 2>/dev/null; then
+            # тема из одних курсоров (Directories пустой) значками не считается
+            dirs=$(sed -n 's/^Directories=//p' "${d}/index.theme" | head -n1)
+            [ -n "${dirs}" ] && printf 'icon\t%s\t%s\n' "${name}" "${title}"
+        fi
+    done
+done

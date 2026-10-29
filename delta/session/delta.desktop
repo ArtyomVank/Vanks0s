@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Delta
+Comment=Графическое окружение Vanks OS
+Exec=/usr/bin/delta-session
+Type=Application
+DesktopNames=Delta;Hyprland
+Keywords=delta;vanks;wayland;

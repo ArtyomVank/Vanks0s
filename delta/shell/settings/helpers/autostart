@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Delta · Настройки — записи автозапуска в ~/.config/autostart.
+#
+#   autostart list                 JSON: [{ file, name, exec, icon, hidden, user, system }]
+#   autostart hide <id> true|false Hidden= в своей копии записи
+#   autostart add <app.desktop>    скопировать запись приложения в автозапуск
+#   autostart remove <id>          убрать свою запись
+#
+# Системные записи (/etc/xdg/autostart) не трогаем: чтобы выключить такую,
+# в ~/.config/autostart кладётся копия с Hidden=true — так это задумано XDG.
+# Пишет только в домашнюю папку.
+set -u
+
+udir=${XDG_CONFIG_HOME:-$HOME/.config}/autostart
+sdir=/etc/xdg/autostart
+appdirs=("${XDG_DATA_HOME:-$HOME/.local/share}/applications" /var/lib/flatpak/exports/share/applications /usr/local/share/applications /usr/share/applications)
+
+key() { sed -n "/^\[Desktop Entry\]/,/^\[/{s/^$2=//p}" "$1" | head -n1; }
+safe_id() { [[ "$1" =~ ^[A-Za-z0-9._@+-]+\.desktop$ ]] || { echo "autostart: плохое имя $1" >&2; exit 2; }; }
+
+set_key() { # file key value — заменить или добавить в [Desktop Entry]
+    if grep -q "^$2=" "$1"; then sed -i "s|^$2=.*|$2=$3|" "$1"
+    else sed -i "0,/^\[Desktop Entry\]/s||[Desktop Entry]\n$2=$3|" "$1"; fi
+}
+
+case "${1:-list}" in
+    list)
+        {
+            for f in "${udir}"/*.desktop "${sdir}"/*.desktop; do
+                [ -f "${f}" ] || continue
+                id=${f##*/}
+                # своя запись перекрывает системную с тем же именем
+                [ "${f%/*}" = "${sdir}" ] && [ -f "${udir}/${id}" ] && continue
+                hidden=false
+                [[ "$(key "${f}" Hidden)" =~ ^[Tt]rue$ ]] && hidden=true
+                [[ "$(key "${f}" X-GNOME-Autostart-enabled)" =~ ^[Ff]alse$ ]] && hidden=true
+                # записи только для чужих окружений не показываем
+                only=$(key "${f}" OnlyShowIn)
+                [ -n "${only}" ] && ! grep -qiE '(^|;)(Delta|Hyprland)(;|$)' <<<"${only}" && continue
+                sys=false; [ -f "${sdir}/${id}" ] && sys=true
+                jq -n --arg file "${id}" --arg name "$(key "${f}" Name)" --arg exec "$(key "${f}" Exec)" \
+                      --arg icon "$(key "${f}" Icon)" --argjson hidden "${hidden}" --argjson system "${sys}" \
+                      --argjson user "$([ -f "${udir}/${id}" ] && echo true || echo false)" \
+                      '{ file: $file, name: (if $name == "" then $file else $name end), exec: $exec, icon: $icon,
+                         hidden: $hidden, system: $system, user: $user }'
+            done
+        } | jq -s 'sort_by(.name | ascii_downcase)'
+        ;;
+    hide)
+        safe_id "$2"
+        mkdir -p "${udir}"
+        f=${udir}/$2
+        [ -f "${f}" ] || cp "${sdir}/$2" "${f}" || exit 1
+        set_key "${f}" Hidden "$3"
+        set_key "${f}" X-GNOME-Autostart-enabled "$([ "$3" = true ] && echo false || echo true)"
+        ;;
+    add)
+        safe_id "$2"
+        mkdir -p "${udir}"
+        for d in "${appdirs[@]}"; do
+            if [ -f "${d}/$2" ]; then
+                cp "${d}/$2" "${udir}/$2"
+                set_key "${udir}/$2" Hidden false
+                exit 0
+            fi
+        done
+        echo "autostart: нет приложения $2" >&2; exit 1
+        ;;
+    remove)
+        safe_id "$2"
+        rm -f -- "${udir}/$2"
+        ;;
+    *) sed -n '2,12p' "$0"; exit 2 ;;
+esac

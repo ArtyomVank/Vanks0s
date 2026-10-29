@@ -1,0 +1,20 @@
+# Пакеты варианта "Delta" (по умолчанию). Ставит desktop.sh.
+# Сам delta тянет Hyprland, Quickshell, порталы, шрифты и службы оболочки;
+# здесь — экран входа и программы, которые оболочка закрепляет в доке.
+delta
+greetd
+# текстовый вход, если графический экран входа не поднялся
+greetd-agreety
+# необязательные зависимости delta
+kitty
+hyprsunset
+fastfetch
+imagemagick
+zenity
+# программы из дока по умолчанию
+nautilus
+gnome-text-editor
+loupe
+firefox
+gvfs
+gvfs-mtp

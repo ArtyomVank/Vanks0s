@@ -1,0 +1,15 @@
+[Unit]
+Description=Vanks OS live session setup
+# пишет /etc/greetd/config.toml и создаёт пользователя — строго до greetd
+Before=greetd.service display-manager.service
+After=systemd-user-sessions.service local-fs.target
+ConditionPathExists=/run/archiso
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/vankos-live-setup
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

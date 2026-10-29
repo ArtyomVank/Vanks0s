@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Delta — обновления «по воздуху»: пакеты Arch и сама Delta.
+#
+#   delta-update check    что можно обновить (без root, систему не меняет):
+#                         строки «имя старая -> новая»;
+#                         код 0 — есть обновления, 2 — нет, 1 — нет связи
+#   delta-update apply    установить всё (root; «Настройки» зовут через pkexec,
+#                         пароль спрашивает окно polkit оболочки)
+#
+# Пакета delta нет в репозиториях Arch: он лежит в релизах GitHub проекта
+# (DELTA_REPO — «владелец/репозиторий» в /usr/share/delta/update.conf,
+# переопределяется в /etc/delta/update.conf). Пока DELTA_REPO пуст,
+# обновляется только Arch. Выпуск новой версии — tools/delta-release.sh.
+#
+# apply печатает для «Настроек» строки-метки, остальное — вывод pacman:
+#   ::step:: <текст>   начался этап
+#   ::reboot::         обновились ядро, драйвер или Hyprland — нужна перезагрузка
+set -u
+export LC_ALL=C
+
+DELTA_REPO=""
+# shellcheck source=/dev/null
+[ -f /usr/share/delta/update.conf ] && . /usr/share/delta/update.conf
+# shellcheck source=/dev/null
+[ -f /etc/delta/update.conf ] && . /etc/delta/update.conf
+
+CACHE=/var/cache/delta-update
+LOCK=/var/lib/pacman/db.lck
+# после их обновления нужна перезагрузка
+REBOOT_PKGS=(linux linux-lts linux-zen linux-hardened linux-firmware nvidia nvidia-open nvidia-utils
+             mesa systemd glibc hyprland aquamarine quickshell)
+
+LOG=/var/log/delta-update.log
+
+# Вывод для «Настроек» — только если окно ещё слушает: закрыли окно посреди
+# установки — запись молча пропадает, а сама установка идёт дальше (pacman,
+# убитый посреди транзакции, оставил бы систему наполовину обновлённой).
+say()  { printf '%s\n' "$*" 2>/dev/null || true; [ -w "${LOG}" ] && printf '%s\n' "$*" >>"${LOG}"; return 0; }
+step() { say "::step:: $*"; }
+die()  { printf '%s\n' "$*" >&2 2>/dev/null; [ -w "${LOG}" ] && printf 'ОШИБКА: %s\n' "$*" >>"${LOG}"; exit 1; }
+# pacman пишет в свою трубу, которую читает этот скрипт, а не окно
+run_pacman() {
+    pacman "$@" 2>&1 | while IFS= read -r line; do say "${line}"; done
+    return "${PIPESTATUS[0]}"
+}
+
+# последний пакет delta из релизов GitHub: «ссылка<TAB>имя<TAB>sha256:…»
+delta_latest() {
+    [ -n "${DELTA_REPO}" ] || return 1
+    command -v curl >/dev/null && command -v jq >/dev/null || return 1
+    curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' \
+        "https://api.github.com/repos/${DELTA_REPO}/releases/latest" 2>/dev/null |
+        jq -r '.assets[]? | select(.name | test("^delta-[^-]+-[0-9.]+-any\\.pkg\\.tar\\.zst$"))
+               | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null | head -n1
+}
+pkg_version() { local n=${1#delta-}; printf '%s\n' "${n%-any.pkg.tar.zst}"; }
+installed()   { pacman -Q "$1" 2>/dev/null | awk '{print $2}'; }
+
+# «delta старая -> новая», если в релизах версия новее установленной
+delta_check() {
+    local latest url name new old
+    latest=$(delta_latest) || return 1
+    [ -n "${latest}" ] || return 1
+    IFS=$'\t' read -r url name _ <<<"${latest}"
+    new=$(pkg_version "${name}")
+    old=$(installed delta)
+    if [ -z "${old}" ] || [ "$(vercmp "${new}" "${old}")" -gt 0 ]; then
+        printf 'delta %s -> %s\n' "${old:-нет}" "${new}"
+    fi
+}
+
+cmd_check() {
+    local out rc any=0 failed=0 d
+    out=$(checkupdates --nocolor 2>/dev/null); rc=$?
+    case ${rc} in
+        0) [ -n "${out}" ] && { printf '%s\n' "${out}"; any=1; } ;;
+        2) ;;
+        *) failed=1 ;;
+    esac
+    if d=$(delta_check) && [ -n "${d}" ]; then printf '%s\n' "${d}"; any=1; fi
+    [ "${any}" = 1 ] && exit 0
+    [ "${failed}" = 1 ] && die "нет связи с зеркалами Arch"
+    exit 2
+}
+
+cmd_apply() {
+    [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-update apply"
+    # окно «Настроек» закрыли или сессия завершилась — установку не прерываем
+    trap '' HUP PIPE
+    : >"${LOG}" 2>/dev/null
+    # pacman уже работает (другое обновление) — ждём до минуты
+    for _ in $(seq 60); do [ -e "${LOCK}" ] || break; pgrep -x pacman >/dev/null || break; sleep 1; done
+    if [ -e "${LOCK}" ]; then
+        pgrep -x pacman >/dev/null && die "Сейчас уже идёт установка пакетов. Попробуйте через пару минут."
+        # pacman не запущен, а замок остался (выключили питание, убили процесс)
+        say "убираю оставшийся замок базы пакетов ${LOCK}"
+        rm -f "${LOCK}"
+    fi
+
+    local before after
+    before=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
+
+    step "Получаю списки пакетов"
+    run_pacman -Sy --noconfirm || die "Не удалось получить списки пакетов — нет интернета?"
+    # устаревшие ключи — частая причина ошибки «неверная подпись»
+    step "Обновляю ключи подписи"
+    run_pacman -S --needed --noconfirm archlinux-keyring || die "Не удалось обновить ключи подписи"
+    step "Устанавливаю обновления системы"
+    run_pacman -Su --noconfirm || die "Обновление системы не удалось"
+
+    local latest url name digest new old file
+    if latest=$(delta_latest) && [ -n "${latest}" ]; then
+        IFS=$'\t' read -r url name digest <<<"${latest}"
+        new=$(pkg_version "${name}")
+        old=$(installed delta)
+        if [ -z "${old}" ] || [ "$(vercmp "${new}" "${old}")" -gt 0 ]; then
+            step "Обновляю Delta до ${new}"
+            install -d -m 0755 "${CACHE}"
+            file="${CACHE}/${name}"
+            curl -fL --retry 3 --max-time 600 -o "${file}.part" "${url}" || die "Не удалось скачать Delta ${new}"
+            if [ -n "${digest}" ] && [ "${digest#sha256:}" != "${digest}" ]; then
+                printf '%s  %s\n' "${digest#sha256:}" "${file}.part" | sha256sum -c --quiet - \
+                    || { rm -f "${file}.part"; die "Файл Delta ${new} повреждён (не совпала контрольная сумма)"; }
+            fi
+            mv -f "${file}.part" "${file}"
+            run_pacman -U --noconfirm "${file}" || die "Не удалось установить Delta ${new}"
+            find "${CACHE}" -maxdepth 1 -name 'delta-*.pkg.tar.zst' ! -name "${name}" -delete
+        fi
+    fi
+
+    after=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
+    [ "${before}" != "${after}" ] && say "::reboot::"
+    step "Готово"
+}
+
+case "${1:-}" in
+    check) cmd_check ;;
+    apply) cmd_apply ;;
+    -h|--help|"")
+        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+        [ -n "${1:-}" ] || exit 2
+        ;;
+    *) die "неизвестная команда: $1 (check | apply)" ;;
+esac

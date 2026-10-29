@@ -1,0 +1,94 @@
+# Vanks OS — пакеты live-системы (mkarchiso ставит их в squashfs).
+# Всё, что здесь перечислено, попадает и в офлайн-репозиторий на ISO,
+# поэтому список одновременно задаёт "что можно установить без интернета".
+# Формат: один пакет на строку, '#' — комментарий.
+
+# --- базовая система ---
+base
+linux
+linux-firmware
+intel-ucode
+amd-ucode
+mkinitcpio
+mkinitcpio-archiso
+# Хуки archiso_pxe_* в initramfs ищут ipconfig/nfsmount и nbd-client.
+# Без этих пакетов mkinitcpio завершается с ERROR (локальная загрузка
+# при этом работает, но образ собирается «с ошибками»).
+mkinitcpio-nfs-utils
+nbd
+pacman
+pacman-mirrorlist
+archlinux-keyring
+sudo
+polkit
+libpwquality
+networkmanager
+iw
+wireless-regdb
+bluez
+bluez-utils
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+alsa-utils
+sof-firmware
+cryptsetup
+lvm2
+btrfs-progs
+xfsprogs
+dosfstools
+e2fsprogs
+exfatprogs
+ntfs-3g
+parted
+gptfdisk
+gparted
+squashfs-tools
+arch-install-scripts
+grub
+efibootmgr
+os-prober
+mtools
+libisoburn
+# mkarchiso требует пакеты загрузчиков прямо в списке (иначе валидация падает:
+# "Validating 'bios.syslinux': The 'syslinux' package is missing")
+syslinux
+memtest86+
+memtest86+-efi
+edk2-shell
+
+# --- live-графика и установщик ---
+# Live-сессия — сама Delta (вход через greetd с автовходом), Calamares
+# открывается окном поверх. GNOME в образ не входит: он ставится
+# установщиком из локального репозитория (iso/lists/gnome.txt).
+delta
+greetd
+greetd-agreety
+kitty
+nautilus
+gnome-disk-utility
+gvfs
+gvfs-mtp
+calamares
+# Calamares — Wayland-клиент (окно в Delta и в безопасном режиме)
+qt6-wayland
+# безопасный режим: Calamares в cage с программной отрисовкой (pixman)
+cage
+noto-fonts
+noto-fonts-emoji
+ttf-dejavu
+xdg-utils
+xdg-user-dirs
+
+# --- утилиты live-сессии ---
+curl
+nano
+vim
+less
+man-db
+man-pages
+htop
+pciutils
+usbutils
+dmidecode

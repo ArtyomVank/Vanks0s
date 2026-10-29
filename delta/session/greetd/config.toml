@@ -1,0 +1,22 @@
+# Delta — greetd. Ставится в /etc/greetd/config.toml.
+#
+# Экран входа — отдельный Hyprland с greeter'ом Delta на Quickshell
+# (session/greetd/hyprland.lua). Пользователь greeter создаётся пакетом greetd.
+
+[terminal]
+# первая виртуальная консоль: так нет мелькания текстовой консоли при загрузке
+vt = 1
+
+[default_session]
+# вывод Hyprland — в журнал (journalctl -t delta-greeter), а не на консоль
+command = "systemd-cat -t delta-greeter start-hyprland -- -c /usr/share/delta/session/greetd/hyprland.lua"
+user = "greeter"
+
+# «Входить без пароля» (Настройки → Экран блокировки → «Блокировать сразу после входа»):
+# раскомментируйте и укажите пользователя. Первый вход после загрузки будет
+# без экрана входа, оболочка сразу покажет экран блокировки (lock.onStart).
+# Связка ключей GNOME при этом не разблокируется сама — пароль спросит первая программа.
+#
+# [initial_session]
+# command = "/usr/bin/delta-session"
+# user = "vanks"

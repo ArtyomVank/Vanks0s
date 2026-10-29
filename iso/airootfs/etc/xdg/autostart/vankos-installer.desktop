@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Vanks OS Installer
+Name[ru]=Установщик Vanks OS
+Comment=Install Vanks OS on this computer
+Comment[ru]=Установить Vanks OS на этот компьютер
+# Только live-образ: Delta запускает автозапуск через dex после входа.
+# В безопасном режиме установщик запускает сам cage (vankos-live-session).
+Exec=/usr/local/bin/vankos-installer
+Icon=calamares
+Terminal=false

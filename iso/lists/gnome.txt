@@ -1,0 +1,8 @@
+# Пакеты варианта "GNOME" (устанавливаются модулем packages по выбору пользователя).
+gnome
+gdm
+gnome-tweaks
+gnome-disk-utility
+xdg-desktop-portal-gnome
+gvfs
+gvfs-mtp

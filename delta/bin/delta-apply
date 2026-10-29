@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Delta — переводит ~/.config/delta/settings.json в конфиг Hyprland.
+#
+#   delta-apply              сгенерировать generated.lua и перезагрузить Hyprland
+#   delta-apply --no-reload  только сгенерировать (используется при старте сессии)
+#   delta-apply --print      вывести результат в stdout, ничего не записывая
+#
+# Перед заменой файл проверяется `Hyprland --verify-config`. Если проверка не
+# прошла, старый generated.lua остаётся на месте — сессия не сломается из-за
+# неудачной настройки.
+set -euo pipefail
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+CFG=${XDG_CONFIG_HOME:-$HOME/.config}/delta
+DEFAULTS=${DELTA_DATA}/defaults/settings.json
+USER_SETTINGS=${CFG}/settings.json
+OUT=${CFG}/hypr/generated.lua
+
+mode=apply
+case "${1:-}" in
+    --no-reload) mode=generate ;;
+    --print)     mode=print ;;
+    "" )         ;;
+    * ) echo "использование: delta-apply [--no-reload|--print]" >&2; exit 2 ;;
+esac
+
+log()  { printf '[delta-apply] %s\n' "$*" >&2; }
+fail() { printf '[delta-apply] ОШИБКА: %s\n' "$*" >&2; exit 1; }
+
+command -v jq >/dev/null || fail "нужен jq"
+[ -f "${DEFAULTS}" ] || fail "нет ${DEFAULTS}"
+
+# Настройки пользователя накладываются на значения по умолчанию: новые ключи
+# из обновлений пакета появляются сами, массивы пользователя заменяют целиком.
+if [ ! -f "${USER_SETTINGS}" ]; then
+    merged=$(cat "${DEFAULTS}")
+elif jq -e 'type == "object"' "${USER_SETTINGS}" >/dev/null 2>&1; then
+    merged=$(jq -s '.[0] * .[1]' "${DEFAULTS}" "${USER_SETTINGS}")
+elif [ -f "${OUT}" ] && [ "${mode}" != print ]; then
+    # повреждённый файл не должен сбрасывать мониторы и ввод на умолчания
+    log "${USER_SETTINGS} повреждён, оставляю прежний ${OUT}"
+    exit 1
+else
+    log "предупреждение: ${USER_SETTINGS} повреждён, беру значения по умолчанию"
+    merged=$(cat "${DEFAULTS}")
+fi
+
+lua=$(jq -r '
+  # строка Lua: JSON-строка подходит, если убрать управляющие символы
+  def lstr: tostring | gsub("[\u0000-\u001f\u007f]"; "") | @json;
+  def num($d): if type == "number" then . elif type == "string" then (tonumber? // $d) else $d end;
+  def int($d): num($d) | floor;
+  def bool($d): if type == "boolean" then . else $d end;
+  def clamp($lo; $hi): if . < $lo then $lo elif . > $hi then $hi else . end;
+  def kv($k; $v): "\($k) = \($v)";
+
+  def monitor:
+    . as $m
+    | [ kv("output"; ($m.match // $m.output // "") | lstr) ]
+    + (if $m.disabled == true then [ kv("disabled"; "true") ] else
+        [ kv("mode"; ($m.mode // "preferred") | lstr),
+          kv("position"; ($m.position // "auto") | lstr),
+          kv("scale"; (if ($m.scale | type) == "number" then ($m.scale | clamp(0.25; 4) | tostring) else "\"auto\"" end)) ]
+        + (if $m.transform != null then [ kv("transform"; $m.transform | int(0) | clamp(0; 7) | tostring) ] else [] end)
+        + (if $m.vrr != null then [ kv("vrr"; $m.vrr | int(0) | clamp(0; 3) | tostring) ] else [] end)
+        + (if $m.mirror then [ kv("mirror"; $m.mirror | lstr) ] else [] end)
+        + (if $m.hdr == true then
+             [ kv("cm"; "\"hdr\""),
+               kv("sdrbrightness"; ($m.sdrBrightness // 1) | num(1) | clamp(0.5; 3) | tostring),
+               kv("sdrsaturation"; ($m.sdrSaturation // 1) | num(1) | clamp(0.5; 2) | tostring) ]
+           elif ($m.cm // "") | test("^(auto|srgb|dcip3|dp3|adobe|wide|edid|hdredid)$") then
+             [ kv("cm"; $m.cm | lstr) ]
+           else [] end)
+        # 10 бит нужны HDR, но бывают и без него (широкий охват, плавные градиенты)
+        + (if $m.hdr == true or $m.bitdepth == 10 then [ kv("bitdepth"; "10") ] else [] end)
+        + (if ($m.icc // "") | startswith("/") then [ kv("icc"; $m.icc | lstr) ] else [] end)
+      end)
+    | "hl.monitor({ " + join(", ") + " })";
+
+  def accent:
+    (.appearance.accent // "#7C5CFF") as $a
+    | if ($a | test("^#[0-9A-Fa-f]{6}$")) then $a[1:] | ascii_downcase else "7c5cff" end;
+
+  "-- Создано delta-apply из ~/.config/delta/settings.json. Не редактировать:",
+  "-- файл перезаписывается при каждом изменении настроек.",
+  "",
+  ((.monitors // []) | map(select(type == "object")) | .[] | monitor),
+  "",
+  "hl.config({",
+  "    general = {",
+  "        gaps_in     = \(.windows.gapsIn | int(6) | clamp(0; 60)),",
+  "        gaps_out    = \(.windows.gapsOut | int(14) | clamp(0; 120)),",
+  "        border_size = \(.windows.border | int(2) | clamp(0; 10)),",
+  "        col = { active_border = \"rgba(\(accent)ee)\" },",
+  "    },",
+  "    decoration = {",
+  "        rounding = \(.windows.rounding | int(16) | clamp(0; 40)),",
+  "        blur = { enabled = \(.windows.blur | bool(true)) },",
+  "    },",
+  "    animations = { enabled = \(.windows.animations | bool(true)) },",
+  "    render = { cm_auto_hdr = \(if .display.autoHdr == true then 1 else 0 end) },",
+  "    input = {",
+  "        kb_layout    = \(((.input.layouts // ["us"]) | map(select(type == "string" and test("^[a-z]{2,8}$"))) | if length == 0 then ["us"] else . end | join(",")) | lstr),",
+  "        kb_options   = \((.input.switchKeys // "grp:alt_shift_toggle") | lstr),",
+  "        repeat_rate  = \(.input.repeatRate | int(30) | clamp(1; 100)),",
+  "        repeat_delay = \(.input.repeatDelay | int(300) | clamp(100; 2000)),",
+  "        sensitivity  = \(.input.sensitivity | num(0) | clamp(-1; 1)),",
+  "        touchpad = {",
+  "            natural_scroll = \(.input.naturalScroll | bool(true)),",
+  "            tap_to_click   = \(.input.tapToClick | bool(true)),",
+  "        },",
+  "    },",
+  "})",
+  "",
+  # Окна по умолчанию плавающие: их можно двигать и растягивать, а не
+  # раскладывать плиткой. Выключается в «Настройки → Окна».
+  (if .windows.floating != false then
+     "hl.window_rule({ name = \"delta-floating\", match = { class = \".*\" }, float = true })"
+   else empty end),
+  "",
+  # Появление окон: popin (по умолчанию, как в hyprland.lua), slide или fade.
+  # Кривые повторены здесь, чтобы файл проходил проверку и сам по себе.
+  "hl.curve(\"deltaSoft\",  { type = \"spring\", mass = 1, stiffness = 180, dampening = 20 })",
+  "hl.curve(\"deltaInOut\", { type = \"bezier\", points = { {0.65, 0.05}, {0.36, 1} } })",
+  ((.windows.openAnim // "popin") as $a
+   | { popin: ["popin 80%", "popin 85%"], slide: ["slide", "slide"], fade: ["popin 100%", "popin 100%"] }[$a]
+     // ["popin 80%", "popin 85%"]
+   | "hl.animation({ leaf = \"windowsIn\",  enabled = true, speed = 4.2, spring = \"deltaSoft\",  style = \(.[0] | @json) })",
+     "hl.animation({ leaf = \"windowsOut\", enabled = true, speed = 1.6, bezier = \"deltaInOut\", style = \(.[1] | @json) })"),
+  "",
+  # «Желе»: пружина с недостаточным демпфированием — окно при перетаскивании
+  # и изменении размера немного проскакивает и покачивается.
+  ((.windows.jelly | num(0) | clamp(0; 1.7)) as $jelly
+   | if $jelly > 0 then
+       # без animate_mouse_windowdragging Hyprland двигает окно за курсором
+       # мгновенно, и пружине нечего делать — «желе» не было видно вовсе
+       [ "hl.curve(\"deltaJelly\", { type = \"spring\", mass = 1, stiffness = 200, dampening = \((30 - 14 * $jelly) | if . < 6 then 6 else . end | floor) })",
+         "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = 6, spring = \"deltaJelly\" })",
+         "hl.config({ misc = { animate_mouse_windowdragging = true, animate_manual_resizes = true } })" ]
+     else [ "hl.config({ misc = { animate_mouse_windowdragging = false } })" ] end
+   | .[]),
+  "",
+  "hl.env(\"XCURSOR_THEME\", \((.appearance.cursorTheme // "Adwaita") | lstr))",
+  "hl.env(\"XCURSOR_SIZE\", \"\(.appearance.cursorSize | int(24) | clamp(16; 96))\")"
+' <<<"${merged}") || fail "не удалось разобрать настройки"
+
+if [ "${mode}" = print ]; then
+    printf '%s\n' "${lua}"
+    exit 0
+fi
+
+install -d "${CFG}/hypr"
+tmp=$(mktemp "${CFG}/hypr/.generated.XXXXXX.lua")
+trap 'rm -f "${tmp}"' EXIT
+printf '%s\n' "${lua}" > "${tmp}"
+
+# Проверяем сгенерированный файл отдельно: в нём только hl.monitor/hl.config/hl.env.
+if command -v Hyprland >/dev/null; then
+    if ! check=$(Hyprland --verify-config -c "${tmp}" 2>&1 | sed -n '/Config parsing result/,$p'); then
+        check=""
+    fi
+    if ! grep -q 'config ok' <<<"${check}"; then
+        log "Hyprland отклонил новый конфиг, оставляю прежний:"
+        grep -v 'Config parsing result' <<<"${check}" | sed '/^$/d' >&2
+        exit 1
+    fi
+fi
+
+mv -f "${tmp}" "${OUT}"
+trap - EXIT
+log "записан ${OUT}"
+
+if [ "${mode}" = apply ] && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    hyprctl reload >/dev/null && log "Hyprland перезагрузил конфиг"
+fi

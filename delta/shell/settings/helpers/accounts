@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Delta · Настройки — пользователи из AccountsService одним JSON-массивом.
+#   [{ path, userName, realName, uid, admin, icon, autologin, me }]
+# Только чтение (busctl get-property).
+set -u
+
+svc=org.freedesktop.Accounts
+me=$(id -un)
+paths=$(busctl --json=short call "${svc}" /org/freedesktop/Accounts "${svc}" ListCachedUsers 2>/dev/null | jq -r '.data[0][]?')
+# свой пользователь может не попасть в кэш — добавляем явно
+mine=$(busctl --json=short call "${svc}" /org/freedesktop/Accounts "${svc}" FindUserByName s "${me}" 2>/dev/null | jq -r '.data[0]? // empty')
+paths=$(printf '%s\n%s\n' "${mine}" "${paths}" | sed '/^$/d' | awk '!seen[$0]++')
+
+for p in ${paths}; do
+    busctl --json=short get-property "${svc}" "${p}" "${svc}.User" \
+        UserName RealName Uid AccountType IconFile AutomaticLogin SystemAccount 2>/dev/null \
+        | jq -s --arg p "${p}" --arg me "${me}" '
+            select(length == 7) | {
+              path: $p, userName: .[0].data, realName: .[1].data, uid: .[2].data,
+              admin: (.[3].data == 1), icon: .[4].data, autologin: .[5].data,
+              system: .[6].data, me: (.[0].data == $me) }'
+done | jq -s '[ .[] | select(.system | not) ]'

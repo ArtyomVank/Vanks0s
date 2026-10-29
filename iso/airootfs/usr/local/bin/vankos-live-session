@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Vanks OS — что greetd запускает в live-системе (/etc/greetd/config.toml).
+#
+#   vankos-live-session           сессия live-пользователя (автовход)
+#   vankos-live-session greeter   экран входа — если из сессии вышли
+#   vankos-live-session safe      безопасный режим: только Calamares в cage
+#
+# Безопасный режим нужен там, где Hyprland не запускается (нет 3D-ускорения,
+# сломанный драйвер): cage рисует программно (pixman), Calamares — окно на
+# весь экран. Включается пунктом меню загрузки (vankos.safe=1) или сам, если
+# Delta не продержалась и 30 секунд. Отметка об этом живёт до перезагрузки
+# в /run/vankos-live (каталог создаёт vankos-live-setup).
+set -u
+
+FLAG=/run/vankos-live/safe
+QUICK_EXIT=30
+
+log() { printf '[vankos/live-session] %s\n' "$*" >&2; }
+
+safe_mode() {
+    grep -qw 'vankos.safe=1' /proc/cmdline 2>/dev/null || [ -e "${FLAG}" ]
+}
+
+run_safe() {
+    log "безопасный режим: Calamares в cage (pixman)"
+    export WLR_RENDERER=pixman
+    export WLR_NO_HARDWARE_CURSORS=1
+    export QT_QPA_PLATFORM=wayland
+    export QT_QUICK_BACKEND=software
+    export XDG_SESSION_TYPE=wayland
+    export XDG_CURRENT_DESKTOP=cage
+    # -s: Ctrl+Alt+F2… переключает на текстовые консоли
+    exec cage -s -- /usr/local/bin/vankos-installer
+}
+
+case "${1:-session}" in
+    greeter)
+        if safe_mode; then
+            # экран входа Delta — тоже Hyprland; в безопасном режиме — текстовый,
+            # вход возвращает установщик (пароля у vanks нет)
+            exec agreety --cmd "/usr/local/bin/vankos-live-session safe"
+        fi
+        # вывод Hyprland — в журнал, а не на консоль: иначе мелькает текст
+        exec systemd-cat -t delta-greeter start-hyprland -- -c /usr/share/delta/session/greetd/hyprland.lua
+        ;;
+    safe)
+        run_safe
+        ;;
+    session)
+        safe_mode && run_safe
+        started=$(date +%s)
+        /usr/bin/delta-session
+        rc=$?
+        lasted=$(( $(date +%s) - started ))
+        if [ "${lasted}" -lt "${QUICK_EXIT}" ]; then
+            log "Delta завершилась через ${lasted} с (код ${rc}) — Hyprland, похоже, не может работать на этой видеокарте"
+            touch "${FLAG}" 2>/dev/null || log "не удалось записать ${FLAG}"
+            run_safe
+        fi
+        exit "${rc}"
+        ;;
+    *)
+        echo "использование: vankos-live-session [greeter|safe]" >&2
+        exit 2
+        ;;
+esac

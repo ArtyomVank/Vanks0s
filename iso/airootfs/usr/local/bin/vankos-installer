@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Vanks OS — запуск установщика из live-сессии.
+#
+# Calamares требует root. В live-сессии есть два независимых пути:
+#   1) sudo без пароля (файл /etc/sudoers.d/10-vankos-live, режим 0440);
+#   2) polkit-правило 49-vankos-installer.rules для pkexec.
+# Сначала пробуем sudo — он не зависит от polkit-агента и графической сессии,
+# pkexec оставляем как запасной вариант.
+#
+# Весь вывод (включая отладку Calamares) пишется в ~/.cache/vankos-installer.log,
+# чтобы падение можно было разобрать без танцев с виртуальными консолями.
+set -u
+
+LOG_DIR="${HOME:-/tmp}/.cache"
+mkdir -p "${LOG_DIR}" 2>/dev/null || LOG_DIR=/tmp
+LOG_FILE="${LOG_DIR}/vankos-installer.log"
+
+# Дублируем stdout/stderr в лог (и в консоль, если запуск из терминала).
+exec > >(tee -a "${LOG_FILE}") 2>&1
+echo "=== $(date -Is) запуск установщика Vanks OS ==="
+echo "user=$(id -un) DISPLAY=${DISPLAY:-} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-} XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
+
+export LANG=ru_RU.UTF-8
+export LC_ALL=ru_RU.UTF-8
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+# Delta и безопасный режим (cage) — Wayland. Calamares работает от root, а
+# его XDG_RUNTIME_DIR — чужой каталог, поэтому сокет передаём полным путём
+# (libwayland принимает абсолютный WAYLAND_DISPLAY). xcb — запасной путь.
+if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    [[ "${WAYLAND_DISPLAY}" == /* ]] || WAYLAND_DISPLAY="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+    export WAYLAND_DISPLAY
+    export QT_QPA_PLATFORM="wayland;xcb"
+else
+    export QT_QPA_PLATFORM=xcb
+fi
+# Fusion есть в самом Qt; темы Adwaita для Qt 6 в репозиториях Arch нет.
+export QT_STYLE_OVERRIDE=Fusion
+
+# Дать оболочке подняться (автозапуск идёт сразу после входа).
+sleep 4
+
+show_error() {
+    local message="$1"
+    echo "ОШИБКА: ${message}"
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -u critical -a "Vanks OS" "Установщик не запустился" "${message}" 2>/dev/null || true
+    fi
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --error --title="Vanks OS" --text="${message}" 2>/dev/null || true
+    elif command -v xmessage >/dev/null 2>&1; then
+        xmessage -center "${message}" 2>/dev/null || true
+    fi
+}
+
+if ! command -v calamares >/dev/null 2>&1; then
+    show_error "Установщик Calamares не найден в системе (/usr/bin/calamares)."
+    exit 1
+fi
+
+# Проверяем, что динамический загрузчик находит все библиотеки. Иначе окно
+# просто не появится, а в логе останется лишь "error while loading shared
+# libraries" — именно так было с libKF6Crash.so.6, которую забыли в зависимостях.
+if command -v ldd >/dev/null 2>&1; then
+    missing_libs="$(ldd /usr/bin/calamares 2>/dev/null | grep 'not found' || true)"
+    if [[ -n "${missing_libs}" ]]; then
+        show_error "Calamares не может загрузить библиотеки: ${missing_libs}. Лог: ${LOG_FILE}"
+        exit 1
+    fi
+fi
+
+# -d включает отладку: по логу видно, какой модуль не загрузился.
+run_calamares() {
+    local launcher=("$@")
+    "${launcher[@]}" env \
+        "DISPLAY=${DISPLAY:-}" \
+        "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}" \
+        "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}" \
+        "XAUTHORITY=${XAUTHORITY:-}" \
+        "QT_QPA_PLATFORM=${QT_QPA_PLATFORM}" \
+        "QT_QUICK_BACKEND=${QT_QUICK_BACKEND:-}" \
+        "QT_STYLE_OVERRIDE=${QT_STYLE_OVERRIDE}" \
+        "LANG=${LANG}" \
+        /usr/bin/calamares -d
+}
+
+echo "--- пробую sudo (NOPASSWD) ---"
+if sudo -n true 2>/dev/null; then
+    echo "sudo доступен, запускаю Calamares от root"
+    run_calamares sudo -n
+    rc=$?
+    echo "Calamares завершился с кодом ${rc}"
+    exit "${rc}"
+fi
+
+echo "--- sudo недоступен, пробую pkexec ---"
+if command -v pkexec >/dev/null 2>&1; then
+    pkexec /usr/bin/calamares -d
+    rc=$?
+    echo "pkexec завершился с кодом ${rc}"
+    exit "${rc}"
+fi
+
+show_error "Не удалось получить права root для установщика. Лог: ${LOG_FILE}"
+exit 1

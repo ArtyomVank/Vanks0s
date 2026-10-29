@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Delta — приложение «Настройки» (отдельный процесс Quickshell).
+#
+#   delta-settings              открыть (или поднять уже открытое окно)
+#   delta-settings <раздел>     открыть раздел: display, keyboard, about, …
+#   delta-settings ipc <...>    команда окну: delta-settings ipc call settings open sound
+#
+# Окно одно: если «Настройки» уже запущены, раздел переключается через IPC,
+# а окно получает фокус.
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+# DELTA_SETTINGS_ENTRY — другой входной файл (отладка: shell/dev-settings.qml)
+ENTRY=${DELTA_SETTINGS_ENTRY:-${SHELL_DIR}/settings-app.qml}
+export DELTA_DATA
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    ipc)
+        shift
+        exec qs -p "${ENTRY}" ipc "$@"
+        ;;
+esac
+
+section=${1:-}
+
+# уже запущено — переключаем раздел и поднимаем окно
+if qs -p "${ENTRY}" ipc call settings open "${section}" >/dev/null 2>&1; then
+    exit 0
+fi
+
+# первый запуск: раздел передаём через окружение, -n — не плодить копии,
+# если два запуска пришли одновременно
+export DELTA_SETTINGS_SECTION=${section}
+exec qs -p "${ENTRY}" -n -d

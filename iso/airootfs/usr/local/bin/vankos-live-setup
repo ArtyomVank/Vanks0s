@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Vanks OS — подготовка live-сессии (systemd oneshot, до запуска greetd).
+# Создаёт живого пользователя, кладёт конфиг greetd с автовходом и готовит
+# Delta: установщик в доке, без блокировки и сна во время установки.
+set -euo pipefail
+
+USER_NAME="vanks"
+USER_HOME="/home/${USER_NAME}"
+log() { printf '[vankos/live] %s\n' "$*"; }
+
+getent group wheel >/dev/null || groupadd wheel
+
+if ! id "${USER_NAME}" >/dev/null 2>&1; then
+    log "создаю live-пользователя ${USER_NAME}"
+    useradd -m -d "${USER_HOME}" -s /bin/bash \
+        -G wheel,video,audio,input,render,storage,optical,power \
+        "${USER_NAME}"
+    passwd -d "${USER_NAME}" >/dev/null
+else
+    log "пользователь ${USER_NAME} уже существует"
+fi
+
+install -d -o "${USER_NAME}" -g "${USER_NAME}" \
+    "${USER_HOME}" "${USER_HOME}/Desktop" "${USER_HOME}/.config" "${USER_HOME}/.config/delta"
+
+# --- greetd: автовход в Delta (или безопасный режим, см. vankos-live-session) ---
+# Конфиг из пакета greetd заменяем при каждой загрузке: так образ не зависит
+# от того, как pacman обошёлся с /etc/greetd при сборке.
+install -Dm644 /usr/share/vankos/greetd-live.toml /etc/greetd/config.toml
+# Отметка «перейти в безопасный режим»: пишет сессия vanks, читает экран входа.
+install -d -m 0755 -o "${USER_NAME}" -g "${USER_NAME}" /run/vankos-live
+if grep -qw 'vankos.safe=1' /proc/cmdline; then
+    log "выбран безопасный режим (vankos.safe=1)"
+fi
+
+# --- Delta ---
+# Только отличия от умолчаний (остальное оболочка подмешивает сама):
+# установщик первым в доке, без автоблокировки и сна — у live-пользователя нет
+# пароля, а установка идёт долго.
+settings="${USER_HOME}/.config/delta/settings.json"
+if [ ! -s "${settings}" ]; then
+    cat > "${settings}" <<'EOF'
+{
+  "version": 1,
+  "docks": {
+    "apps": {
+      "pinned": ["vankos-install", "org.gnome.Nautilus", "kitty", "org.gnome.DiskUtility", "delta-settings"]
+    }
+  },
+  "power": { "lockAfter": 0, "sleepAfter": 0, "lockBeforeSleep": false },
+  "lock": { "onStart": false }
+}
+EOF
+fi
+
+# Ярлык установщика на рабочем столе (для файлового менеджера).
+if [ -f /usr/share/applications/vankos-install.desktop ]; then
+    install -m 0755 -o "${USER_NAME}" -g "${USER_NAME}" \
+        /usr/share/applications/vankos-install.desktop \
+        "${USER_HOME}/Desktop/vankos-install.desktop"
+fi
+
+# Системные значения GSettings (тёмная тема GTK-программ, обои).
+if command -v dconf >/dev/null 2>&1; then
+    dconf update 2>/dev/null || log "dconf update пропущен"
+fi
+
+chown -R "${USER_NAME}:${USER_NAME}" "${USER_HOME}"
+
+log "live-сессия готова"
+exit 0

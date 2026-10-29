@@ -1,0 +1,106 @@
+# Vanks OS — графическое окружение Delta.
+#
+# Исходники лежат в этом же репозитории (delta/), поэтому source=() пуст,
+# а package() берёт файлы из $_src. Сборка:
+#   cd packaging/delta && makepkg -f
+#
+# Hyprland и Quickshell меняют API между версиями (Lua-конфиг, QML-типы),
+# поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
+
+pkgname=delta
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
+arch=('any')
+url="https://github.com/ArtyomVank/Vanks0s"
+license=('GPL-3.0-or-later')
+
+depends=(
+    # конфиг на Lua (hl.*): проверен на 0.56.2 и 0.57.0 (Hyprland --verify-config)
+    'hyprland>=0.56' 'hyprland<0.58'
+    'quickshell>=0.3.2' 'quickshell<0.4'
+    'qt6-declarative' 'qt6-svg' 'qt6-5compat'
+    # видеообои (QtMultimedia, бэкенд FFmpeg); ffmpeg — миниатюры и кадры-заставки
+    'qt6-multimedia' 'qt6-multimedia-ffmpeg' 'ffmpeg'
+    'jq' 'bash' 'coreutils' 'util-linux' 'openssl' 'pciutils' 'glib2' 'systemd'
+    # звук, медиа
+    'wireplumber' 'playerctl'
+    # спектр для виджета «Полосы»
+    'cava'
+    # звуки оболочки (pw-play из pipewire)
+    'sound-theme-freedesktop'
+    # яркость: встроенная подсветка и DDC/CI внешних мониторов
+    # (ddcutil сам ставит правило udev и загрузку i2c-dev)
+    'brightnessctl' 'ddcutil'
+    # порталы: Hyprland для экрана и сочетаний, GTK для выбора файлов
+    'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk'
+    # системные службы, к которым обращаются оболочка и «Настройки»
+    'polkit' 'accountsservice' 'upower' 'power-profiles-daemon'
+    'networkmanager' 'bluez' 'gnome-keyring'
+    # снимки экрана и буфер обмена
+    'grim' 'slurp' 'wl-clipboard' 'cliphist'
+    # оформление: GTK (adw-gtk3), Qt (qt6ct), значки, шрифты
+    'inter-font' 'ttf-jetbrains-mono' 'papirus-icon-theme' 'adw-gtk-theme' 'qt6ct'
+    # терминал по умолчанию и XDG-автозапуск
+    'xdg-terminal-exec' 'dex'
+    # обновления: checkupdates (pacman-contrib), релизы Delta с GitHub (curl, jq)
+    'pacman-contrib' 'curl'
+)
+optdepends=(
+    'kitty: терминал по умолчанию'
+    'hyprsunset: ночной свет'
+    'greetd: экран входа в стиле экрана блокировки'
+    'fastfetch: сведения о системе'
+    'nvidia-utils: показатели видеокарты NVIDIA в виджетах'
+    'imagemagick: миниатюры обоев и уменьшенные обои для экрана входа'
+    'zenity: выбор папки с обоями'
+    'xdg-user-dirs: папка «Изображения» для обоев'
+)
+
+_src="${startdir}/../../delta"
+
+package() {
+    local d="${pkgdir}/usr/share/delta"
+
+    install -Dm755 "${_src}/bin/delta-session" "${pkgdir}/usr/bin/delta-session"
+    install -Dm755 "${_src}/bin/delta-shell"   "${pkgdir}/usr/bin/delta-shell"
+    install -Dm755 "${_src}/bin/delta-apply"   "${pkgdir}/usr/bin/delta-apply"
+    install -Dm755 "${_src}/bin/delta-settings" "${pkgdir}/usr/bin/delta-settings"
+    install -Dm755 "${_src}/bin/delta-monitors" "${pkgdir}/usr/bin/delta-monitors"
+    install -Dm755 "${_src}/bin/delta-greeter-sync" "${pkgdir}/usr/bin/delta-greeter-sync"
+    install -Dm755 "${_src}/bin/delta-autologin" "${pkgdir}/usr/bin/delta-autologin"
+    install -Dm755 "${_src}/bin/delta-update"    "${pkgdir}/usr/bin/delta-update"
+
+    install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
+    install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
+    # откуда приходят обновления Delta (delta-update); своё значение — /etc/delta/update.conf
+    install -Dm644 "${_src}/defaults/update.conf"    "${d}/update.conf"
+
+    # оболочка: QML, иконки и прочие ресурсы; отладочные dev-*.qml и заметки не ставим
+    # исходники шейдеров (*.vert/*.frag) тоже не нужны — ставятся собранные .qsb
+    (cd "${_src}/shell" && find . -type f ! -name 'dev-*.qml' ! -name '*.md' ! -name '*.vert' ! -name '*.frag' -print0 |
+        while IFS= read -r -d '' f; do
+            install -Dm644 "${f}" "${d}/shell/${f#./}"
+        done)
+
+    install -Dm644 "${_src}/session/delta.desktop" \
+        "${pkgdir}/usr/share/wayland-sessions/delta.desktop"
+    install -Dm644 "${_src}/session/delta-portals.conf" \
+        "${pkgdir}/usr/share/xdg-desktop-portal/delta-portals.conf"
+
+    # Экран входа (greetd): конфиг его Hyprland и каталог для копий вида
+    # пользователей. /etc/greetd/config.toml и PAM ставит сборка ISO —
+    # пакет не перехватывает чужой greetd (см. session/greetd/README.md).
+    install -Dm644 "${_src}/session/greetd/hyprland.lua" "${d}/session/greetd/hyprland.lua"
+    install -Dm644 "${_src}/session/greetd/config.toml"  "${d}/session/greetd/config.toml"
+    install -Dm644 "${_src}/session/greetd/pam.d-greetd" "${d}/session/greetd/pam.d-greetd"
+    install -Dm644 "${_src}/session/greetd/tmpfiles.conf" \
+        "${pkgdir}/usr/lib/tmpfiles.d/delta-greeter.conf"
+
+    # право на автовход: pkexec delta-autologin спрашивает пароль администратора
+    install -Dm644 "${_src}/session/polkit/org.vankos.delta.autologin.policy" \
+        "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.autologin.policy"
+    # установка обновлений из «Настроек»: pkexec delta-update apply
+    install -Dm644 "${_src}/session/polkit/org.vankos.delta.update.policy" \
+        "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.update.policy"
+}

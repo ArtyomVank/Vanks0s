@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Delta — запуск оболочки (доки, виджеты, уведомления, блокировка).
+#
+#   delta-shell                запустить (или ничего не делать, если уже запущена)
+#   delta-shell --restart      перезапустить
+#   delta-shell ipc <...>      передать команду: delta-shell ipc call shell reload
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+# DELTA_SHELL_ENTRY — другой входной файл (отладка одного модуля: shell/dev-*.qml)
+SHELL_DIR=${DELTA_SHELL_ENTRY:-${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}}
+
+case "${1:-}" in
+    ipc)
+        shift
+        exec qs -p "${SHELL_DIR}" ipc "$@"
+        ;;
+    --restart)
+        qs -p "${SHELL_DIR}" kill >/dev/null 2>&1 || true
+        ;;
+esac
+
+# -n: не запускать вторую копию поверх работающей
+exec qs -p "${SHELL_DIR}" -n -d
