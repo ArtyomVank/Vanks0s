@@ -12,23 +12,47 @@ Item {
     property string text: "00:00"
     property real digitHeight: 100
     property color color: "#ffffff"
-    // ширина цифры — доля высоты (ползунок «ширина цифр»)
+    // ширина цифры — доля высоты (ползунок «ширина цифр», виджет — fit())
     property real widthRatio: 0.62
-    // толщина линии — доля высоты цифры
-    property real weight: 0.055
+    // толщина линии — доля высоты: у узких цифр тоньше, у широких плотнее,
+    // чтобы цифры не выглядели проволокой
+    property real weight: root.weightFor(widthRatio)
 
     readonly property real h: digitHeight
     readonly property real w: h * widthRatio
     readonly property real s: Math.max(1.5, h * weight)
-    readonly property real gap: h * 0.14
+    // зазор — от ширины цифры, а не от высоты: высокие узкие цифры не
+    // разъезжаются по виджету
+    readonly property real gap: w * 0.24 + s * 0.6
 
-    // ширина строки t при высоте цифр 1 — чтобы вписать часы в место
-    function ratioFor(t) {
+    function weightFor(r) { return 0.045 + 0.085 * r; }
+    // ширина строки t при высоте цифр h и доле ширины r
+    function widthAt(t, h, r) {
+        const w = h * r, s = Math.max(1.5, h * weightFor(r)), gap = w * 0.24 + s * 0.6;
         let x = 0;
-        for (let i = 0; i < t.length; i++) x += (i > 0 ? 0.14 : 0) + (t[i] === ":" ? 0.2 : t[i] === "1" ? widthRatio * 0.6 : widthRatio);
-        return Math.max(0.1, x);
+        for (let i = 0; i < t.length; i++)
+            x += (i > 0 ? gap : 0) + (t[i] === ":" ? s * 2.2 : t[i] === "1" ? w * 0.6 : w);
+        return x + s;
     }
-    function glyphW(c) { return c === ":" ? h * 0.2 : c === "1" ? w * 0.6 : w; }
+    // ширина строки t при высоте цифр 1
+    function ratioFor(t) { return Math.max(0.1, widthAt(t, 1, widthRatio)); }
+    // Вписать часы в W×H: высота — вся H, доля ширины — сколько влезает
+    // (от 0.26 до rmax). Даже самые узкие не влезли — уменьшаем высоту.
+    //     { h, r }
+    function fit(t, W, H, rmax) {
+        const rmin = 0.26;
+        // по высоте нужна ещё толщина линии (концы скруглены)
+        H = Math.max(8, H / (1 + weightFor(Math.max(rmin, rmax))));
+        const narrow = widthAt(t, H, rmin);
+        if (narrow > W) return { h: Math.max(8, H * W / narrow), r: rmin };
+        let lo = rmin, hi = Math.max(rmin, rmax);
+        for (let i = 0; i < 16; i++) {
+            const mid = (lo + hi) / 2;
+            if (widthAt(t, H, mid) <= W) lo = mid; else hi = mid;
+        }
+        return { h: H, r: lo };
+    }
+    function glyphW(c) { return c === ":" ? s * 2.2 : c === "1" ? w * 0.6 : w; }
     readonly property var layout: {
         const out = [];
         let x = 0;

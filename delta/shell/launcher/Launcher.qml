@@ -130,6 +130,7 @@ Scope {
         if (open) {
             targetScreen = focusedScreen();
             everOpened = true;
+            Sounds.play("launcher", 0);
         } else {
             query = "";
         }
@@ -187,7 +188,19 @@ Scope {
                 list.currentIndex = 0;
                 list.positionViewAtBeginning();
                 field.focusInput();
+                // подсказка в поле печатается со щелчками, строки въезжают по очереди
+                hint.play(140);
+                counter.play(220);
+                rowsIn.restart();
             }
+            Typewriter { id: hint; full: I18n.tr("Поиск приложений") }
+            Typewriter {
+                id: counter
+                sound: false
+                full: root.query.trim().length ? I18n.tr("Найдено") + ": " + root.results.length : I18n.tr("Все приложения") + " · " + root.results.length
+            }
+            property real appear: 1
+            NumberAnimation { id: rowsIn; target: win; property: "appear"; from: 0; to: 1; duration: 620; easing.type: Easing.OutCubic }
 
             Connections {
                 target: root
@@ -220,7 +233,7 @@ Scope {
                         height: 50
                         radius: 16
                         fontSize: 16
-                        placeholder: I18n.tr("Поиск приложений")
+                        placeholder: hint.text
                         text: root.query
                         onTextChanged: if (root.query !== text) root.query = text
                         onAccepted: root.launch(root.results[list.currentIndex])
@@ -252,7 +265,7 @@ Scope {
 
                     Label {
                         leftPadding: 6
-                        text: root.query.trim().length ? "Найдено: " + root.results.length : "Все приложения · " + root.results.length
+                        text: counter.text
                         size: "small"
                         tone: 3
                         font.weight: Font.DemiBold
@@ -286,6 +299,10 @@ Scope {
 
                             width: list.width
                             height: 56
+                            // при открытии строки выезжают снизу одна за другой
+                            readonly property real enter: win.appear >= 1 ? 1 : Math.max(0, Math.min(1, win.appear * 12 - index * 0.8))
+                            opacity: enter
+                            transform: Translate { y: (1 - row.enter) * 18 }
 
                             MouseArea {
                                 anchors.fill: parent

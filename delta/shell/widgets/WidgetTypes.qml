@@ -37,12 +37,22 @@ Singleton {
         battery:  { name: "Батарея", short: "Батарея", icon: "battery", def: [2, 2], min: [2, 2], max: [4, 3],
                     modes: [], needsBattery: true },
         bars:     { name: "Полосы (спектр звука)", short: "Полосы", icon: "waveform", def: [8, 2], min: [3, 1], max: [13, 4],
-                    modes: [], presets: [[4, 1], [8, 2], [12, 3]] }
+                    modes: [], presets: [[4, 1], [8, 2], [12, 3]] },
+        analog:   { name: "Часы со стрелками", short: "Стрелки", icon: "clock", def: [2, 2], min: [2, 2], max: [5, 5],
+                    modes: [["plain", "Циферблат", 2, 2], ["date", "С датой", 2, 2]], presets: [[2, 2], [3, 3], [4, 4]] },
+        net:      { name: "Скорость сети", short: "Сеть", icon: "wifi", def: [3, 2], min: [2, 2], max: [6, 4],
+                    modes: [["graph", "График", 3, 2], ["numbers", "Числа", 2, 2]] },
+        timer:    { name: "Таймер", short: "Таймер", icon: "clock", def: [2, 2], min: [2, 2], max: [4, 4],
+                    modes: [], presets: [[2, 2], [3, 2], [3, 3]] },
+        sun:      { name: "Восход и закат", short: "Солнце", icon: "sun", def: [3, 2], min: [2, 2], max: [6, 3],
+                    modes: [], presets: [[2, 2], [3, 2], [4, 2]] }
     })
-    readonly property var desktopOrder: ["clock", "weather", "music", "bars", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
+    readonly property var desktopOrder: ["clock", "analog", "weather", "sun", "music", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
 
     readonly property var lock: ({
         clock:    { name: "Часы", icon: "clock", def: [7, 3], min: [3, 2], max: [13, 4], modes: [] },
+        analog:   { name: "Часы со стрелками", icon: "clock", def: [2, 2], min: [2, 2], max: [4, 4],
+                    modes: [["plain", "Циферблат", 2, 2], ["date", "С датой", 2, 2]] },
         notifs:   { name: "Уведомления", icon: "bell", def: [4, 2], min: [3, 1], max: [6, 3],
                     modes: [["list", "Список", 3, 2], ["count", "Счётчик", 2, 1]] },
         weather:  { name: "Погода", icon: "cloud-sun", def: [2, 1], min: [2, 1], max: [4, 3],
@@ -58,7 +68,7 @@ Singleton {
         battery:  { name: "Батарея", icon: "battery", def: [2, 1], min: [2, 1], max: [4, 2],
                     modes: [["number", "Число", 2, 1], ["ring", "Кольцо", 2, 2]], needsBattery: true }
     })
-    readonly property var lockOrder: ["clock", "notifs", "weather", "calendar", "music", "cpu", "ram", "battery"]
+    readonly property var lockOrder: ["clock", "analog", "notifs", "weather", "calendar", "music", "cpu", "ram", "battery"]
 
     readonly property var clockStyles: [
         { value: "ios", label: "iOS" }, { value: "thin", label: "Тонкие" }, { value: "mono", label: "Моно" },

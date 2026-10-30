@@ -18,7 +18,8 @@ Singleton {
     readonly property string dir: "/usr/share/sounds/freedesktop/stereo/"
     readonly property string ownDir: Quickshell.shellDir + "/sounds/"
     readonly property var own: ["oobe-hello", "oobe-step", "oobe-back", "oobe-select", "oobe-hold", "oobe-done",
-        "pop", "workspace", "island", "swoosh", "drop", "unlock"]
+        "pop", "workspace", "island", "swoosh", "drop", "unlock",
+        "snap-in", "snap", "launcher", "tick", "sparkle"]
     function file(name) { return own.indexOf(name) >= 0 ? ownDir + name + ".ogg" : dir + name + ".oga"; }
 
     // когда звук играл последний раз — частые события (громкость колесом) не трещат

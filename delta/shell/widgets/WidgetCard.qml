@@ -166,6 +166,10 @@ Item {
                     case "battery": return batteryC;
                     case "notifs": return notifsC;
                     case "bars": return barsC;
+                    case "analog": return analogC;
+                    case "net": return netC;
+                    case "timer": return timerC;
+                    case "sun": return sunC;
                     }
                     return null;
                 }
@@ -261,4 +265,8 @@ Item {
     Component { id: batteryC; BatteryWidget { card: root } }
     Component { id: notifsC; NotifsWidget { card: root } }
     Component { id: barsC; BarsWidget { card: root } }
+    Component { id: analogC; AnalogWidget { card: root } }
+    Component { id: netC; NetWidget { card: root } }
+    Component { id: timerC; TimerWidget { card: root } }
+    Component { id: sunC; SunWidget { card: root } }
 }

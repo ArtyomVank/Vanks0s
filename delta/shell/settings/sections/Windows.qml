@@ -108,10 +108,10 @@ ColumnLayout {
         SettingRow {
             icon: "windows"
             title: I18n.tr("Желе при перетаскивании")
-            subtitle: I18n.tr("Окно чуть покачивается, когда его тащат")
+            subtitle: I18n.tr("Окно тянется за курсором, низ отстаёт и покачивается")
             Chips {
                 model: [{ value: 0, label: I18n.tr("Выкл") }, { value: 0.5, label: I18n.tr("Слабо") }, { value: 1, label: I18n.tr("Средне") }, { value: 1.7, label: I18n.tr("Сильно") }]
-                current: root.w.jelly ?? 0.5
+                current: root.w.jelly ?? 1
                 onPicked: v => Settings.set("windows.jelly", v)
             }
         }

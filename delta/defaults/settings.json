@@ -48,7 +48,8 @@
     "animations": true,
     "openAnim": "popin",
     "genie": true,
-    "jelly": 0.5,
+    "jelly": 1,
+    "snap": true,
     "floating": true,
     "buttons": true,
     "buttonsSkip": [

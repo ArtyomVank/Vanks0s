@@ -128,18 +128,15 @@ lua=$(jq -r '
    | "hl.animation({ leaf = \"windowsIn\",  enabled = true, speed = 4.2, spring = \"deltaSoft\",  style = \(.[0] | @json) })",
      "hl.animation({ leaf = \"windowsOut\", enabled = true, speed = 1.6, bezier = \"deltaInOut\", style = \(.[1] | @json) })"),
   "",
-  # «Желе»: пружина с недостаточным демпфированием — окно при перетаскивании
-  # догоняет курсор с покачиванием. Только перемещение: при растягивании
-  # пружины нет, а на разворачивание её снимает оболочка (window/Motion.qml).
-  ((.windows.jelly | num(0) | clamp(0; 1.7)) as $jelly
-   | if $jelly > 0 then
-       # без animate_mouse_windowdragging Hyprland двигает окно за курсором
-       # мгновенно, и пружине нечего делать — «желе» не было видно вовсе
-       [ "hl.curve(\"deltaJelly\", { type = \"spring\", mass = 1, stiffness = 230, dampening = \((26 - 12 * $jelly) | if . < 5 then 5 else . end | floor) })",
-         "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = 6, spring = \"deltaJelly\" })",
-         "hl.config({ misc = { animate_mouse_windowdragging = true, animate_manual_resizes = false } })" ]
-     else [ "hl.config({ misc = { animate_mouse_windowdragging = false } })" ] end
-   | .[]),
+  # «Желе» рисует оболочка (window/Jelly.qml): окно идёт за курсором без
+  # задержки, а копия поверх гнётся. Перемещение окна — плавная кривая без
+  # пружины, она же при прилипании к краю и разворачивании.
+  "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = 4.5, bezier = \"deltaInOut\" })",
+  "hl.config({ misc = { animate_mouse_windowdragging = false, animate_manual_resizes = false } })",
+  # прилипание к краям и отступы для него — hyprland.lua, «ПЕРЕТАСКИВАНИЕ»
+  "delta_drag = delta_drag or {}",
+  "delta_drag.snap = \(.windows.snap | bool(true))",
+  "delta_drag.gaps = \(.windows.gapsOut | int(14) | clamp(0; 60))",
   "",
   "hl.env(\"XCURSOR_THEME\", \((.appearance.cursorTheme // "Adwaita") | lstr))",
   "hl.env(\"XCURSOR_SIZE\", \"\(.appearance.cursorSize | int(24) | clamp(16; 96))\")"

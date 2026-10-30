@@ -38,11 +38,23 @@ Base {
         : wide ? Math.min(54 * ch, 20 * cw)
         : Math.min(60 * ch, 23 * cw)
 
-    // высота «длинных» цифр: вся высота под датой, но в ширину виджета
     readonly property string timeText: hh + ":" + mm
-    // ширина цифр (ползунок в редакторе виджетов), иначе общая clock.tallWidth
-    readonly property real tallWidth: Math.max(0.3, Math.min(1, Number((item && item.tallWidth) ?? Settings.get("clock.tallWidth", 0.62)) || 0.62))
-    readonly property real tallH: Math.max(8, Math.min(86 * ch - dateLine.height, 94 * cw / tallFace.ratioFor(timeText)))
+    // «Длинные» вписываются в виджет: высота — всё место под датой, ширина
+    // цифр — сколько влезает в ширину, но не больше ползунка «ширина цифр»
+    // (item.tallWidth, иначе общая clock.tallWidth). Считаем по «00:00» —
+    // самой широкой строке, чтобы часы не прыгали от минуты к минуте.
+    readonly property real tallMax: Math.max(0.3, Math.min(1, Number((item && item.tallWidth) ?? Settings.get("clock.tallWidth", 0.62)) || 0.62))
+    readonly property real tallAreaW: 92 * cw
+    readonly property real tallAreaH: 84 * ch - dateLine.height - Math.max(4, 4 * ch)
+    readonly property var tallLine: tallFace.fit("00:00", tallAreaW, tallAreaH, tallMax)
+    // узкий высокий виджет: часы над минутами — цифры выходят крупнее
+    // две строки и зазор 0.12 высоты между ними
+    readonly property var tallTwo: tallFace.fit("00", tallAreaW, tallAreaH / 2.14, tallMax)
+    readonly property bool tallStack: tallTwo.h > tallLine.h
+    readonly property var tallFit: tallStack ? tallTwo : tallLine
+    readonly property real tallWidth: tallFit.r
+    readonly property real tallH: tallFit.h
+    readonly property real tallGap: tallStack ? tallH * 0.12 : 0
     readonly property color tallColor: tint === "accent" ? Theme.accent : tint === "glass" ? Qt.rgba(1, 1, 1, 0.38) : Qt.rgba(1, 1, 1, 0.9)
 
     Column {
@@ -69,17 +81,37 @@ Base {
 
             Item {
                 id: face
-                width: root.tall ? tallFace.implicitWidth : digits.implicitWidth
-                height: root.tall ? tallFace.implicitHeight : digits.implicitHeight
+                width: root.tall ? Math.max(tallFace.implicitWidth, root.tallStack ? tallFace2.implicitWidth : 0) : digits.implicitWidth
+                height: root.tall ? tallFace.implicitHeight + (root.tallStack ? root.tallGap + tallFace2.implicitHeight : 0) : digits.implicitHeight
 
                 TallDigits {
                     id: tallFace
                     visible: root.tall && root.tint !== "gradient"
-                    text: root.timeText
+                    x: (face.width - implicitWidth) / 2
+                    text: root.tallStack ? root.hh : root.timeText
                     digitHeight: root.tallH
                     widthRatio: root.tallWidth
                     color: root.tallColor
                     layer.enabled: visible && root.tint !== "glass"
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        blurMax: 16
+                        shadowBlur: 0.8
+                        shadowColor: root.tint === "accent" ? Qt.rgba(0, 0, 0, 0.3) : Qt.rgba(0, 0, 0, 0.25)
+                        shadowVerticalOffset: 2
+                    }
+                }
+
+                TallDigits {
+                    id: tallFace2
+                    visible: tallFace.visible && root.tallStack
+                    x: (face.width - implicitWidth) / 2
+                    y: tallFace.implicitHeight + root.tallGap
+                    text: root.mm
+                    digitHeight: root.tallH
+                    widthRatio: root.tallWidth
+                    color: root.tallColor
+                    layer.enabled: tallFace.layer.enabled && visible
                     layer.effect: MultiEffect {
                         shadowEnabled: true
                         blurMax: 16
@@ -140,7 +172,17 @@ Base {
                             anchors.fill: parent
                             TallDigits {
                                 visible: root.tall
-                                text: root.timeText
+                                x: tallFace.x
+                                text: tallFace.text
+                                digitHeight: root.tallH
+                                widthRatio: root.tallWidth
+                                color: "#ffffff"
+                            }
+                            TallDigits {
+                                visible: root.tall && root.tallStack
+                                x: tallFace2.x
+                                y: tallFace2.y
+                                text: root.mm
                                 digitHeight: root.tallH
                                 widthRatio: root.tallWidth
                                 color: "#ffffff"

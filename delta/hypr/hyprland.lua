@@ -270,6 +270,144 @@ hl.window_rule({
     float = true,
 })
 
+-----------------------------------------
+---- ПЕРЕТАСКИВАНИЕ: «желе» и края ----
+-----------------------------------------
+
+-- Hyprland не сообщает, когда окно начали и перестали тащить. Поэтому левая
+-- кнопка мыши (бинды не забирают щелчок у программ) запускает таймер: он
+-- смотрит, едет ли активное плавающее окно. Пока едет, состояние пишется в
+-- $XDG_RUNTIME_DIR/hypr/<экземпляр>/delta-drag.json — его читает оболочка:
+-- window/Jelly.qml рисует «желе» (низ окна отстаёт), window/Snap.qml —
+-- подсветку края. Отпустили у края — окно занимает половину или четверть
+-- экрана, у верхнего края — весь (как в GNOME). Потащили такое окно снова —
+-- оно возвращает прежний размер. Настройки — из generated.lua:
+--     delta_drag.snap = true; delta_drag.gaps = 14
+delta_drag = delta_drag or {}
+if delta_drag.snap == nil then delta_drag.snap = true end
+
+local drag = { addr = nil, moving = false, zone = "", seq = 0, snapped = {} }
+local dragfile = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr/"
+    .. (os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or "") .. "/delta-drag.json"
+
+local function drag_write(state, w, zone, z)
+    drag.seq = drag.seq + 1
+    local f = io.open(dragfile, "w")
+    if not f then return end
+    z = z or { x = 0, y = 0, w = 0, h = 0 }
+    f:write(string.format(
+        '{"seq":%d,"state":"%s","address":"%s","monitor":"%s","x":%d,"y":%d,"w":%d,"h":%d,"gx":%d,"gy":%d,"zone":"%s","zx":%d,"zy":%d,"zw":%d,"zh":%d}\n',
+        drag.seq, state, w and w.address or "", w and w.monitor and w.monitor.name or "",
+        w and w.at.x or 0, w and w.at.y or 0, w and w.size.x or 0, w and w.size.y or 0,
+        drag.gx or 0, drag.gy or 0, zone or "", z.x, z.y, z.w, z.h))
+    f:close()
+end
+
+-- зона у края под курсором: left/right — половины, tl/tr/bl/br — четверти,
+-- max — весь экран; прямоугольник — с отступами, без мест доков
+local function drag_zone(m, p)
+    if not m or delta_drag.snap == false then return "", nil end
+    local s = (m.scale and m.scale > 0) and m.scale or 1
+    local mx, my, mw, mh = m.x, m.y, m.width / s, m.height / s
+    local r = type(m.reserved) == "table" and m.reserved or {}
+    local ax, ay = mx + (r.left or 0), my + (r.top or 0)
+    local aw, ah = mw - (r.left or 0) - (r.right or 0), mh - (r.top or 0) - (r.bottom or 0)
+    local edge, corner = 14, math.max(100, mh * 0.18)
+    local left, right = p.x - mx <= edge, mx + mw - p.x <= edge
+    local top, bottom = p.y - my <= edge, my + mh - p.y <= edge
+    local g = delta_drag.gaps or 14
+    local hw, hh = (aw - 3 * g) / 2, (ah - 3 * g) / 2
+    local lx, rx = ax + g, ax + 2 * g + hw
+    local ty, by = ay + g, ay + 2 * g + hh
+    local zone
+    if left or right then
+        if p.y - my < corner then zone = left and "tl" or "tr"
+        elseif my + mh - p.y < corner then zone = left and "bl" or "br"
+        else zone = left and "left" or "right" end
+    elseif top then zone = "max"
+    elseif bottom then return "", nil
+    else return "", nil end
+    local rects = {
+        left = { x = lx, y = ty, w = hw, h = ah - 2 * g }, right = { x = rx, y = ty, w = hw, h = ah - 2 * g },
+        tl = { x = lx, y = ty, w = hw, h = hh }, tr = { x = rx, y = ty, w = hw, h = hh },
+        bl = { x = lx, y = by, w = hw, h = hh }, br = { x = rx, y = by, w = hw, h = hh },
+        max = { x = ax + g, y = ay + g, w = aw - 2 * g, h = ah - 2 * g },
+    }
+    local z = rects[zone]
+    return zone, { x = math.floor(z.x), y = math.floor(z.y), w = math.floor(z.w), h = math.floor(z.h) }
+end
+
+local function drag_tick()
+    local w, p = hl.get_active_window(), hl.get_cursor_pos()
+    if not w or not p then return end
+    if not drag.moving then
+        -- первое касание этого окна: запоминаем, откуда оно поедет
+        if drag.addr ~= w.address then
+            drag.addr = w.address
+            drag.x0, drag.y0, drag.w0, drag.h0 = w.at.x, w.at.y, w.size.x, w.size.y
+            drag.cx0, drag.cy0 = p.x, p.y
+            return
+        end
+        if not w.floating or w.fullscreen ~= 0 then return end
+        local moved = math.abs(w.at.x - drag.x0) + math.abs(w.at.y - drag.y0)
+        -- размер тот же — значит тащат, а не растягивают
+        if moved < 3 or w.size.x ~= drag.w0 or w.size.y ~= drag.h0 then return end
+        drag.moving = true
+        drag.gx, drag.gy = drag.cx0 - drag.x0, drag.cy0 - drag.y0
+        drag.zone = ""
+        -- окно было прижато к краю — возвращаем ему прежний размер под курсором
+        local old = drag.snapped[w.address]
+        if old then
+            drag.snapped[w.address] = nil
+            local fx, fy = drag.gx / math.max(1, w.size.x), drag.gy / math.max(1, w.size.y)
+            drag.gx, drag.gy = math.floor(old.w * fx), math.floor(old.h * fy)
+            local sel = "address:" .. w.address
+            hl.dispatch(hl.dsp.window.resize({ x = old.w, y = old.h, window = sel }))
+            hl.dispatch(hl.dsp.window.move({ x = math.floor(p.x - drag.gx), y = math.floor(p.y - drag.gy), window = sel }))
+        end
+        drag_write("begin", w, "", nil)
+        return
+    end
+    local zone, z = drag_zone(w.monitor, p)
+    drag.zone, drag.rect = zone, z
+    drag_write("move", w, zone, z)
+end
+
+-- таймер — при первом щелчке: `Hyprland --verify-config` (delta-apply,
+-- delta-dev check) падает, если создать его во время разбора конфига
+local drag_timer = nil
+
+-- delta_drag.press()/release() можно звать и через `hyprctl eval` —
+-- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
+function delta_drag.press()
+    drag.addr, drag.moving, drag.zone = nil, false, ""
+    if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 12, type = "repeat" }) end
+    drag_timer:set_enabled(true)
+end
+
+function delta_drag.release()
+    if drag_timer then drag_timer:set_enabled(false) end
+    if not drag.moving then return end
+    drag.moving = false
+    local w = hl.get_active_window()
+    local zone, z = drag.zone, drag.rect
+    if w and zone ~= "" and z then
+        local sel = "address:" .. w.address
+        drag.snapped[w.address] = { w = w.size.x, h = w.size.y }
+        if zone == "max" then
+            hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", window = sel }))
+        else
+            -- resize держит центр окна, поэтому сначала размер, потом место
+            hl.dispatch(hl.dsp.window.resize({ x = z.w, y = z.h, window = sel }))
+            hl.dispatch(hl.dsp.window.move({ x = z.x, y = z.y, window = sel }))
+        end
+    end
+    drag_write("end", w, zone, z)
+end
+
+hl.bind("mouse:272", function() delta_drag.press() end, { non_consuming = true, transparent = true, ignore_mods = true })
+hl.bind("mouse:272", function() delta_drag.release() end, { release = true, non_consuming = true, transparent = true, ignore_mods = true })
+
 -------------------
 ---- АВТОЗАПУСК ----
 -------------------
