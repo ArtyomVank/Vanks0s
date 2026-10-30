@@ -118,6 +118,8 @@ def main(argv=None):
         rels = releases.fetch()
     except Exception as e:
         fail(f"не удалось получить список версий: {e}")
+    if releases.stale_note():
+        say(color("33", releases.stale_note()))
     versions = releases.shell_versions(rels, a.prerelease)
     if not versions:
         fail("в релизах нет ни одной версии оболочки")

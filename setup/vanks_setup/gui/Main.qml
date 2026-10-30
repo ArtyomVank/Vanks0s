@@ -225,6 +225,16 @@ ApplicationWindow {
                     color: win.fg2
                     text: "Все версии оболочки Delta из релизов GitHub. Самая новая выбрана сама — можно взять любую."
                 }
+                // GitHub не ответил — показан сохранённый список
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.rightMargin: 40
+                    visible: backend.note !== "" && backend.state !== "loading"
+                    spacing: 10
+                    Ico { name: "warning"; size: 18; Layout.preferredWidth: 18; Layout.preferredHeight: 18; Layout.alignment: Qt.AlignVCenter }
+                    Txt { Layout.fillWidth: true; text: backend.note; color: "#F5C26B"; font.pixelSize: 13 }
+                    Btn { text: "Обновить"; icon: "refresh"; onClicked: backend.load() }
+                }
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true

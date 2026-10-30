@@ -40,6 +40,7 @@ class Backend(QObject):
         self._total = 0.0
         self._speed = 0.0
         self._result = ""
+        self._note = ""
         self._cancel = threading.Event()
         self._t0 = (0.0, 0.0, "")
 
@@ -55,6 +56,7 @@ class Backend(QObject):
     total = Property(float, _get("total"), notify=progressChanged)
     speed = Property(float, _get("speed"), notify=progressChanged)
     index = Property(int, _get("index"), notify=changed)
+    note = Property(str, _get("note"), notify=changed)    # «список сохранён …», если GitHub не ответил
 
     @Property(str, constant=True)
     def appVersion(self):
@@ -124,8 +126,10 @@ class Backend(QObject):
             try:
                 rels = releases.fetch()
 
+                note = releases.stale_note()
+
                 def ok():
-                    self._rels = rels
+                    self._rels, self._note = rels, note
                     self._apply()
                 self._post.emit(ok)
             except Exception as e:
