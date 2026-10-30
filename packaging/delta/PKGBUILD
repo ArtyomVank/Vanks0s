@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.5.0
+pkgver=0.5.1
 pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
