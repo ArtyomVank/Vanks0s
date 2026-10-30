@@ -24,7 +24,8 @@ die() { printf '\033[1;31m[vanks-setup]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # вопросы — с клавиатуры, даже если скрипт пришёл через трубу
 TTY=/dev/tty
-[ -r "${TTY}" ] || TTY=/dev/stdin
+# -r не годится: без управляющего терминала файл есть, но не открывается
+{ : < "${TTY}"; } 2>/dev/null || TTY=/dev/stdin
 
 ask_install() {  # пакеты…
     command -v pacman >/dev/null || die "поставьте: $* — и запустите ещё раз"
