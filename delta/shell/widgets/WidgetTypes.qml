@@ -53,8 +53,8 @@ Singleton {
         clock:    { name: "Часы", icon: "clock", def: [7, 3], min: [3, 2], max: [13, 4], modes: [] },
         analog:   { name: "Часы со стрелками", icon: "clock", def: [2, 2], min: [2, 2], max: [4, 4],
                     modes: [["plain", "Циферблат", 2, 2], ["date", "С датой", 2, 2]] },
-        notifs:   { name: "Уведомления", icon: "bell", def: [4, 2], min: [3, 1], max: [6, 3],
-                    modes: [["list", "Список", 3, 2], ["count", "Счётчик", 2, 1]] },
+        notifs:   { name: "Уведомления", icon: "bell", def: [4, 3], min: [2, 1], max: [10, 7],
+                    modes: [["stack", "Стопкой", 3, 2], ["list", "Списком", 3, 2], ["count", "Числом", 2, 1]] },
         weather:  { name: "Погода", icon: "cloud-sun", def: [2, 1], min: [2, 1], max: [4, 3],
                     modes: [["row", "Строка", 2, 1], ["block", "Блок", 3, 2]] },
         calendar: { name: "Календарь", icon: "calendar", def: [2, 1], min: [2, 1], max: [5, 3],
@@ -81,6 +81,18 @@ Singleton {
         { value: "white", label: "Белые" }, { value: "accent", label: "Акцент" },
         { value: "gradient", label: "Градиент" }, { value: "glass", label: "Стекло" }
     ]
+
+    readonly property var tallKinds: [
+        { value: "line", label: "Линии" }, { value: "hollow", label: "Пустые внутри" }, { value: "column", label: "В столбик" }
+    ]
+    // Настройка часов: у виджета (item[key]), иначе общая (fallback). Битые
+    // значения (старые версии писали в color число) не считаются.
+    function clockValue(item, key, fallback) {
+        const v = item ? item[key] : undefined;
+        const list = key === "style" ? clockStyles : key === "color" ? clockColors : key === "tallKind" ? tallKinds : null;
+        const ok = x => x !== undefined && x !== null && x !== "" && (list ? list.some(o => o.value === x) : isFinite(Number(x)));
+        return ok(v) ? v : ok(fallback) ? fallback : list ? list[0].value : fallback;
+    }
 
     // батарея есть только у ноутбуков: без неё виджет не показываем и не предлагаем
     readonly property bool hasBattery: {

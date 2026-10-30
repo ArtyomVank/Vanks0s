@@ -33,6 +33,10 @@ Item {
     readonly property bool isClock: item.id === "clock"
     // прозрачность виджета (item.opacity, 0.15–1; редактор → «прозрачность»)
     readonly property real alpha: Math.max(0.15, Math.min(1, Number(item.opacity ?? 1) || 1))
+    // содержимому нечего показать (уведомления «без надписи») — карточки не видно, кроме редактора
+    readonly property bool vanish: !editing && (content.item?.empty ?? false)
+    opacity: vanish ? 0 : 1
+    Behavior on opacity { NumberAnimation { duration: Theme.anim.normal } }
 
     x: bx + (dragging ? dragDx : 0)
     y: by + (dragging ? dragDy : 0)

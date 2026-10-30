@@ -42,6 +42,7 @@ Scope {
         }
         // открыли центр уведомлений — всё прочитано
         function onMenuChanged() { if (ShellState.menu === "notifications") NotifyStore.markRead(); }
+        function onNotificationsCleared() { NotifyStore.clear(); }
     }
 
     // центр уведомлений — меню модуля «Уведомления» на мониторе с фокусом

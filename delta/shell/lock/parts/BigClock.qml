@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import qs.common
+import qs.common.ui
 // с квалификатором: в widgets/parts есть свои Field и Cover
 import qs.widgets.parts as WParts
 
@@ -20,6 +21,11 @@ Item {
     property real size: 152
     // ширина цифр «Длинных» часов — доля высоты
     property real tallWidth: 0.62
+    // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над минутами
+    property string tallKind: "line"
+    // толщина линий — множитель
+    property real tallThick: 1
+    readonly property string tallLook: tallKind === "hollow" ? "hollow" : t === "glass" ? "glass" : "solid"
     property bool showDate: true
     property color textColor: "#ffffff"   // цвет даты (на обоях всегда светлый)
 
@@ -57,6 +63,8 @@ Item {
         : style === "mono" ? Font.Medium : style === "neon" ? Font.DemiBold : Font.Bold
     readonly property real spacing: px * (wide ? 0.075 : serif ? 0.005 : style === "mono" ? -0.04 : style === "thin" ? -0.02 : -0.035)
 
+    // контур и стекло — GlassFace
+    readonly property bool faced: !tall && t !== "gradient" && (outline || t === "glass")
     readonly property color faceColor: tint === "accent" ? Theme.accent
         : tint === "glass" ? Qt.rgba(1, 1, 1, 0.14)
         : tint === "gradient" ? "#ffffff" : Qt.rgba(1, 1, 1, 0.93)
@@ -88,18 +96,43 @@ Item {
             id: tallBox
             visible: root.tall
             anchors.horizontalCenter: parent.horizontalCenter
-            width: tallFace.implicitWidth
-            height: tallFace.implicitHeight
+            width: tallFace.width
+            height: tallFace.height
 
-            WParts.TallDigits {
+            // «В столбик» — часы над минутами
+            Item {
                 id: tallFace
-                text: root.hh + ":" + root.mm
-                digitHeight: root.size * 1.3
-                widthRatio: root.tallWidth
-                color: root.t === "accent" ? Theme.accent : root.t === "glass" ? Qt.rgba(1, 1, 1, 0.38) : "#ffffff"
+                readonly property bool two: root.tallKind === "column"
+                readonly property color ink: root.t === "accent" ? Theme.accent
+                    : root.t === "glass" ? (root.tallLook === "glass" ? "#ffffff" : Qt.rgba(1, 1, 1, 0.7)) : "#ffffff"
+                width: Math.max(d1.implicitWidth, two ? d2.implicitWidth : 0)
+                height: d1.implicitHeight + (two ? d1.digitHeight * 0.1 + d2.implicitHeight : 0)
                 opacity: root.t === "white" ? 0.92 : 1
                 visible: root.t === "glass"
                 layer.enabled: true
+
+                WParts.TallDigits {
+                    id: d1
+                    x: (tallFace.width - implicitWidth) / 2
+                    text: tallFace.two ? root.hh : root.hh + ":" + root.mm
+                    digitHeight: tallFace.two ? root.size * 0.72 : root.size * 1.3
+                    widthRatio: root.tallWidth
+                    thick: root.tallThick
+                    look: root.tallLook
+                    color: tallFace.ink
+                }
+                WParts.TallDigits {
+                    id: d2
+                    visible: tallFace.two
+                    x: (tallFace.width - implicitWidth) / 2
+                    y: d1.implicitHeight + d1.digitHeight * 0.1
+                    text: root.mm
+                    digitHeight: d1.digitHeight
+                    widthRatio: root.tallWidth
+                    thick: root.tallThick
+                    look: root.tallLook
+                    color: tallFace.ink
+                }
             }
             Rectangle {
                 id: tallGrad
@@ -149,8 +182,9 @@ Item {
                     text: root.stack ? root.hh + "\n" + root.mm : root.hh + ":" + root.mm
                     horizontalAlignment: Text.AlignHCenter
                     lineHeight: root.stack ? 0.86 : 1
-                    color: root.outline ? "transparent" : root.faceColor
-                    style: root.outline || root.t === "glass" ? Text.Outline : Text.Normal
+                    // контур и стекло рисует GlassFace ниже — по форме цифр целиком
+                    color: root.faced ? "#ffffff" : root.outline ? "transparent" : root.faceColor
+                    style: root.outline && !root.faced ? Text.Outline : Text.Normal
                     styleColor: root.outline && root.t === "accent" ? Theme.accent : Qt.rgba(1, 1, 1, 0.9)
                     font.family: root.family
                     font.weight: root.weight
@@ -163,6 +197,15 @@ Item {
                     // слой всегда: эффекты ниже берут цифры как текстуру, а включение
                     // слоя на лету MultiEffect не подхватывает (градиент пропадал)
                     layer.enabled: true
+                }
+
+                GlassFace {
+                    item: digits
+                    visible: root.faced
+                    hollow: root.outline
+                    rim: root.outline ? Math.max(1.2, root.px * 0.022) : Math.max(1, root.px * 0.026)
+                    fill: 0.2
+                    tint: root.outline && root.t === "accent" ? Theme.accent : root.outline ? Qt.rgba(1, 1, 1, 0.92) : "#ffffff"
                 }
 
                 // градиент 120°: белый → акцент → голубой

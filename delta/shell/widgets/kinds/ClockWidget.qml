@@ -2,16 +2,21 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import qs.common
+import qs.common.ui
+import qs.widgets
 import qs.widgets.parts
 
 // Часы. Стиль и цвет — у виджета (item.style / item.color), иначе общие
-// clock.style / clock.color. Размер цифр — от размера виджета (как clockCq
+// clock.style / clock.color (на экране блокировки — lock.clock.*, потом clock.*). Размер цифр — от размера виджета (как clockCq
 // в концепте), поэтому при растягивании часы растут целиком.
 Base {
     id: root
 
-    readonly property string style: (item && item.style) || Settings.get("clock.style", "ios")
-    readonly property string tint: (item && item.color) || Settings.get("clock.color", "white")
+    function opt(key, def) {
+        return WidgetTypes.clockValue(item, key, lock ? Settings.get("lock.clock." + key, Settings.get("clock." + key, def)) : Settings.get("clock." + key, def));
+    }
+    readonly property string style: opt("style", "ios")
+    readonly property string tint: opt("color", "white")
     readonly property bool stack: style === "stack"
     readonly property bool neon: style === "neon"
     readonly property bool serif: style === "serif"
@@ -21,6 +26,10 @@ Base {
     // «Длинные», как в iOS 26: тонкие высокие цифры на всю высоту виджета
     // (рисуются линиями — widgets/parts/TallDigits.qml)
     readonly property bool tall: style === "tall"
+    // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над минутами
+    readonly property string tallKind: opt("tallKind", "line")
+    readonly property real tallThick: Math.max(0.5, Math.min(2.4, Number(opt("tallThick", 1)) || 1))
+    readonly property string tallLook: tallKind === "hollow" ? "hollow" : tint === "glass" ? "glass" : "solid"
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -39,23 +48,25 @@ Base {
         : Math.min(60 * ch, 23 * cw)
 
     readonly property string timeText: hh + ":" + mm
+    // цифры шрифтом рисует GlassFace: контур и стекло
+    readonly property bool faced: !tall && tint !== "gradient" && (outline || tint === "glass")
     // «Длинные» вписываются в виджет: высота — всё место под датой, ширина
     // цифр — сколько влезает в ширину, но не больше ползунка «ширина цифр»
     // (item.tallWidth, иначе общая clock.tallWidth). Считаем по «00:00» —
     // самой широкой строке, чтобы часы не прыгали от минуты к минуте.
-    readonly property real tallMax: Math.max(0.3, Math.min(1, Number((item && item.tallWidth) ?? Settings.get("clock.tallWidth", 0.62)) || 0.62))
+    readonly property real tallMax: Math.max(0.3, Math.min(1, Number(opt("tallWidth", 0.62)) || 0.62))
     readonly property real tallAreaW: 92 * cw
     readonly property real tallAreaH: 84 * ch - dateLine.height - Math.max(4, 4 * ch)
     readonly property var tallLine: tallFace.fit("00:00", tallAreaW, tallAreaH, tallMax)
     // узкий высокий виджет: часы над минутами — цифры выходят крупнее
     // две строки и зазор 0.12 высоты между ними
     readonly property var tallTwo: tallFace.fit("00", tallAreaW, tallAreaH / 2.14, tallMax)
-    readonly property bool tallStack: tallTwo.h > tallLine.h
+    readonly property bool tallStack: tallKind === "column" || tallTwo.h > tallLine.h
     readonly property var tallFit: tallStack ? tallTwo : tallLine
     readonly property real tallWidth: tallFit.r
     readonly property real tallH: tallFit.h
     readonly property real tallGap: tallStack ? tallH * 0.12 : 0
-    readonly property color tallColor: tint === "accent" ? Theme.accent : tint === "glass" ? Qt.rgba(1, 1, 1, 0.38) : Qt.rgba(1, 1, 1, 0.9)
+    readonly property color tallColor: tint === "accent" ? Theme.accent : tint === "glass" ? (tallLook === "glass" ? "#ffffff" : Qt.rgba(1, 1, 1, 0.7)) : Qt.rgba(1, 1, 1, 0.9)
 
     Column {
         anchors.centerIn: parent
@@ -91,6 +102,8 @@ Base {
                     text: root.tallStack ? root.hh : root.timeText
                     digitHeight: root.tallH
                     widthRatio: root.tallWidth
+                    thick: root.tallThick
+                    look: root.tallLook
                     color: root.tallColor
                     layer.enabled: visible && root.tint !== "glass"
                     layer.effect: MultiEffect {
@@ -110,6 +123,8 @@ Base {
                     text: root.mm
                     digitHeight: root.tallH
                     widthRatio: root.tallWidth
+                    thick: root.tallThick
+                    look: root.tallLook
                     color: root.tallColor
                     layer.enabled: tallFace.layer.enabled && visible
                     layer.effect: MultiEffect {
@@ -137,12 +152,8 @@ Base {
                     font.letterSpacing: root.fs * (root.wide ? 0.075 : root.serif ? 0.005 : root.style === "mono" ? -0.04 : root.style === "thin" ? -0.02 : -0.035)
                     lineHeightMode: Text.ProportionalHeight
                     lineHeight: root.stack ? 0.88 : 1.0
-                    color: root.outline ? "transparent"
-                         : root.tint === "accent" ? Theme.accent
-                         : root.tint === "glass" ? Qt.rgba(1, 1, 1, 0.14)
-                         : Qt.rgba(1, 1, 1, 0.93)
-                    style: root.outline || root.tint === "glass" ? Text.Outline : Text.Normal
-                    styleColor: root.outline && root.tint === "accent" ? Theme.accent : Qt.rgba(1, 1, 1, 0.9)
+                    // контур и стекло рисует GlassFace ниже — по форме цифр целиком
+                    color: root.tint === "accent" && !root.faced ? Theme.accent : root.faced ? "#ffffff" : Qt.rgba(1, 1, 1, 0.93)
                     // градиент рисуем маской ниже, сами цифры тогда не видны
                     visible: !root.tall && root.tint !== "gradient"
 
@@ -158,6 +169,15 @@ Base {
                         shadowVerticalOffset: root.neon ? 0 : root.fs * 0.03
                         shadowHorizontalOffset: 0
                     }
+                }
+
+                GlassFace {
+                    item: digits
+                    visible: root.faced
+                    hollow: root.outline
+                    rim: root.outline ? Math.max(1.2, root.fs * 0.028) : Math.max(1, root.fs * 0.03)
+                    fill: 0.2
+                    tint: root.outline && root.tint === "accent" ? Theme.accent : root.outline ? Qt.rgba(1, 1, 1, 0.92) : "#ffffff"
                 }
 
                 // «Градиент»: белый → акцент → голубой по форме цифр.
@@ -176,6 +196,8 @@ Base {
                                 text: tallFace.text
                                 digitHeight: root.tallH
                                 widthRatio: root.tallWidth
+                                thick: root.tallThick
+                                look: root.tallKind === "hollow" ? "hollow" : "solid"
                                 color: "#ffffff"
                             }
                             TallDigits {
@@ -185,6 +207,8 @@ Base {
                                 text: root.mm
                                 digitHeight: root.tallH
                                 widthRatio: root.tallWidth
+                                thick: root.tallThick
+                                look: root.tallKind === "hollow" ? "hollow" : "solid"
                                 color: "#ffffff"
                             }
                             Text {

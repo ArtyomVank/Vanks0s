@@ -7,6 +7,7 @@ import Quickshell.Io
 import qs.common
 import qs.common.ui
 import qs.lock.parts
+import qs.widgets.kinds
 
 // Содержимое экрана блокировки — общее для блокировки (WlSessionLockSurface),
 // экрана входа (greeter.qml) и предпросмотра при редактировании виджетов.
@@ -124,16 +125,25 @@ Item {
             style: root.clockStyle
             tint: root.clockTint
             tallWidth: Number(Settings.get("lock.clock.tallWidth", Settings.get("clock.tallWidth", 0.62))) || 0.62
+            tallKind: Settings.get("lock.clock.tallKind", Settings.get("clock.tallKind", "line"))
+            tallThick: Number(Settings.get("lock.clock.tallThick", Settings.get("clock.tallThick", 1))) || 1
             size: Math.min(152, root.width * 0.105, root.height * 0.19)
         }
     }
 
     // ---------- уведомления ----------
-    LockNotifications {
+    // виджета «Уведомления» на сетке нет — тот же виджет без карточки, по
+    // центру под часами, как в iOS; вид (стопкой, списком, числом) —
+    // notifications.lockView. Высота — по содержимому, но не до поля пароля.
+    NotifsWidget {
         id: notes
-        visible: root.notifOn && !root.gridHasNotifs && !root.editing && items.length > 0
-        anchors { right: parent.right; top: parent.top; margins: 32 }
-        width: Math.min(360, root.width * 0.28)
+        visible: root.notifOn && !root.gridHasNotifs && !root.editing && list.length > 0
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.round(root.height * 0.38)
+        width: Math.min(420, root.width * 0.34)
+        height: Math.max(80, Math.min(implicitHeight, login.y - y - 24))
+        fixedRow: 64
+        item: ({ id: "notifs", mode: Settings.get("notifications.lockView", "stack") })
     }
 
     // ---------- вход ----------

@@ -14,7 +14,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Звук")
     property string icon: "volume"
-    property string keywords: "громкость динамики наушники микрофон выход вход приложения"
+    property string keywords: "громкость динамики наушники микрофон выход вход приложения звуки системы уведомления открытие"
     spacing: 18
 
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -128,6 +128,34 @@ ColumnLayout {
                     onMoved: x => Settings.set("sounds.volume", x)
                 }
                 Btn { icon: "play"; iconSize: 15; onClicked: Sounds.play("message-new-instant", 0) }
+            }
+        }
+        // группы звуков: каждую можно выключить (sounds.off)
+        Repeater {
+            model: Sounds.groups
+            delegate: SettingRow {
+                id: grp
+                required property var modelData
+                visible: Settings.get("sounds.enabled", true) !== false
+                icon: grp.modelData.icon
+                title: I18n.tr(grp.modelData.label)
+                subtitle: I18n.tr(grp.modelData.note)
+                RowLayout {
+                    spacing: 10
+                    Btn {
+                        icon: "play"; iconSize: 14
+                        visible: grp.modelData.sounds.length > 0
+                        onClicked: Sounds.play(grp.modelData.sounds[0], 0)
+                    }
+                    Toggle {
+                        checked: Sounds.off.indexOf(grp.modelData.id) < 0
+                        onToggled: v => {
+                            const off = Sounds.off.filter(x => x !== grp.modelData.id);
+                            if (!v) off.push(grp.modelData.id);
+                            Settings.set("sounds.off", off);
+                        }
+                    }
+                }
             }
         }
     }

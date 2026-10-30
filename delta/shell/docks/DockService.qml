@@ -227,11 +227,16 @@ Singleton {
         }
     }
     // «желе»: доки вздрагивают от событий — верхний от смены стола и раскладки,
-    // док приложений — когда открылось окно
+    // док приложений — когда открылось окно (и звук «приложение открылось»;
+    // здесь, а не в Sounds: Sounds есть и у процесса «Настроек», звучало бы дважды)
     Connections {
         target: Hyprland
         function onFocusedWorkspaceChanged() { ShellState.pokeDock("top", 0.55); }
-        function onRawEvent(event) { if (event.name === "openwindow") ShellState.pokeDock("apps", 0.5); }
+        function onRawEvent(event) {
+            if (event.name !== "openwindow") return;
+            ShellState.pokeDock("apps", 0.5);
+            Sounds.play("app-open", 500);
+        }
     }
     Connections {
         target: KbLayout

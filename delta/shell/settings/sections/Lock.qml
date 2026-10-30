@@ -7,6 +7,7 @@ import Quickshell.Io
 import qs.common
 import qs.common.ui
 import qs.lock.parts
+import qs.widgets
 import qs.walls
 
 // Экран блокировки: виджеты, часы, уведомления, блокировка при входе и по простою.
@@ -19,22 +20,40 @@ ColumnLayout {
     property string keywords: "блокировка вход часы виджеты уведомления пароль простой автовход экран входа обои фон картинка"
     spacing: 18
 
-    readonly property string clockStyle: Settings.get("lock.clock.style", Settings.get("clock.style", "ios"))
-    readonly property real tallWidth: Number(Settings.get("lock.clock.tallWidth", Settings.get("clock.tallWidth", 0.62))) || 0.62
-    readonly property string clockColor: Settings.get("lock.clock.color", Settings.get("clock.color", "white"))
+    // Часы экрана блокировки: значение — у виджета «Часы» его сетки, если он
+    // там стоит (его меняет и редактор виджетов), иначе lock.clock.*, иначе
+    // общее clock.*. Пишем и туда, и туда — настройки и редактор совпадают.
+    readonly property var lockClock: (Settings.get("widgets.lock", []) || []).find(x => x && x.id === "clock") || null
+    function clockGet(key, def) { return WidgetTypes.clockValue(root.lockClock, key, Settings.get("lock.clock." + key, Settings.get("clock." + key, def))); }
+    readonly property string clockStyle: clockGet("style", "ios")
+    readonly property real tallWidth: Number(clockGet("tallWidth", 0.62)) || 0.62
+    readonly property string clockColor: clockGet("color", "white")
+    readonly property string tallKind: clockGet("tallKind", "line")
+    readonly property real tallThick: Number(clockGet("tallThick", 1)) || 1
 
-    // Стиль часов пишем и в lock.clock, и в виджет «clock» сетки экрана блокировки,
-    // если он там есть: часы рисует сетка, а свои часы экран блокировки показывает без неё.
     function setClock(key, value) {
         Settings.set("lock.clock." + key, value);
         const list = Settings.get("widgets.lock", []);
         if (!Array.isArray(list) || !list.some(w => w && w.id === "clock")) return;
         Settings.set("widgets.lock", list.map(w => {
             if (!w || w.id !== "clock") return w;
-            const c = JSON.parse(JSON.stringify(w));
-            c[key === "style" ? "style" : "color"] = value;
+            const c = Object.assign({}, w);
+            c[key] = value;
             return c;
         }));
+    }
+
+    // вид уведомлений: и для своих уведомлений экрана блокировки, и для
+    // виджета «Уведомления» на его сетке, если он там стоит
+    readonly property string notifView: {
+        const w = (Settings.get("widgets.lock", []) || []).find(x => x && x.id === "notifs");
+        return (w && w.mode) || Settings.get("notifications.lockView", "stack");
+    }
+    function setNotifView(v) {
+        Settings.set("notifications.lockView", v);
+        const list = Settings.get("widgets.lock", []);
+        if (!Array.isArray(list) || !list.some(w => w && w.id === "notifs")) return;
+        Settings.set("widgets.lock", list.map(w => w && w.id === "notifs" ? Object.assign({}, w, { mode: v }) : w));
     }
 
     function shell(args) { Quickshell.execDetached(["delta-shell", "ipc", "call", "lock"].concat(args)); }
@@ -118,6 +137,8 @@ ColumnLayout {
                     style: root.clockStyle
                     tint: root.clockColor
                     tallWidth: root.tallWidth
+                    tallKind: root.tallKind
+                    tallThick: root.tallThick
                     size: 96
                 }
             }
@@ -134,15 +155,12 @@ ColumnLayout {
                 onPicked: v => root.setClock("style", v)
             }
         }
-        SettingRow {
+        TallClockRows {
             visible: root.clockStyle === "tall"
-            icon: "sliders"; title: I18n.tr("Ширина цифр"); subtitle: I18n.tr("Только для стиля «Длинные»")
-            Slider {
-                implicitWidth: 220
-                from: 0.35; to: 0.95
-                value: root.tallWidth
-                onReleased: v => root.setClock("tallWidth", Math.round(v * 100) / 100)
-            }
+            kind: root.tallKind
+            widthRatio: root.tallWidth
+            thick: root.tallThick
+            onPicked: (key, v) => root.setClock(key, v)
         }
         SettingRow {
             icon: "palette"; title: I18n.tr("Цвет часов"); wide: true
@@ -207,6 +225,17 @@ ColumnLayout {
             icon: "bell"; title: I18n.tr("Показывать на экране блокировки")
             subtitle: I18n.tr("Последние сообщения видно без пароля")
             Toggle { checked: Settings.get("notifications.onLock", true); onToggled: v => Settings.set("notifications.onLock", v) }
+        }
+        SettingRow {
+            visible: Settings.get("notifications.onLock", true) !== false
+            icon: "layers"; title: I18n.tr("Вид уведомлений"); wide: true
+            subtitle: I18n.tr("Стопкой — раскрываются по нажатию, списком — друг под другом, числом — только сколько пришло")
+            Chips {
+                current: root.notifView
+                model: [{ value: "stack", label: I18n.tr("Стопкой") }, { value: "list", label: I18n.tr("Списком") },
+                        { value: "count", label: I18n.tr("Числом") }]
+                onPicked: v => root.setNotifView(v)
+            }
         }
     }
 

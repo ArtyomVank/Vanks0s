@@ -31,7 +31,12 @@ Glass {
     readonly property var info: it ? WidgetTypes.info(place, it.id) : null
     readonly property bool isClock: !!it && it.id === "clock"
     readonly property bool isWeather: !!it && it.id === "weather"
-    readonly property bool tallClock: isClock && (it.style || Settings.get("clock.style", "ios")) === "tall"
+    readonly property bool isNotifs: !!it && it.id === "notifs"
+    // настройка часов: у виджета, иначе общая (как в ClockWidget)
+    function clk(key, def) {
+        return WidgetTypes.clockValue(it, key, place === "lock" ? Settings.get("lock.clock." + key, Settings.get("clock." + key, def)) : Settings.get("clock." + key, def));
+    }
+    readonly property bool tallClock: isClock && clk("style", "ios") === "tall"
 
     // клики по панели не должны снимать выбор на сетке
     MouseArea { anchors.fill: parent; onPressed: m => m.accepted = true }
@@ -185,7 +190,7 @@ Glass {
                 Layout.fillWidth: true
                 visible: root.isClock
                 model: WidgetTypes.clockStyles
-                current: root.it ? (root.it.style || Settings.get("clock.style", "ios")) : ""
+                current: root.it ? root.clk("style", "ios") : ""
                 onPicked: v => root.grid.setStyle("clock", v)
             }
             Label { Layout.preferredWidth: 104; tone: 3; visible: root.isClock; text: I18n.tr("Цвет") }
@@ -193,7 +198,7 @@ Glass {
                 Layout.fillWidth: true
                 visible: root.isClock
                 model: WidgetTypes.clockColors
-                current: root.it ? (root.it.color || Settings.get("clock.color", "white")) : ""
+                current: root.it ? root.clk("color", "white") : ""
                 onPicked: v => root.grid.setColor("clock", v)
             }
             Label { Layout.preferredWidth: 104; tone: 3; visible: root.tallClock; text: I18n.tr("Ширина цифр") }
@@ -202,8 +207,37 @@ Glass {
                 Layout.preferredWidth: 220
                 implicitHeight: 30
                 from: 0.35; to: 0.95
-                value: root.it ? Number(root.it.tallWidth ?? Settings.get("clock.tallWidth", 0.62)) : 0.62
+                value: root.it ? Number(root.clk("tallWidth", 0.62)) || 0.62 : 0.62
                 onReleased: v => root.grid.setTallWidth(root.it.id, v)
+            }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.tallClock; text: I18n.tr("Вид цифр") }
+            Chips {
+                Layout.fillWidth: true
+                visible: root.tallClock
+                model: WidgetTypes.tallKinds.map(x => ({ value: x.value, label: I18n.tr(x.label) }))
+                current: root.it ? root.clk("tallKind", "line") : ""
+                onPicked: v => root.grid.patch(root.it.id, { tallKind: v })
+            }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.tallClock; text: I18n.tr("Толщина") }
+            Slider {
+                visible: root.tallClock
+                Layout.preferredWidth: 220
+                implicitHeight: 30
+                from: 0.5; to: 2.4
+                value: root.it ? Number(root.clk("tallThick", 1)) || 1 : 1
+                onReleased: v => root.grid.patch(root.it.id, { tallThick: Math.round(v * 100) / 100 })
+            }
+
+            // уведомления
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isNotifs; text: I18n.tr("Когда пусто") }
+            RowLayout {
+                visible: root.isNotifs
+                spacing: 10
+                Toggle {
+                    checked: !!root.it && root.it.quiet === true
+                    onToggled: v => root.grid.patch(root.it.id, { quiet: v })
+                }
+                Label { tone: 2; size: "small"; text: I18n.tr("Прятать виджет и надпись «Новых уведомлений нет»") }
             }
 
             // погода

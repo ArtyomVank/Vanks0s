@@ -2,7 +2,8 @@
 # ============================================================================
 #  Vanks OS — звуки Delta (delta/shell/sounds/*.ogg), синтез ffmpeg.
 #
-#      tools/gen-sounds.sh
+#      tools/gen-sounds.sh              # все
+#      tools/gen-sounds.sh app-open     # только перечисленные
 #
 #  Мягкие «стеклянные» тона: синус с тихой второй гармоникой и быстрым
 #  затуханием, пентатоника от до. Файлы маленькие (ogg vorbis, моно 48 кГц),
@@ -18,7 +19,9 @@ mkdir -p "${OUT}"
 note() { printf '(gt(t,%s)*%s*(sin(2*PI*%s*(t-%s))+0.18*sin(4*PI*%s*(t-%s)))*exp(-%s*(t-%s))*(1-exp(-260*(t-%s))))' \
     "$2" "$4" "$1" "$2" "$1" "$2" "$3" "$2" "$2"; }
 
+ONLY=" $* "
 gen() {  # имя, длительность, выражение, [доп. фильтр]
+    [ "${ONLY}" = "  " ] || [[ "${ONLY}" == *" $1 "* ]] || return 0
     ffmpeg -v error -nostdin -y -f lavfi -i "aevalsrc='$3':s=48000:d=$2" \
         -af "${4:-anull},afade=t=out:st=$(awk -v d="$2" 'BEGIN{printf "%.3f", d-0.08}'):d=0.08,aformat=channel_layouts=mono" \
         -c:a libvorbis -q:a 4 "${OUT}/$1.ogg"
@@ -67,4 +70,7 @@ gen launcher 0.7 "$(note $C5 0 9 0.12)+$(note $G5 0.04 9 0.1)+$(note $C6 0.08 8 
 gen tick 0.09 "0.2*sin(2*PI*2200*t)*exp(-70*t)*(1-exp(-900*t))+0.08*sin(2*PI*3300*t)*exp(-90*t)"
 # первая настройка: искры вокруг заголовка
 gen sparkle 0.9 "$(note $E6 0 9 0.08)+$(note 1567.98 0.07 10 0.07)+$(note 2093.0 0.14 11 0.06)+$(note 2637.0 0.21 12 0.05)" "aecho=0.8:0.6:80:0.3"
+# приложение открылось — мягкий «блюп» вверх и звон
+gen app-open 0.6 "$(note $C5 0 11 0.15)+$(note $G5 0.05 10 0.13)+0.07*sin(2*PI*(420*t+1100*t*t))*exp(-14*t)*(1-exp(-300*t))" \
+    "aecho=0.8:0.4:55:0.18"
 echo "готово"

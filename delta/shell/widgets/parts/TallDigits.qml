@@ -1,11 +1,17 @@
 import QtQuick
 import QtQuick.Shapes
+import qs.common.ui
 
 // Цифры «Длинных» часов, как на экране блокировки iOS 26: тонкие высокие
 // цифры из прямых и полукругов со скруглёнными концами. Рисуются линиями,
 // а не шрифтом — вид не зависит от установленных шрифтов, и высоту можно
 // тянуть как угодно, толщина линии при этом не меняется.
 //     TallDigits { text: "15:03"; digitHeight: 160; color: "white" }
+//
+// look: solid — линии цветом color; hollow — пустые внутри (только кромка
+// линий, сами линии толще); glass — стекло: прозрачная заливка и блик по
+// кромке. hollow и glass рисует GlassFace по форме цифр целиком, поэтому
+// там, где линии сходятся, ничего не темнеет.
 Item {
     id: root
 
@@ -17,6 +23,9 @@ Item {
     // толщина линии — доля высоты: у узких цифр тоньше, у широких плотнее,
     // чтобы цифры не выглядели проволокой
     property real weight: root.weightFor(widthRatio)
+    // толщина линий — множитель (ползунок «толщина линий»)
+    property real thick: 1
+    property string look: "solid"
 
     readonly property real h: digitHeight
     readonly property real w: h * widthRatio
@@ -25,7 +34,7 @@ Item {
     // разъезжаются по виджету
     readonly property real gap: w * 0.24 + s * 0.6
 
-    function weightFor(r) { return 0.045 + 0.085 * r; }
+    function weightFor(r) { return (0.045 + 0.085 * r) * Math.max(0.3, thick) * (look === "hollow" ? 1.6 : 1); }
     // ширина строки t при высоте цифр h и доле ширины r
     function widthAt(t, h, r) {
         const w = h * r, s = Math.max(1.5, h * weightFor(r)), gap = w * 0.24 + s * 0.6;
@@ -114,43 +123,60 @@ Item {
         return "";
     }
 
-    Repeater {
-        model: root.layout.items
-        delegate: Item {
-            id: g
-            required property var modelData
-            x: modelData.x + root.s / 2
-            y: root.s / 2
-            width: root.glyphW(modelData.c)
-            height: root.h
+    Item {
+        id: paths
+        width: root.implicitWidth
+        height: root.implicitHeight
+        // для GlassFace — сплошной непрозрачный
+        readonly property color ink: root.look === "solid" ? root.color : "#ffffff"
 
-            Shape {
-                anchors.fill: parent
-                visible: g.modelData.c !== ":"
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeColor: root.color
-                    strokeWidth: root.s
-                    fillColor: "transparent"
-                    capStyle: ShapePath.RoundCap
-                    joinStyle: ShapePath.RoundJoin
-                    PathSvg { path: root.glyph(g.modelData.c) }
+        Repeater {
+            model: root.layout.items
+            delegate: Item {
+                id: g
+                required property var modelData
+                x: modelData.x + root.s / 2
+                y: root.s / 2
+                width: root.glyphW(modelData.c)
+                height: root.h
+
+                Shape {
+                    anchors.fill: parent
+                    visible: g.modelData.c !== ":"
+                    preferredRendererType: Shape.CurveRenderer
+                    ShapePath {
+                        strokeColor: paths.ink
+                        strokeWidth: root.s
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        joinStyle: ShapePath.RoundJoin
+                        PathSvg { path: root.glyph(g.modelData.c) }
+                    }
                 }
-            }
 
-            // двоеточие — две точки
-            Repeater {
-                model: g.modelData.c === ":" ? [0.36, 0.64] : []
-                delegate: Rectangle {
-                    required property real modelData
-                    width: root.s * 1.9
-                    height: width
-                    radius: width / 2
-                    color: root.color
-                    x: (g.width - width) / 2
-                    y: root.h * modelData - height / 2
+                // двоеточие — две точки
+                Repeater {
+                    model: g.modelData.c === ":" ? [0.36, 0.64] : []
+                    delegate: Rectangle {
+                        required property real modelData
+                        width: root.s * 1.9
+                        height: width
+                        radius: width / 2
+                        color: paths.ink
+                        x: (g.width - width) / 2
+                        y: root.h * modelData - height / 2
+                    }
                 }
             }
         }
+    }
+
+    GlassFace {
+        item: paths
+        visible: root.look !== "solid"
+        hollow: root.look === "hollow"
+        rim: root.look === "hollow" ? Math.max(1.2, root.s * 0.26) : Math.max(1, root.s * 0.2)
+        fill: 0.22
+        tint: root.color
     }
 }

@@ -99,6 +99,9 @@ Singleton {
     // notify/: последние уведомления для виджета на экране блокировки
     //   [{ id, app, appIcon, summary, body, time }]
     property var notifications: []
+    // «Очистить» на экране блокировки: notify/ закрывает все уведомления
+    signal notificationsCleared()
+    function clearNotifications() { notificationsCleared(); }
     property bool dnd: false
     // docks/: геометрия доков для «шарика из дока» и анимации сворачивания
     //   { "<имя экрана>": { top: {x, y, w, h, edge}, apps: {x, y, w, h, edge} } }
