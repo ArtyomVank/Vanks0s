@@ -49,6 +49,33 @@ fi
 
 arch-chroot "${ROOT}" pacman -S --needed --noconfirm "${pkgs[@]}"
 
+# Версия оболочки, выбранная в Vanks Setup (setup/): программа кладёт пакет
+# в раздел VANKOS после образа на флешке, а при записи в папку — в папку
+# vankos рядом с образом (её берём с раздела Ventoy). Ставим поверх той, что
+# в образе, — и более новую, и более старую. Не вышло — остаётся из образа.
+chosen_delta() {
+    local dev mnt f
+    for dev in /dev/disk/by-label/VANKOS /dev/disk/by-label/Ventoy; do
+        [ -b "${dev}" ] || continue
+        mnt=$(mktemp -d)
+        if mount -o ro "${dev}" "${mnt}" 2>/dev/null; then
+            f=$(find "${mnt}/vankos" -maxdepth 1 -name 'delta-*.pkg.tar.zst' 2>/dev/null | sort -V | tail -n1)
+            [ -n "${f}" ] && install -Dm644 "${f}" "${ROOT}/var/cache/vankos/pkgs/${f##*/}"
+            umount "${mnt}"
+            rmdir "${mnt}"
+            [ -n "${f}" ] && { printf '%s\n' "${f##*/}"; return 0; }
+        else
+            rmdir "${mnt}"
+        fi
+    done
+    return 1
+}
+if [ "${CHOICE}" = "delta" ] && chosen=$(chosen_delta); then
+    log "ставлю версию Delta, выбранную в Vanks Setup: ${chosen}"
+    arch-chroot "${ROOT}" pacman -U --noconfirm "/var/cache/vankos/pkgs/${chosen}" || \
+        log "не вышло — остаётся Delta из образа"
+fi
+
 install -d "${ROOT}/etc/skel/.config" "${ROOT}/etc/skel/Desktop"
 
 if [ "${CHOICE}" = "delta" ]; then
