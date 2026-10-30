@@ -372,16 +372,6 @@ ColumnLayout {
             format: v => Math.round(v * 100) + " %"
             onCommit: v => Settings.set("appearance.frost", Math.round(v * 100) / 100)
         }
-        SettingRow {
-            visible: Theme.liquid
-            icon: "rain"
-            title: I18n.tr("Капли на стекле")
-            subtitle: I18n.tr("По докам и виджетам медленно стекают капли")
-            Toggle {
-                checked: root.a.drops ?? true
-                onToggled: v => Settings.set("appearance.drops", v)
-            }
-        }
         SliderRow {
             visible: !Theme.liquid
             icon: "eye"

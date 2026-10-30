@@ -57,14 +57,14 @@ Singleton {
     // Стиль — не цвет, а сам вид панелей (appearance.style):
     //   delta  — тонированное стекло с размытием (как было);
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
-    //   liquid — жидкое стекло: прозрачнее, сильнее размытие, светлая кромка (Sheen).
+    //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen).
     // preset — что ставится при выборе стиля (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
           preset: { glass: 0.62, radius: 18, rounding: 16, blur: true, border: 2 } },
         { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
           preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0 } },
-        { id: "liquid", name: "Жидкое стекло",  note: "Прозрачное стекло с бликом по краю",
+        { id: "liquid", name: "Жидкое стекло",  note: "Стекло-линза: фон у края изгибается",
           preset: { glass: 0.4, frost: 0.5, radius: 26, rounding: 22, blur: true, border: 1 } }
     ]
     readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"

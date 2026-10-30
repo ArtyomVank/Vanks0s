@@ -109,7 +109,7 @@ Item {
             border.width: root.bg || root.editing ? 1 : 0
             border.color: !root.bg ? Qt.rgba(1, 1, 1, 0.45) : root.lock ? Qt.rgba(1, 1, 1, 0.24) : Theme.line
             Behavior on color { ColorAnimation { duration: Theme.anim.normal } }
-            Sheen { radius: plate.radius; visible: Theme.liquid && root.bg && !root.lock && width > 2 }
+            Sheen { radius: plate.radius; refract: true; visible: Theme.liquid && root.bg && !root.lock && width > 2 }
             Gradient {
                 id: lockGlass
                 GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.24) }

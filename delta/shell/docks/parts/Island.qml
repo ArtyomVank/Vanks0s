@@ -304,7 +304,7 @@ Item {
         clip: !root.rest || root.morph
 
         // кромка «жидкого стекла» у сплошной панели
-        Sheen { radius: body.radius; visible: Theme.liquid && root.rest && !root.tiles && width > 2 }
+        Sheen { radius: body.radius; refract: true; visible: Theme.liquid && root.rest && !root.tiles && width > 2 }
 
         HoverHandler { id: bodyHover }
         // нажатие в любом месте панели: сплющивается и отпружинивает

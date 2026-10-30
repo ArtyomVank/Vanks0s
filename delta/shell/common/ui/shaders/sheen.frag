@@ -1,12 +1,14 @@
 #version 440
-// «Жидкое стекло» поверх подложки (Sheen.qml). Не плоская кромка, а толща:
-//   • у края стекло скруглено, как линза: свет бликует на скосе, по самой
-//     кромке — тонкий перелив радугой (дисперсия), под скосом — тень;
-//   • источник света медленно ходит — блик переливается, как жидкость;
-//   • матовость (frost): молочная дымка и зерно, как у матового стекла;
-//   • капли: стекают вниз рывками (то держатся, то срываются), у каждой —
-//     блик сверху, светлый серп снизу, тёмный ободок и влажный след.
-// Цвет на выходе — с premultiplied alpha: белое светит, чёрное затеняет.
+// «Жидкое стекло» (Sheen.qml) — линза, а не рамка, как Liquid Glass у Apple:
+//   • в середине стекло чистое: видно то, что за ним (обои), чуть размытое
+//     матовостью (frost) и едва тонированное;
+//   • у края стекло скруглено (скос шириной bezel): фон за ним изгибается —
+//     берётся всё дальше снаружи, чем ближе к кромке, как в капле воды;
+//     на скосе цвета чуть расходятся (дисперсия);
+//   • по кромке — тонкий блик: ярче там, куда падает свет (сверху), слабее
+//     напротив; вдоль скоса — мягкое свечение.
+// Без обоев (hasWall = 0: лаунчер и меню поверх окон, видеообои без кадра)
+// фон даёт размытие Hyprland, а шейдер рисует только блик и свечение.
 // После правки: tools/delta-shaders.sh.
 
 layout(location = 0) in vec2 qt_TexCoord0;
@@ -17,56 +19,37 @@ layout(std140, binding = 0) uniform buf {
     float qt_Opacity;
     vec2 area;          // размер, px
     float radius;       // скругление, px
-    float strength;     // общая сила 0…1
+    float strength;     // 0…1
     float frost;        // матовость 0…1
-    float time;         // секунды
-    float drops;        // 0 — без капель, 1 — с каплями
-    float seed;         // у каждой панели свои капли
-    float lightBg;      // 1 — светлая тема: тени слабее, блики мягче
+    float lightBg;      // 1 — светлая тема
+    float hasWall;      // 1 — преломлять обои
+    vec2 origin;        // левый верхний угол на экране, px
+    vec4 wallRect;      // где на экране обои: x, y, ширина, высота
+    vec4 tint;          // цвет темы, a — сила
 };
+
+layout(binding = 1) uniform sampler2D source;
 
 float box(vec2 p, vec2 hs, float r) {
     vec2 q = abs(p) - hs + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
-float hash(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
-}
-float hash1(float n) { return fract(sin(n * 91.3458 + seed * 17.13) * 47453.5453); }
 
-// одна капля: добавляет свет (x) и тень (y) в точке p
-vec2 drop(vec2 p, float i, vec2 hs, float scale) {
-    float sp = 0.10 + 0.12 * hash1(i * 3.1);              // как часто срывается
-    float s = time * sp + hash1(i * 7.7) * 10.0;
-    // рывками: стоит, потом быстро сползает на шаг
-    float f = fract(s);
-    float y01 = fract((floor(s) + smoothstep(0.55, 1.0, f)) * (0.17 + 0.1 * hash1(i * 5.3)) + hash1(i * 1.9));
-    float r = scale * (0.6 + 0.6 * hash1(i * 2.3));
-    vec2 c = vec2((hash1(i * 4.7) - 0.5) * 2.0 * (hs.x - r * 2.0),
-                  mix(-hs.y - r * 3.0, hs.y + r * 3.0, y01));
-    c.x += sin(y01 * 18.0 + i) * r * 0.35;                // путь чуть виляет
-    vec2 d = p - c;
-    // капля вытянута книзу, как под тяжестью
-    vec2 e = d / vec2(r, r * (d.y > 0.0 ? 1.18 : 0.92));
-    float l = length(e);
-    float light = 0.0, shade = 0.0;
-    if (l < 1.0) {
-        float z = sqrt(1.0 - l * l);
-        // блик сверху слева и светлый серп снизу (свет прошёл сквозь каплю)
-        light += pow(max(0.0, 1.0 - length(e - vec2(-0.35, -0.45)) * 2.6), 2.0) * 0.95;
-        light += smoothstep(0.35, 0.95, e.y) * smoothstep(1.0, 0.8, l) * 0.45;
-        // тёмный ободок — край линзы
-        shade += smoothstep(0.62, 1.0, l) * (1.0 - z) * 0.55;
-        light += z * 0.05;
+vec2 wallUv(vec2 sp) { return clamp((sp - wallRect.xy) / wallRect.zw, vec2(0.001), vec2(0.999)); }
+
+// фон в точке экрана sp, размытый на blur px: смещение уровня mip-карты
+// (bias — textureLod нет в GLSL ES 1.0) и кольцо отсчётов вокруг
+float lodBias(float blur) { return log2(max(1.0, blur * 0.3)); }
+vec3 backdrop(vec2 sp, float blur) {
+    float lod = lodBias(blur);
+    vec3 c = texture(source, wallUv(sp), lod).rgb * 2.0;
+    float w = 2.0;
+    for (int i = 0; i < 8; i++) {
+        float a = float(i) * 0.7854 + 0.39;
+        c += texture(source, wallUv(sp + vec2(cos(a), sin(a)) * blur * 0.6), lod).rgb;
+        w += 1.0;
     }
-    // мягкая тень под каплей
-    shade += smoothstep(1.35, 1.0, l) * (1.0 - step(l, 1.0)) * 0.12;
-    // влажный след выше капли: узкий, тает с расстоянием
-    float trail = smoothstep(r * 0.28, 0.0, abs(d.x)) * step(d.y, 0.0) * exp(d.y / (r * 3.5));
-    light += trail * 0.07;
-    return vec2(light, shade);
+    return c / w;
 }
 
 void main() {
@@ -76,57 +59,50 @@ void main() {
     float d = box(p, hs, r);
     float inside = 1.0 - smoothstep(-0.5, 0.5, d);
 
-    // нормаль края (в плоскости)
+    // нормаль края наружу
     vec2 q = abs(p) - hs + r;
     vec2 n = (q.x > 0.0 && q.y > 0.0) ? normalize(q) : (q.x > q.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
     n *= vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
 
-    // скос-линза шириной w: профиль — четверть круга
-    float w = clamp(min(hs.x, hs.y) * 0.32, 6.0, 22.0);
-    float t = clamp(-d / w, 0.0, 1.0);                     // 0 — кромка, 1 — плоское стекло
-    float slope = (1.0 - t) / max(0.05, sqrt(1.0 - (1.0 - t) * (1.0 - t)));
-    vec3 N = normalize(vec3(n * min(slope, 6.0) * 0.55, 1.0));
+    // скос: e = 1 у самой кромки, 0 на плоском стекле
+    float bezel = clamp(min(hs.x, hs.y) * 0.5, 8.0, 24.0);
+    float e = 1.0 - clamp(-d / bezel, 0.0, 1.0);
+    float lensK = clamp(min(hs.x, hs.y) / 40.0, 0.45, 1.0);   // маленьким плиткам — мягче
 
-    // свет медленно гуляет — блик переливается
-    float a = -2.2 + 0.35 * sin(time * 0.23 + seed) + 0.15 * sin(time * 0.61);
-    vec3 L = normalize(vec3(cos(a), sin(a), 0.85));
-    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float spec = pow(max(dot(N, H), 0.0), 40.0);
-    float back = pow(max(dot(N, normalize(vec3(-L.xy, 0.85) + vec3(0.0, 0.0, 1.0))), 0.0), 60.0) * 0.5;
-    float fres = pow(1.0 - N.z, 1.5);
+    vec2 toLight = normalize(vec2(-0.3, -1.0));
+    float facing = dot(n, toLight);
 
-    float light = 0.0, shade = 0.0;
-    light += (spec + back) * 0.9 * (1.0 - t * 0.6);
-    light += fres * 0.20;
-    // самая кромка: тонкая светлая линия
-    light += smoothstep(-1.8, -0.6, d) * (1.0 - smoothstep(-0.6, 0.3, d)) * (0.28 + 0.5 * max(0.0, dot(n, normalize(vec2(L.x, L.y)))));
-    // под скосом свет преломился — темнее (толща стекла)
-    shade += smoothstep(0.55, 0.9, t) * (1.0 - smoothstep(0.9, 1.0, t)) * 0.10;
-    // отблеск сверху на плоскости
-    light += pow(1.0 - qt_TexCoord0.y, 5.0) * 0.07;
+    // блик: тонкая линия по кромке и мягкое свечение вдоль скоса
+    float line = smoothstep(-1.7, -0.5, d) * (1.0 - smoothstep(-0.5, 0.4, d));
+    float spec = line * (0.22 + 1.1 * pow(max(facing, 0.0), 2.0) + 0.55 * pow(max(-facing, 0.0), 3.0));
+    float glow = pow(e, 3.0) * (0.05 + 0.16 * max(facing, 0.0)) + pow(e, 8.0) * 0.06;
 
-    // перелив по кромке: цвета радуги по направлению нормали
-    vec3 rainbow = 0.5 + 0.5 * cos(6.2832 * (atan(n.y, n.x) / 6.2832 + time * 0.03 + vec3(0.0, 0.33, 0.67)));
-    float disp = smoothstep(0.0, 0.25, t) * (1.0 - smoothstep(0.25, 0.6, t)) * 0.10;
-
-    // матовость: молочная дымка и мелкое зерно
-    float grain = hash(floor(qt_TexCoord0 * area)) - 0.5;
-    light += frost * (0.07 + 0.05 * grain);
-
-    // капли
-    if (drops > 0.5) {
-        float scale = clamp(min(area.x, area.y) * 0.045, 4.0, 10.0);
-        for (int i = 0; i < 5; i++) {
-            vec2 k = drop(p, float(i) + 1.0, hs, scale);
-            light += k.x;
-            shade += k.y;
+    if (hasWall > 0.5) {
+        vec2 sp = origin + qt_TexCoord0 * area;
+        // смещение: у кромки фон берётся снаружи, к середине — на месте
+        float m = 34.0 * lensK * pow(e, 2.6);
+        vec2 off = n * m;
+        float blur = frost * frost * 18.0 + frost * 4.0 + e * 1.5;
+        vec3 col = backdrop(sp + off, blur);
+        // дисперсия на скосе: красный и синий смещены чуть по-разному
+        if (e > 0.02) {
+            float lod = lodBias(blur);
+            float cr = texture(source, wallUv(sp + off * 1.12), lod).r;
+            float cb = texture(source, wallUv(sp + off * 0.88), lod).b;
+            float k = smoothstep(0.15, 0.7, e) * 0.85;
+            col.r = mix(col.r, cr, k);
+            col.b = mix(col.b, cb, k);
         }
+        // стекло чуть ярче и сочнее фона
+        float luma = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(luma), col, 1.12) * 1.04 + 0.015;
+        // тонировка темой и молочная дымка матовости
+        col = mix(col, tint.rgb, tint.a);
+        col = mix(col, vec3(1.0), frost * mix(0.06, 0.12, lightBg));
+        col += vec3(spec * 0.85 + glow);
+        fragColor = vec4(clamp(col, 0.0, 1.0), 1.0) * inside * strength * qt_Opacity;
+    } else {
+        float a = clamp(spec * 0.85 + glow * 0.9 + frost * 0.04, 0.0, 1.0) * mix(1.0, 0.8, lightBg);
+        fragColor = vec4(a, a, a, a) * inside * strength * qt_Opacity;
     }
-
-    shade *= mix(1.0, 0.5, lightBg);
-    light *= mix(1.0, 0.75, lightBg);
-    vec3 col = vec3(light) + rainbow * disp;
-    float alpha = clamp(light + disp + shade, 0.0, 1.0);
-    vec4 c = vec4(clamp(col, 0.0, 1.0), alpha) * strength * inside;
-    fragColor = c * qt_Opacity;
 }
