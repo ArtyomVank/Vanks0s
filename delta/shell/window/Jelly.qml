@@ -196,21 +196,20 @@ Scope {
     // покачивание не улеглось за секунду (очень сильное «желе») — всё равно отдаём окно
     Timer { id: settleLimit; interval: 1100; onTriggered: if (root.releasing) root.stopNow() }
 
-    // окно возвращается, и только через пару кадров пропадает копия — без мигания
-    // Hyprland возвращает прозрачность плавно — на месте копия держится, пока
-    // окно не проявится; у края окно уезжает в зону, там хватит пары кадров
-    property int handFrames: 3
+    // окно возвращается (прозрачность в Hyprland меняется сразу — анимация
+    // fadeSwitch выключена в hyprland.lua), и только через пару кадров, когда
+    // Hyprland его уже нарисовал, пропадает копия — без мигания
     function stopNow(snapped) {
         settleLimit.stop();
+        hideAfter.stop();
         releasing = false;
-        handFrames = snapped ? 3 : 14;
         if (hidden) { setOpacity(true); hidden = false; }
         handBack.restart();
     }
     FrameAnimation {
         id: handBack
         onTriggered: {
-            if (currentFrame < root.handFrames) return;
+            if (currentFrame < 3) return;
             stop();
             root.active = false;
             root.capturing = false;
@@ -219,13 +218,21 @@ Scope {
         }
     }
 
-    // окно прячется, только когда копия уже на месте (есть кадр) —
-    // иначе на миг пропало бы всё
+    // окно прячется, только когда копия уже на экране: есть кадр захвата и
+    // копия успела нарисоваться (пара кадров) — иначе на миг пропало бы всё
+    readonly property bool canHide: active && capturing && !hidden && cap.hasContent && DragState.dragging
     function tryHide() {
-        if (active && capturing && !hidden && cap.hasContent && DragState.dragging) {
-            setOpacity(false);
-            hidden = true;
-            if (trace && trace.hide < 0) trace.hide = Date.now() - trace.t0;
+        if (canHide && !hideAfter.running) hideAfter.restart();
+    }
+    FrameAnimation {
+        id: hideAfter
+        onTriggered: {
+            if (currentFrame < 2) return;
+            stop();
+            if (!root.canHide) return;
+            root.setOpacity(false);
+            root.hidden = true;
+            if (root.trace && root.trace.hide < 0) root.trace.hide = Date.now() - root.trace.t0;
         }
     }
 

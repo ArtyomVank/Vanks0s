@@ -114,6 +114,10 @@ hl.animation({ leaf = "windowsIn",     enabled = true, speed = 4.2, spring = "de
 hl.animation({ leaf = "windowsOut",    enabled = true, speed = 1.6, bezier = "deltaInOut", style = "popin 85%" })
 hl.animation({ leaf = "fadeIn",        enabled = true, speed = 1.8, bezier = "deltaOut" })
 hl.animation({ leaf = "fadeOut",       enabled = true, speed = 1.5, bezier = "deltaOut" })
+-- прозрачность окна (set_prop opacity) — мгновенно: «желе» прячет окно под
+-- копию и возвращает его; плавное угасание (0,8 с) просвечивало сквозь копию
+-- и мигало при отпускании. Прозрачность неактивных окон Delta не задаёт
+hl.animation({ leaf = "fadeSwitch",    enabled = false })
 hl.animation({ leaf = "workspaces",    enabled = true, speed = 3,   spring = "deltaSpring", style = "slide" })
 -- слои оболочки анимирует сама оболочка (капли, морфинг), поэтому у
 -- них анимации Hyprland выключены правилом ниже
