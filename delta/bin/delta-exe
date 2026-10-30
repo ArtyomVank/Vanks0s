@@ -133,13 +133,41 @@ steam_dir() {
     done
     return 1
 }
-# игра со Steamworks: рядом (или чуть глубже) лежит steam_api.dll / steam_api64.dll
-wants_steam() { find "$(dirname -- "$1")" -maxdepth 3 -iname 'steam_api*.dll' -print -quit 2>/dev/null | grep -q .; }
-# номер игры в Steam, если разработчик оставил steam_appid.txt
+# корень игры: в библиотеке Steam — папка в steamapps/common; у Unreal Engine
+# настоящий exe лежит в <Игра>/Binaries/Win64, а Steamworks — в Engine/…
+game_root() {
+    local d r
+    d=$(dirname -- "$1")
+    if [[ ${d} == */steamapps/common/* ]]; then
+        r=${d#*/steamapps/common/}
+        printf '%s\n' "${d%%/steamapps/common/*}/steamapps/common/${r%%/*}"
+        return 0
+    fi
+    case "${d,,}" in
+        */binaries/win64|*/binaries/win32) d=$(dirname -- "$(dirname -- "$(dirname -- "${d}")")") ;;
+    esac
+    printf '%s\n' "${d}"
+}
+# игра со Steamworks: в её папке есть steam_api.dll / steam_api64.dll.
+# Глубоко: у Unity — Игра_Data/Plugins/x86_64 (4 уровня), у Unreal Engine —
+# Engine/Binaries/ThirdParty/Steamworks/Steamv1xx/Win64 (7)
+wants_steam() { find "$(game_root "$1")" -maxdepth 7 -iname 'steam_api*.dll' -print -quit 2>/dev/null | grep -q .; }
+# номер игры в Steam: steam_appid.txt от разработчика, а у игры из библиотеки
+# Steam (steamapps/common/<папка>) — её appmanifest_<номер>.acf
 app_id() {
-    local f
-    f=$(find "$(dirname -- "$1")" -maxdepth 2 -name steam_appid.txt -print -quit 2>/dev/null)
-    [ -n "${f}" ] && tr -dc '0-9' <"${f}" | head -c 12
+    local root f lib dir m d
+    root=$(game_root "$1")
+    f=$(find "${root}" -maxdepth 4 -name steam_appid.txt -print -quit 2>/dev/null)
+    if [ -n "${f}" ]; then tr -dc '0-9' <"${f}" | head -c 12; return 0; fi
+    [[ ${root} == */steamapps/common/* ]] || return 0
+    lib=${root%%/steamapps/common/*}/steamapps
+    dir=${root#"${lib}"/common/}
+    dir=${dir%%/*}
+    for m in "${lib}"/appmanifest_*.acf; do
+        [ -f "${m}" ] || continue
+        d=$(sed -n 's/^[[:space:]]*"installdir"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/Ip' "${m}")
+        [ "${d,,}" = "${dir,,}" ] && { basename -- "${m}" .acf | tr -dc '0-9'; return 0; }
+    done
 }
 start_steam() {
     pgrep -x steam >/dev/null && return 0
