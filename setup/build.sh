@@ -24,7 +24,7 @@ fi
 
 [ -x "${BIN}/python" ] || python3 -m venv "${VENV}" 2>/dev/null || python -m venv "${VENV}"
 "${BIN}/python" -m pip install -q --upgrade pip
-"${BIN}/python" -m pip install -q PySide6-Essentials pyinstaller
+"${BIN}/python" -m pip install -q PySide6-Essentials pyinstaller certifi
 # значок .exe из logo.png — PyInstaller переводит его в .ico через Pillow
 [ "${WIN}" = 1 ] && "${BIN}/python" -m pip install -q pillow
 
@@ -32,7 +32,7 @@ cd "${ROOT}/setup"
 args=(--noconfirm --clean --onefile --name "$([ "${WIN}" = 1 ] && echo VanksSetup || echo vanks-setup-linux-x86_64)"
       --distpath "${ROOT}/dist" --workpath "${ROOT}/build/setup-pyinstaller" --specpath "${ROOT}/build/setup-pyinstaller"
       --add-data "${ROOT}/setup/vanks_setup/gui${SEP}vanks_setup/gui"
-      --hidden-import vanks_setup.gui
+      --hidden-import vanks_setup.gui --hidden-import certifi
       # лишние модули Qt — минус десятки мегабайт
       --exclude-module PySide6.QtWebEngineCore --exclude-module PySide6.QtMultimedia --exclude-module PySide6.Qt3DCore
       --exclude-module tkinter)
