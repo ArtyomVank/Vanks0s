@@ -25,7 +25,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ArtyomVank/Vanks0s/main/setu
 версии: `--list`, своя версия: `--version 0.4.0`.
 
 Windows — `VanksSetup.exe` из релиза (попросит права администратора).
-Linux с окном — `vanks-setup-linux-x86_64` из релиза.
+Linux — `vanks-setup-linux-x86_64` из релиза: открывается окно (и из
+терминала тоже), в терминале — с `--cli` или с параметрами.
 
 ## Устройство
 

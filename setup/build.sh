@@ -29,8 +29,9 @@ fi
 [ "${WIN}" = 1 ] && "${BIN}/python" -m pip install -q pillow
 
 cd "${ROOT}/setup"
-args=(--noconfirm --clean --onefile --name "$([ "${WIN}" = 1 ] && echo VanksSetup || echo vanks-setup-linux-x86_64)"
-      --distpath "${ROOT}/dist" --workpath "${ROOT}/build/setup-pyinstaller" --specpath "${ROOT}/build/setup-pyinstaller"
+name=$([ "${WIN}" = 1 ] && echo VanksSetup || echo vanks-setup-linux-x86_64)
+spec="${ROOT}/build/setup-pyinstaller/${name}.spec"
+args=(--onefile --name "${name}" --specpath "${ROOT}/build/setup-pyinstaller"
       --add-data "${ROOT}/setup/vanks_setup/gui${SEP}vanks_setup/gui"
       --hidden-import vanks_setup.gui --hidden-import certifi
       # лишние модули Qt — минус десятки мегабайт
@@ -39,5 +40,18 @@ args=(--noconfirm --clean --onefile --name "$([ "${WIN}" = 1 ] && echo VanksSetu
 if [ "${WIN}" = 1 ]; then
     args+=(--windowed --uac-admin --icon "${ROOT}/setup/vanks_setup/gui/logo.png")
 fi
-"${BIN}/pyinstaller" "${args[@]}" vanks-setup.py
+"${BIN}/pyi-makespec" "${args[@]}" vanks-setup.py >/dev/null
+if [ "${WIN}" = 0 ]; then
+    # fontconfig и freetype — системные: свой старый fontconfig (сборка на
+    # Ubuntu 22.04) не понимает настройки шрифтов новых систем (Arch) и сыплет
+    # ошибками. Они есть в любом Linux с рабочим столом.
+    "${BIN}/python" - "${spec}" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+s = s.replace("pyz = PYZ(", "a.binaries = [b for b in a.binaries if not b[0].startswith(('libfontconfig', 'libfreetype'))]\npyz = PYZ(", 1)
+open(p, "w", encoding="utf-8").write(s)
+PY
+fi
+"${BIN}/pyinstaller" --noconfirm --clean --distpath "${ROOT}/dist" --workpath "${ROOT}/build/setup-pyinstaller" "${spec}"
 ls -l "${ROOT}/dist" | grep -iE "vanks-?setup"

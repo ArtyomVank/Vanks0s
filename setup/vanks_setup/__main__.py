@@ -1,7 +1,8 @@
 """python -m vanks_setup и vanks-setup.pyz.
 
-Окно — с --gui или когда программу открыли не из терминала (двойной щелчок,
-.exe), если есть PySide6 и экран; иначе — терминал (cli.py).
+Без параметров — окно, если есть PySide6 и экран (и из терминала тоже, как
+в Windows); терминал (cli.py) — с --cli, с любыми параметрами (--list,
+--usb …) или когда окна быть не может (нет экрана, нет PySide6).
 --write-helper — запись от root (writer.run_elevated).
 """
 
@@ -14,8 +15,7 @@ def main():
         from .cli import helper
         return helper()
     screen = sys.platform == "win32" or bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
-    terminal = sys.stdin is not None and sys.stdin.isatty()
-    if "--gui" in sys.argv or (len(sys.argv) == 1 and screen and not terminal):
+    if "--gui" in sys.argv or (len(sys.argv) == 1 and screen):
         try:
             from .gui import run
         except ImportError:

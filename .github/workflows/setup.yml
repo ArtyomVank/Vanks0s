@@ -45,5 +45,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for f in dist/VanksSetup.exe dist/vanks-setup-linux-x86_64 dist/vanks-setup.pyz; do
-            [ -f "$f" ] && gh release upload "${{ github.event.release.tag_name }}" "$f" --clobber
+            # if, а не [ ] && …: на Windows нет .pyz, и ложь в конце цикла валила шаг
+            if [ -f "$f" ]; then gh release upload "${{ github.event.release.tag_name }}" "$f" --clobber; fi
           done
