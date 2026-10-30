@@ -14,11 +14,19 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV="${ROOT}/build/setup-venv"
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1; BIN="${VENV}/Scripts"; SEP=";" ;; *) WIN=0; BIN="${VENV}/bin"; SEP=":" ;; esac
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; *) WIN=0 ;; esac
+if [ "${WIN}" = 1 ]; then
+    # PyInstaller — обычная программа Windows: /d/a/… ей непонятен, нужен D:/a/…
+    ROOT="$(cygpath -m "${ROOT}")"; VENV="${ROOT}/build/setup-venv"; BIN="${VENV}/Scripts"; SEP=";"
+else
+    BIN="${VENV}/bin"; SEP=":"
+fi
 
 [ -x "${BIN}/python" ] || python3 -m venv "${VENV}" 2>/dev/null || python -m venv "${VENV}"
 "${BIN}/python" -m pip install -q --upgrade pip
 "${BIN}/python" -m pip install -q PySide6-Essentials pyinstaller
+# значок .exe из logo.png — PyInstaller переводит его в .ico через Pillow
+[ "${WIN}" = 1 ] && "${BIN}/python" -m pip install -q pillow
 
 cd "${ROOT}/setup"
 args=(--noconfirm --clean --onefile --name "$([ "${WIN}" = 1 ] && echo VanksSetup || echo vanks-setup-linux-x86_64)"
