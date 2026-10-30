@@ -189,8 +189,10 @@ local mod = "SUPER"
 
 -- Окна оболочки вызываются через глобальные сочетания (протокол
 -- hyprland-global-shortcuts): без запуска процессов, без задержки.
--- Super, отпущенный без других клавиш — окно приложений.
-hl.bind(mod .. " + SUPER_L", hl.dsp.global("delta:launcher"), { release = true })
+-- Super, отпущенный без других клавиш — окно приложений. На отпускании
+-- global шлёт оболочке «отпущено», а не «нажато» — поэтому отдельное
+-- сочетание launcher-key (common/Shortcuts.qml ловит его onReleased)
+hl.bind(mod .. " + SUPER_L", hl.dsp.global("delta:launcher-key"), { release = true })
 hl.bind(mod .. " + S",       hl.dsp.global("delta:wallpapers"))
 hl.bind(mod .. " + N",       hl.dsp.global("delta:notifications"))
 hl.bind(mod .. " + W",       hl.dsp.global("delta:widgets"))

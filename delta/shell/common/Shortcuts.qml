@@ -24,6 +24,8 @@ Scope {
     component Key: GlobalShortcut { appid: "delta" }
 
     Key { name: "launcher";        description: "Окно приложений";        onPressed: root.launcher() }
+    // одиночный Super — бинд на отпускание, а global в нём шлёт «отпущено»
+    Key { name: "launcher-key";    description: "Окно приложений (Super)"; onReleased: root.launcher() }
     Key { name: "wallpapers";      description: "Выбор обоев";            onPressed: root.wallpapers() }
     Key { name: "notifications";   description: "Центр уведомлений";      onPressed: root.notifications() }
     Key { name: "widgets";         description: "Редактор виджетов";      onPressed: root.widgets() }
