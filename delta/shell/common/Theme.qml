@@ -54,16 +54,48 @@ Singleton {
     readonly property var current: themes.find(t => t.id === appearance.theme) || builtinThemes[2]
     readonly property bool light: current.light === true
 
-    readonly property real opacity: Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
-    readonly property color base: Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
+    // Стиль — не цвет, а сам вид панелей (appearance.style):
+    //   delta  — тонированное стекло с размытием (как было);
+    //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
+    //   liquid — жидкое стекло: прозрачнее, сильнее размытие, светлая кромка (Sheen).
+    // preset — что ставится при выборе стиля (дальше можно поменять самому).
+    readonly property var styles: [
+        { id: "delta",  name: "Delta",          note: "Тонированное стекло",
+          preset: { glass: 0.62, radius: 18, rounding: 16, blur: true, border: 2 } },
+        { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
+          preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0 } },
+        { id: "liquid", name: "Жидкое стекло",  note: "Прозрачное стекло с бликом по краю",
+          preset: { glass: 0.4, radius: 26, rounding: 22, blur: true, border: 1 } }
+    ]
+    readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
+    readonly property bool flat: style === "gnome"
+    readonly property bool liquid: style === "liquid"
+    // выбрать стиль: вместе с ним — прозрачность, скругления, размытие и рамка окон
+    function applyStyle(id) {
+        const st = styles.find(x => x.id === id);
+        if (!st) return;
+        const p = st.preset;
+        Settings.set("appearance.style", id);
+        Settings.set("appearance.glass", p.glass);
+        Settings.set("appearance.radius", p.radius);
+        Settings.set("windows.rounding", p.rounding);
+        Settings.set("windows.blur", p.blur);
+        Settings.set("windows.border", p.border);
+    }
+
+    readonly property real opacity: flat ? 1 : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
+    // у GNOME панели нейтрально-серые (Adwaita), цвет темы остаётся в акценте
+    readonly property color base: flat ? (light ? "#FAFAFB" : "#242428")
+                                       : Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
     readonly property color glass: Qt.rgba(base.r, base.g, base.b, opacity)
-    readonly property color glass2: Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
+    readonly property color glass2: flat ? (light ? "#FFFFFF" : "#303034")
+                                         : Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
     readonly property color accent: /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
 
     readonly property color fg:    light ? "#17131F" : "#ECE9F7"
     readonly property color fg2:   light ? "#433E57" : "#C9C3E0"
     readonly property color fg3:   light ? "#5C576E" : "#A9A3C2"
-    readonly property color line:  light ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(1, 1, 1, 0.10)
+    readonly property color line:  light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
     readonly property color soft:  light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
     readonly property color soft2: light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.10)
     readonly property color inv:   light ? "#FFFFFF" : "#140F26"

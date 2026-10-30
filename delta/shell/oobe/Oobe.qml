@@ -31,7 +31,7 @@ Scope {
     property bool leaving: false
     property real time: 0
 
-    readonly property int pages: 6
+    readonly property int pages: 7
 
     function start() {
         page = 0;
@@ -204,10 +204,11 @@ Scope {
 
                     Slot { index: 0; current: root.page; PageLang { id: langPage; anchors.fill: parent; shown: root.active && root.page === 0 && root.gather > 0.7 } }
                     Slot { index: 1; current: root.page; PageLook { anchors.fill: parent; shown: root.page === 1 } }
-                    Slot { index: 2; current: root.page; PageWall { anchors.fill: parent; shown: root.page === 2 } }
-                    Slot { index: 3; current: root.page; PageDock { anchors.fill: parent; shown: root.page === 3 } }
-                    Slot { index: 4; current: root.page; PageFeel { anchors.fill: parent; shown: root.page === 4 } }
-                    Slot { index: 5; current: root.page; PageStart { id: startPage; anchors.fill: parent; shown: root.page === 5; onStarted: at => root.finish(at) } }
+                    Slot { index: 2; current: root.page; PageStyle { anchors.fill: parent; shown: root.page === 2 } }
+                    Slot { index: 3; current: root.page; PageWall { anchors.fill: parent; shown: root.page === 3 } }
+                    Slot { index: 4; current: root.page; PageDock { anchors.fill: parent; shown: root.page === 4 } }
+                    Slot { index: 5; current: root.page; PageFeel { anchors.fill: parent; shown: root.page === 5 } }
+                    Slot { index: 6; current: root.page; PageStart { id: startPage; anchors.fill: parent; shown: root.page === 6; onStarted: at => root.finish(at) } }
                 }
 
                 // --- навигация ---

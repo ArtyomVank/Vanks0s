@@ -143,6 +143,15 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- «желе» и подсветка края: слои во весь экран меняются каждый кадр —
+-- с размытием под ними перетаскивание заметно подтормаживает
+hl.layer_rule({
+    name  = "delta-drag-layers",
+    match = { namespace = "^delta-(jelly|snap)$" },
+    blur    = false,
+    no_anim = true,
+})
+
 -- кнопки окна: прозрачный слой во весь экран, размытие ему не нужно
 hl.layer_rule({
     name  = "delta-window-controls",
@@ -369,6 +378,9 @@ local function drag_tick()
         return
     end
     local zone, z = drag_zone(w.monitor, p)
+    -- окно стоит на месте — файл не трогаем, оболочке нечего пересчитывать
+    if w.at.x == drag.lx and w.at.y == drag.ly and zone == drag.zone then return end
+    drag.lx, drag.ly = w.at.x, w.at.y
     drag.zone, drag.rect = zone, z
     drag_write("move", w, zone, z)
 end
@@ -380,8 +392,8 @@ local drag_timer = nil
 -- delta_drag.press()/release() можно звать и через `hyprctl eval` —
 -- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
 function delta_drag.press()
-    drag.addr, drag.moving, drag.zone = nil, false, ""
-    if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 12, type = "repeat" }) end
+    drag.addr, drag.moving, drag.zone, drag.lx, drag.ly = nil, false, "", nil, nil
+    if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 7, type = "repeat" }) end
     drag_timer:set_enabled(true)
 end
 

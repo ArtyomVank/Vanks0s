@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import qs.common
+import qs.common.ui
 
 // Тело дока: «край экрана вздувается → капля отрывается и стекает → растекается
 // в панель» и обратно (собирается в каплю и втягивается в край).
@@ -301,6 +302,9 @@ Item {
         border.color: Theme.accent
         // в открытом виде значки увеличиваются и подсказки выходят за край панели
         clip: !root.rest || root.morph
+
+        // кромка «жидкого стекла» у сплошной панели
+        Sheen { radius: body.radius; visible: Theme.liquid && root.rest && !root.tiles && width > 2 }
 
         HoverHandler { id: bodyHover }
         // нажатие в любом месте панели: сплющивается и отпружинивает

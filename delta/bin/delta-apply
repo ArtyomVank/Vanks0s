@@ -95,7 +95,12 @@ lua=$(jq -r '
   "    },",
   "    decoration = {",
   "        rounding = \(.windows.rounding | int(16) | clamp(0; 40)),",
-  "        blur = { enabled = \(.windows.blur | bool(true)) },",
+  # «Жидкое стекло» (appearance.style): размытие гуще и сочнее
+  (if .appearance.style == "liquid" then
+     "        blur = { enabled = \(.windows.blur | bool(true)), size = 9, passes = 4, vibrancy = 0.32, brightness = 1.06 },"
+   else
+     "        blur = { enabled = \(.windows.blur | bool(true)), size = 6, passes = 3, vibrancy = 0.17, brightness = 1 },"
+   end),
   "    },",
   "    animations = { enabled = \(.windows.animations | bool(true)) },",
   "    render = { cm_auto_hdr = \(if .display.autoHdr == true then 1 else 0 end) },",
@@ -111,6 +116,11 @@ lua=$(jq -r '
   "        },",
   "    },",
   "})",
+  "",
+  # стиль GNOME: панели оболочки сплошные — размывать под ними нечего
+  (if .appearance.style == "gnome" then
+     "hl.layer_rule({ name = \"delta-flat-surfaces\", match = { namespace = \"^delta-\" }, blur = false })"
+   else empty end),
   "",
   # Окна по умолчанию плавающие: их можно двигать и растягивать, а не
   # раскладывать плиткой. Выключается в «Настройки → Окна».

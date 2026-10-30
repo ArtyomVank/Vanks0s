@@ -703,6 +703,12 @@ var strings = {
     "МБ/с": "MB/s",
     "ГБ/с": "GB/s",
     "Найдено": "Found",
+    "Жидкое стекло": "Liquid glass",
+    "Тонированное стекло": "Tinted glass",
+    "Сплошные панели без прозрачности": "Solid panels, no transparency",
+    "Прозрачное стекло с бликом по краю": "Clear glass with a bright rim",
+    "В стиле GNOME панели всегда сплошные": "Panels are always solid in the GNOME style",
+    "Как выглядят доки, меню и окна. Цвета остаются вашими.": "How docks, menus and windows look. Your colors stay the same.",
     "Все приложения": "All apps",
     "": ""
 };

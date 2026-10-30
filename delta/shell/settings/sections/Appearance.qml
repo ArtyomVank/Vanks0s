@@ -22,6 +22,30 @@ ColumnLayout {
     property var iconThemes: []
     property var cursorThemes: []
 
+    // --- стиль: не цвет, а вид панелей (Theme.styles) ---
+    Card {
+        title: I18n.tr("Стиль")
+
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: styleRow.implicitHeight + 24
+            RowLayout {
+                id: styleRow
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                spacing: 10
+                Repeater {
+                    model: Theme.styles
+                    delegate: StyleCard {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        styleId: modelData.id
+                        onClicked: Theme.applyStyle(styleId)
+                    }
+                }
+            }
+        }
+    }
+
     // --- тема ---
     Card {
         title: I18n.tr("Тема")
@@ -339,7 +363,9 @@ ColumnLayout {
         SliderRow {
             icon: "eye"
             title: I18n.tr("Непрозрачность доков и окон")
-            subtitle: I18n.tr("Меньше — сквозь панели больше видно обои")
+            subtitle: Theme.flat ? I18n.tr("В стиле GNOME панели всегда сплошные") : I18n.tr("Меньше — сквозь панели больше видно обои")
+            enabled: !Theme.flat
+            opacity: enabled ? 1 : 0.5
             from: 0.2; to: 0.98; step: 0.01
             value: Theme.opacity
             live: true

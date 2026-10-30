@@ -2,7 +2,8 @@ import QtQuick
 import qs.common
 
 // Стеклянная подложка: цвет темы с прозрачностью из настроек, тонкая рамка.
-// Размытие под ней делает Hyprland (layer_rule для delta-*).
+// Размытие под ней делает Hyprland (layer_rule для delta-*). В стиле
+// «Жидкое стекло» поверх — светлая кромка (Sheen).
 //     Glass { strong: true; radius: Theme.radius }
 Rectangle {
     // strong — плотнее (меню, окна поверх обоев)
@@ -12,4 +13,6 @@ Rectangle {
     radius: Theme.radius
     border.color: Theme.line
     border.width: 1
+
+    Sheen { radius: parent.radius }
 }

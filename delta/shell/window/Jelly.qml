@@ -175,12 +175,21 @@ Scope {
             width: root.target.width
             height: root.target.height
             captureSource: root.active && root.capturing ? (root.toplevel?.wayland ?? null) : null
-            live: true
+            // не каждый кадр: снимок окна заставляет Hyprland рисовать его
+            // ещё раз — хватит обновлять содержимое раз в 80 мс (refresh)
+            live: false
             // первый кадр копии на месте — теперь можно прятать окно
             onHasContentChanged: if (hasContent && root.active && !root.hidden && DragState.dragging) {
                 root.setOpacity(false);
                 root.hidden = true;
             }
+        }
+        Timer {
+            id: refresh
+            interval: 80
+            repeat: true
+            running: root.active && root.capturing && cap.hasContent
+            onTriggered: cap.captureFrame()
         }
         ShaderEffectSource {
             id: tex
