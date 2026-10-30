@@ -120,7 +120,8 @@ Scope {
             Hyprland.refreshToplevels();
             const h = Hyprland.toplevels.values.find(t => t.wayland && t.wayland.appId === "delta-settings");
             const o = h?.lastIpcObject;
-            if (!o || !Array.isArray(o.at) || !Array.isArray(o.size)) return;
+            // at/size — списки Qt, не массивы JS: Array.isArray для них false
+            if (!o || !(o.at?.length >= 2) || !(o.size?.length >= 2)) return;
             if ((o.workspace?.name ?? "").startsWith("special:")) return;
             const mon = Hyprland.monitors.values.find(m => m.id === o.monitor);
             const scr = mon ? Quickshell.screens.find(s => s.name === mon.name) : null;

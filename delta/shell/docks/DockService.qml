@@ -254,7 +254,8 @@ Singleton {
         for (const t of Hyprland.toplevels.values) {
             if (t.workspace !== ws) continue;
             const o = t.lastIpcObject;
-            if (!o || !Array.isArray(o.at) || !Array.isArray(o.size) || o.hidden === true || o.mapped === false) continue;
+            // at/size из lastIpcObject — списки Qt, не массивы JS: Array.isArray для них false
+            if (!o || !(o.at?.length >= 2) || !(o.size?.length >= 2) || o.hidden === true || o.mapped === false) continue;
             const x = o.at[0] - mon.x, y = o.at[1] - mon.y;
             if (x < r.x + r.w + pad && x + o.size[0] > r.x - pad && y < r.y + r.h + pad && y + o.size[1] > r.y - pad) return true;
         }

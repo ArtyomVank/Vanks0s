@@ -59,7 +59,8 @@ Scope {
         const ws = w.workspace?.name ?? "";
         // свёрнутые живут на скрытом столе — кнопки им не нужны
         if (ws.startsWith("special:")) { setWin(null); return; }
-        if (!Array.isArray(w.at) || !Array.isArray(w.size)) { setWin(null); return; }
+        // at/size — списки Qt, не массивы JS: Array.isArray для них false
+        if (!(w.at?.length >= 2) || !(w.size?.length >= 2)) { setWin(null); return; }
         if (skipped(w.class ?? "")) { setWin(null); return; }
         setWin({
             address: norm(w.address),

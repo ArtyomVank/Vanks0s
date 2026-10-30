@@ -301,16 +301,21 @@ local drag = { addr = nil, moving = false, zone = "", seq = 0, snapped = {} }
 local dragfile = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr/"
     .. (os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or "") .. "/delta-drag.json"
 
+-- %d в string.format не берёт дробные числа, а курсор настоящей мыши стоит
+-- между пикселями (у виртуальной в проверках — ровно на пикселе)
+local function int(v) return math.floor((tonumber(v) or 0) + 0.5) end
+
 local function drag_write(state, w, zone, z)
     drag.seq = drag.seq + 1
-    local f = io.open(dragfile, "w")
-    if not f then return end
     z = z or { x = 0, y = 0, w = 0, h = 0 }
-    f:write(string.format(
+    local line = string.format(
         '{"seq":%d,"state":"%s","address":"%s","monitor":"%s","x":%d,"y":%d,"w":%d,"h":%d,"gx":%d,"gy":%d,"zone":"%s","zx":%d,"zy":%d,"zw":%d,"zh":%d}\n',
         drag.seq, state, w and w.address or "", w and w.monitor and w.monitor.name or "",
-        w and w.at.x or 0, w and w.at.y or 0, w and w.size.x or 0, w and w.size.y or 0,
-        drag.gx or 0, drag.gy or 0, zone or "", z.x, z.y, z.w, z.h))
+        int(w and w.at.x), int(w and w.at.y), int(w and w.size.x), int(w and w.size.y),
+        int(drag.gx), int(drag.gy), zone or "", int(z.x), int(z.y), int(z.w), int(z.h))
+    local f = io.open(dragfile, "w")
+    if not f then return end
+    f:write(line)
     f:close()
 end
 
@@ -424,7 +429,7 @@ function delta_drag.release()
         if w and drag.x0 and w.address == drag.addr and math.abs(w.at.x - drag.x0) + math.abs(w.at.y - drag.y0) >= 3 then
             drag_note(string.format("пропущено %s %s: floating=%s fullscreen=%s размер %dx%d → %dx%d",
                 w.address, w.class or "?", tostring(w.floating), tostring(w.fullscreen),
-                drag.w0, drag.h0, w.size.x, w.size.y))
+                int(drag.w0), int(drag.h0), int(w.size.x), int(w.size.y)))
         end
         return
     end
