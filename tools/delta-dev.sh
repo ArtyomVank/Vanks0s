@@ -3,6 +3,8 @@
 #
 #   tools/delta-dev.sh check            проверки без запуска: bash -n, JSON, конфиг Hyprland
 #   tools/delta-dev.sh nested [сек]     Delta во вложенном Hyprland (окно в текущей сессии)
+#   tools/delta-dev.sh fresh [сек]      как первый запуск: чистые настройки, при входе экран
+#                                       блокировки, после него — первая настройка (сессия «fresh»)
 #   tools/delta-dev.sh ipc <...>        команда оболочке во вложенной сессии:
 #                                       tools/delta-dev.sh ipc call shell set docks.apps.autohide false
 #   tools/delta-dev.sh shot [файл]      снимок экрана вложенной сессии
@@ -22,7 +24,7 @@ set -euo pipefail
 
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 DELTA=${PROJECT_DIR}/delta
-DEV_NAME=${DELTA_DEV_NAME:-main}
+DEV_NAME=${DELTA_DEV_NAME:-$([ "${1:-}" = fresh ] && echo fresh || echo main)}
 DEV_HOME=${DELTA_DEV_HOME:-${PROJECT_DIR}/build/delta-home-${DEV_NAME}}
 STATE=${DEV_HOME}/.nested-display
 PIDFILE=${DEV_HOME}/.nested-pid
@@ -182,13 +184,25 @@ cmd_log()  {
     grep -vE ' DEBUG' "${l}"
 }
 
+# Первый запуск: HOME сессии стирается (только build/delta-home-<имя>),
+# настроек нет — экран блокировки как после загрузки, затем первая настройка.
+cmd_fresh() {
+    case "${DEV_HOME}" in "${PROJECT_DIR}"/build/delta-home-*) ;; *) fail "fresh стирает только build/delta-home-*: ${DEV_HOME}" ;; esac
+    cmd_stop >/dev/null 2>&1 || true
+    rm -rf -- "${DEV_HOME}"
+    log "чистый HOME: ${DEV_HOME}"
+    DELTA_OOBE=1 DELTA_LOCK_ON_START=1 cmd_nested "$@"
+    log "экран блокировки — пароль вашей учётной записи; затем первая настройка"
+}
+
 case "${1:-}" in
     check)  shift; cmd_check "$@" ;;
     nested) shift; cmd_nested "$@" ;;
+    fresh)  shift; cmd_fresh "$@" ;;
     ipc)    shift; cmd_ipc "$@" ;;
     shot)   shift; cmd_shot "$@" ;;
     log)    shift; cmd_log "$@" ;;
     stop)   shift; cmd_stop "$@" ;;
     exec)   shift; cmd_exec "$@" ;;
-    *) sed -n "2,22p" "$0"; exit 2 ;;
+    *) sed -n "2,23p" "$0"; exit 2 ;;
 esac

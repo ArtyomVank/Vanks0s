@@ -89,7 +89,34 @@ Scope {
         property bool forced: false
         // 0 — живая сессия ISO или вложенная, без DELTA_OOBE=1 не показываем
         command: ["sh", "-c", "{ [ -d /run/archiso ] || [ -n \"${DELTA_NESTED:-}\" ]; } && [ \"${DELTA_OOBE:-}\" != 1 ]"]
-        onExited: code => { if (code !== 0) root.start(); else ShellState.desktopShown = true; }
+        onExited: code => { if (code !== 0) root.begin(); else ShellState.desktopShown = true; }
+    }
+
+    // Если при входе сначала экран блокировки (lock.onStart, DELTA_LOCK_ON_START),
+    // помощник ждёт, пока его снимут, — иначе отыграл бы под ним. Блокировка
+    // так и не пришла за 5 с (оболочку перезапустили) — начинаем без неё.
+    property bool afterUnlock: false
+    property bool lockSeen: false
+    readonly property bool lockExpected: Quickshell.env("DELTA_LOCK_ON_START") === "1" || Settings.get("lock.onStart", false) === true
+    function begin() {
+        if (ShellState.locked || (lockExpected && !lockSeen)) {
+            afterUnlock = true;
+            lockWait.restart();
+            return;
+        }
+        start();
+    }
+    Connections {
+        target: ShellState
+        function onLockedChanged() {
+            if (ShellState.locked) { root.lockSeen = true; lockWait.stop(); return; }
+            if (root.afterUnlock) { root.afterUnlock = false; root.start(); }
+        }
+    }
+    Timer {
+        id: lockWait
+        interval: 5000
+        onTriggered: if (root.afterUnlock && !ShellState.locked) { root.afterUnlock = false; root.start(); }
     }
 
     // язык для программ (LANG): со следующего входа, если такая локаль есть

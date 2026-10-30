@@ -271,12 +271,14 @@ Scope {
     Timer { id: releaseTimer; interval: 2000; onTriggered: sleepWatch.release() }
 
     // «Входить без пароля»: автовход и сразу экран блокировки. Метка в XDG_RUNTIME_DIR
-    // живёт до выхода из сессии, поэтому перезапуск оболочки не блокирует экран ещё раз.
+    // (своя у каждого запуска Hyprland) живёт до выхода из сессии, поэтому перезапуск
+    // оболочки не блокирует экран ещё раз. DELTA_LOCK_ON_START=1 — то же без
+    // настройки (tools/delta-dev.sh fresh: «первый запуск» во вложенной сессии).
     // Там же — восстановление после падения оболочки: logind помнит LockedHint.
     Process {
         id: startCheck
         command: ["sh", "-c",
-            "m=\"${XDG_RUNTIME_DIR:-/tmp}/delta-lock-started\"; first=0; [ -e \"$m\" ] || { : > \"$m\"; first=1; }; " +
+            "m=\"${XDG_RUNTIME_DIR:-/tmp}/delta-lock-started-${HYPRLAND_INSTANCE_SIGNATURE:-0}\"; first=0; [ -e \"$m\" ] || { : > \"$m\"; first=1; }; " +
             "echo $first; busctl --system get-property org.freedesktop.login1 /org/freedesktop/login1/session/auto " +
             "org.freedesktop.login1.Session LockedHint 2>/dev/null || echo none"]
         stdout: StdioCollector {
@@ -285,7 +287,7 @@ Scope {
                 const first = l[0] === "1";
                 const wasLocked = !root.dryRun && (l[1] || "").trim() === "b true";
                 if (wasLocked) { console.info("[delta] сессия была заблокирована — восстанавливаем блокировку"); root.lock(true); }
-                else if (first && Settings.get("lock.onStart", false)) root.lock(true);
+                else if (first && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) root.lock(true);
             }
         }
     }

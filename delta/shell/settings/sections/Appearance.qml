@@ -360,7 +360,30 @@ ColumnLayout {
             }
         }
 
+        // у жидкого стекла вместо прозрачности — матовость
         SliderRow {
+            visible: Theme.liquid
+            icon: "eye"
+            title: I18n.tr("Матовость стекла")
+            subtitle: I18n.tr("Меньше — прозрачное стекло, больше — молочное, сильнее размыто")
+            from: 0; to: 1; step: 0.01
+            value: Theme.frost
+            live: true
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("appearance.frost", Math.round(v * 100) / 100)
+        }
+        SettingRow {
+            visible: Theme.liquid
+            icon: "rain"
+            title: I18n.tr("Капли на стекле")
+            subtitle: I18n.tr("По докам и виджетам медленно стекают капли")
+            Toggle {
+                checked: root.a.drops ?? true
+                onToggled: v => Settings.set("appearance.drops", v)
+            }
+        }
+        SliderRow {
+            visible: !Theme.liquid
             icon: "eye"
             title: I18n.tr("Непрозрачность доков и окон")
             subtitle: Theme.flat ? I18n.tr("В стиле GNOME панели всегда сплошные") : I18n.tr("Меньше — сквозь панели больше видно обои")

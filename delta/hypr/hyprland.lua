@@ -385,7 +385,8 @@ local function drag_tick()
     drag_write("move", w, zone, z)
 end
 
--- таймер — при первом щелчке: `Hyprland --verify-config` (delta-apply,
+-- таймер — раз в 4 мс (250 Гц): желе успевает за курсором и на 240 Гц.
+-- Создаётся при первом щелчке: `Hyprland --verify-config` (delta-apply,
 -- delta-dev check) падает, если создать его во время разбора конфига
 local drag_timer = nil
 
@@ -393,7 +394,7 @@ local drag_timer = nil
 -- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
 function delta_drag.press()
     drag.addr, drag.moving, drag.zone, drag.lx, drag.ly = nil, false, "", nil, nil
-    if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 7, type = "repeat" }) end
+    if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 4, type = "repeat" }) end
     drag_timer:set_enabled(true)
 end
 

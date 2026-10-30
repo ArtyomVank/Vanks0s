@@ -65,7 +65,7 @@ Singleton {
         { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
           preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0 } },
         { id: "liquid", name: "Жидкое стекло",  note: "Прозрачное стекло с бликом по краю",
-          preset: { glass: 0.4, radius: 26, rounding: 22, blur: true, border: 1 } }
+          preset: { glass: 0.4, frost: 0.5, radius: 26, rounding: 22, blur: true, border: 1 } }
     ]
     readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
     readonly property bool flat: style === "gnome"
@@ -77,13 +77,21 @@ Singleton {
         const p = st.preset;
         Settings.set("appearance.style", id);
         Settings.set("appearance.glass", p.glass);
+        if (p.frost !== undefined) Settings.set("appearance.frost", p.frost);
         Settings.set("appearance.radius", p.radius);
         Settings.set("windows.rounding", p.rounding);
         Settings.set("windows.blur", p.blur);
         Settings.set("windows.border", p.border);
     }
 
-    readonly property real opacity: flat ? 1 : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
+    // Матовость жидкого стекла (appearance.frost, 0…1): у прозрачного подложка
+    // едва тонирована и размытие слабое, у матового — молочная дымка и
+    // густое размытие (его силу задаёт delta-apply). У Delta вместо неё —
+    // прозрачность (appearance.glass).
+    readonly property real frost: Math.max(0, Math.min(1, Number(appearance.frost ?? 0.5)))
+    readonly property real opacity: flat ? 1
+        : liquid ? 0.12 + 0.26 * frost
+        : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
     // у GNOME панели нейтрально-серые (Adwaita), цвет темы остаётся в акценте
     readonly property color base: flat ? (light ? "#FAFAFB" : "#242428")
                                        : Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
