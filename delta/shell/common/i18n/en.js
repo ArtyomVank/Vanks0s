@@ -142,6 +142,8 @@ var strings = {
     "Игры из Epic, GOG, Battle.net и эмуляторы в одном месте": "Games from Epic, GOG, Battle.net and emulators in one place",
     "Мессенджер": "Messenger",
     "Плеер, который открывает всё": "The player that opens everything",
+    "Ресурсы": "Resources",
+    "Загрузка процессора, видеокарты, памяти и диска, список процессов": "CPU, GPU, memory and disk load, and a list of processes",
     "Библиотеки": "Libraries",
     "Драйверы": "Drivers",
     "Установлено": "Installed",

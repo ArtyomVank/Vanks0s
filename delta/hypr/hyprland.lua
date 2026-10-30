@@ -312,6 +312,22 @@ local function drag_write(state, w, zone, z)
     f:close()
 end
 
+-- ~/.local/state/delta/drag.log: замеченные перетаскивания и пропущенные
+-- (окно уехало, а «begin» не было) — с причиной. Журнал оболочки живёт до
+-- перезагрузки, этот остаётся: по нему и jelly.log видно, где теряется «желе»
+local draglog = (os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")) .. "/delta/drag.log"
+local function drag_note(text)
+    local f = io.open(draglog, "a")
+    if not f then return end
+    if f:seek("end") > 65536 then
+        f:close()
+        f = io.open(draglog, "w")
+        if not f then return end
+    end
+    f:write(os.date("%Y-%m-%d %H:%M:%S "), text, "\n")
+    f:close()
+end
+
 -- зона у края под курсором: left/right — половины, tl/tr/bl/br — четверти,
 -- max — весь экран; прямоугольник — с отступами, без мест доков
 local function drag_zone(m, p)
@@ -375,6 +391,7 @@ local function drag_tick()
             hl.dispatch(hl.dsp.window.move({ x = math.floor(p.x - drag.gx), y = math.floor(p.y - drag.gy), window = sel }))
         end
         drag_write("begin", w, "", nil)
+        drag_note("начато " .. w.address .. " " .. (w.class or "?") .. (w.xwayland and " (XWayland)" or ""))
         return
     end
     local zone, z = drag_zone(w.monitor, p)
@@ -400,7 +417,15 @@ end
 
 function delta_drag.release()
     if drag_timer then drag_timer:set_enabled(false) end
-    if not drag.moving then return end
+    if not drag.moving then
+        local w = hl.get_active_window()
+        if w and drag.x0 and w.address == drag.addr and math.abs(w.at.x - drag.x0) + math.abs(w.at.y - drag.y0) >= 3 then
+            drag_note(string.format("пропущено %s %s: floating=%s fullscreen=%s размер %dx%d → %dx%d",
+                w.address, w.class or "?", tostring(w.floating), tostring(w.fullscreen),
+                drag.w0, drag.h0, w.size.x, w.size.y))
+        end
+        return
+    end
     drag.moving = false
     local w = hl.get_active_window()
     local zone, z = drag.zone, drag.rect

@@ -143,7 +143,10 @@ Singleton {
           pkgs: ["telegram-desktop"] },
         { id: "vlc", icon: "play", title: "VLC", on: false,
           text: I18n.tr("Плеер, который открывает всё"),
-          pkgs: ["vlc"] }
+          pkgs: ["vlc"] },
+        { id: "resources", icon: "gauge", title: I18n.tr("Ресурсы"), on: false,
+          text: I18n.tr("Загрузка процессора, видеокарты, памяти и диска, список процессов"),
+          pkgs: ["resources"] }
     ]
 
     readonly property var store: ({ id: "store", pkgs: ["gnome-software", "flatpak"] })

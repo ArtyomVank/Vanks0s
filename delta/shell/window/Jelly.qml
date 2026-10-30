@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Wayland
 import qs.common
 
@@ -56,13 +57,24 @@ Scope {
         target: DragState
         function onBegan() {
             root.note("drag", "перетаскивание замечено (" + DragState.address + ")");
-            if (!root.enabled) { root.note("off", "выключено: windows.jelly = 0 или анимации окон выключены"); return; }
+            root.traceEnd("прервано новым перетаскиванием");
+            root.trace = { t0: Date.now(), addr: DragState.address, cls: "", frame: -1, hide: -1, peak: 0 };
+            if (!root.enabled) {
+                root.note("off", "выключено: windows.jelly = 0 или анимации окон выключены");
+                root.traceEnd("выключено (windows.jelly = 0 или анимации окон)");
+                return;
+            }
             // прежняя копия ещё не ушла — окно возвращаем сразу
             handBack.stop();
             if (root.hidden) { root.setOpacity(true); root.hidden = false; }
             root.active = false;
             const h = Hyprland.toplevels.values.find(t => root.norm(t.address) === DragState.address);
-            if (!h || !h.wayland) { root.note("lost", "окно " + DragState.address + " не найдено среди окон Wayland (XWayland?)"); return; }
+            if (h) root.trace.cls = h.lastIpcObject?.class || h.title || "";
+            if (!h || !h.wayland) {
+                root.note("lost", "окно " + DragState.address + " не найдено среди окон Wayland (XWayland?)");
+                root.traceEnd(h ? "нет окна Wayland для захвата" : "окна нет среди окон Hyprland");
+                return;
+            }
             root.addr = DragState.address;
             root.toplevel = h;
             root.monitorName = DragState.monitor;
@@ -95,6 +107,7 @@ Scope {
         function onEnded(snapped) {
             if (!root.active) return;
             // у края окно само переедет в свою зону — копия там не нужна
+            root.traceEnd(snapped ? "у края" : root.hidden ? "отпущено" : root.capturing && !cap.hasContent ? "кадра копии не было — окно не спрятано" : "окно не спрятано");
             if (snapped || !root.hidden) root.stopNow(snapped);
             else { root.releasing = true; settleLimit.restart(); }
         }
@@ -118,6 +131,28 @@ Scope {
         interval: 700
         onTriggered: if (root.active && DragState.dragging && !cap.hasContent)
             root.note("capture", "нет кадра окна за 0,7 с — захват окна (screencopy) не работает, окно едет без желе")
+    }
+
+    // След каждого перетаскивания — строка в ~/.local/state/delta/jelly.log
+    // (рядом drag.log от Hyprland; оба переживают перезагрузку): через сколько
+    // пришёл первый кадр копии, когда спряталось окно, на сколько отстал низ
+    property var trace: null
+    property var traceLines: []
+    function traceEnd(result) {
+        const t = trace;
+        if (!t) return;
+        trace = null;
+        const ms = v => v < 0 ? "нет" : v + " мс";
+        const line = Qt.formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss") + " " + t.addr + " " + t.cls
+            + ": кадр " + ms(t.frame) + ", спрятано " + ms(t.hide) + ", отставание " + Math.round(t.peak) + " px — " + result;
+        traceLines = traceLines.concat([line]).slice(-60);
+        traceFile.setText(traceLines.join("\n") + "\n");
+    }
+    FileView {
+        id: traceFile
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/delta/jelly.log"
+        printErrors: false
+        onLoaded: root.traceLines = text().split("\n").filter(l => l !== "")
     }
 
     // пружины колец: дальние мягче и сильнее раскачиваются
@@ -151,6 +186,7 @@ Scope {
                 if (len > 0.4 || Math.abs(p.vx) + Math.abs(p.vy) > 8) calm = false;
                 out.push(ox, oy);
             }
+            if (root.trace) root.trace.peak = Math.max(root.trace.peak, Math.hypot(out[8], out[9]));
             root.o12 = Qt.vector4d(out[0], out[1], out[2], out[3]);
             root.o34 = Qt.vector4d(out[4], out[5], out[6], out[7]);
             root.o5 = Qt.vector4d(out[8], out[9], 0, 0);
@@ -189,6 +225,7 @@ Scope {
         if (active && capturing && !hidden && cap.hasContent && DragState.dragging) {
             setOpacity(false);
             hidden = true;
+            if (trace && trace.hide < 0) trace.hide = Date.now() - trace.t0;
         }
     }
 
@@ -213,7 +250,10 @@ Scope {
             // каждый кадр, с частотой экрана: и форма, и содержимое окна
             live: true
             // первый кадр копии на месте — теперь можно прятать окно
-            onHasContentChanged: root.tryHide()
+            onHasContentChanged: {
+                if (hasContent && root.trace && root.trace.frame < 0) root.trace.frame = Date.now() - root.trace.t0;
+                root.tryHide();
+            }
         }
         ShaderEffectSource {
             id: tex
