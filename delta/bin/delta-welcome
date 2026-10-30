@@ -31,8 +31,13 @@ case "${1:-}" in
     --first-run)
         # live-ISO: там работает установщик
         [ -d /run/archiso ] && exit 0
-        # вложенная сессия разработчика
-        [ -n "${DELTA_NESTED:-}" ] && exit 0
+        # вложенная сессия разработчика: помощник ставил бы пакеты в настоящую
+        # систему. Только в «первом запуске» (tools/delta-dev.sh fresh,
+        # DELTA_OOBE=1) — и то в пробном режиме: показывает, но не ставит
+        if [ -n "${DELTA_NESTED:-}" ]; then
+            [ "${DELTA_OOBE:-}" = 1 ] || exit 0
+            export DELTA_DRY_RUN=1
+        fi
         if [ -f "${CONFIG}" ] && jq -e '.welcome.done == true' "${CONFIG}" >/dev/null 2>&1; then
             exit 0
         fi

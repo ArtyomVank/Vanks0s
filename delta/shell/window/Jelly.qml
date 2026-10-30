@@ -72,7 +72,10 @@ Scope {
             root.rings = r;
             root.releasing = false;
             root.active = true;
-            root.capturing = true;
+            // снимок — всегда заново: старый кадр (прошлое окно или прошлое
+            // перетаскивание) не должен «спрятать» окно раньше своего кадра
+            root.capturing = false;
+            Qt.callLater(() => root.capturing = root.active);
         }
         function onMoved() {
             if (!root.active || DragState.address !== root.addr) return;
@@ -85,6 +88,7 @@ Scope {
             }
             root.target = DragState.win;
             if (DragState.monitor && DragState.monitor !== root.monitorName) root.monitorName = DragState.monitor;
+            root.tryHide();
         }
         function onEnded(snapped) {
             if (!root.active) return;
@@ -157,6 +161,15 @@ Scope {
         }
     }
 
+    // окно прячется, только когда копия уже на месте (есть кадр) —
+    // иначе на миг пропало бы всё
+    function tryHide() {
+        if (active && capturing && !hidden && cap.hasContent && DragState.dragging) {
+            setOpacity(false);
+            hidden = true;
+        }
+    }
+
     readonly property var targetScreen: Quickshell.screens.find(s => s.name === root.monitorName) ?? null
 
     PanelWindow {
@@ -178,10 +191,7 @@ Scope {
             // каждый кадр, с частотой экрана: и форма, и содержимое окна
             live: true
             // первый кадр копии на месте — теперь можно прятать окно
-            onHasContentChanged: if (hasContent && root.active && !root.hidden && DragState.dragging) {
-                root.setOpacity(false);
-                root.hidden = true;
-            }
+            onHasContentChanged: root.tryHide()
         }
         ShaderEffectSource {
             id: tex
@@ -190,6 +200,7 @@ Scope {
             live: true
             visible: false
         }
+
 
         ShaderEffect {
             anchors.fill: parent
@@ -204,6 +215,9 @@ Scope {
             }
             property real radius: root.rounding
             property real border: root.border
+            // тень, как у окна в Hyprland (shadow: range 18): окно спрятано
+            // вместе со своей тенью, без неё копия «моргала» бы
+            property real shade: 18
             property color borderColor: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.93)
             property vector4d o12: root.o12
             property vector4d o34: root.o34

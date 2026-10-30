@@ -284,8 +284,11 @@ Item {
         k: 13
         glow: resting ? 0 : root.g.glow
         color: resting ? (root.tiles ? Theme.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
-        strokeColor: resting && !root.tiles ? (root.editing ? Theme.accent : Theme.line) : "transparent"
+        strokeColor: resting && !root.tiles ? (root.editing ? Theme.accent : Theme.liquid ? "transparent" : Theme.line) : "transparent"
         strokeW: root.editing ? 1.5 : 1
+        // жидкое стекло — во всей фигуре, вместе с выпуклостями и каплей
+        glass: !root.tiles
+        bezel: Math.max(8, Math.min(20, root.thick * 0.42))
     }
 
     Rectangle {
@@ -302,9 +305,6 @@ Item {
         border.color: Theme.accent
         // в открытом виде значки увеличиваются и подсказки выходят за край панели
         clip: !root.rest || root.morph
-
-        // кромка «жидкого стекла» у сплошной панели
-        Sheen { radius: body.radius; refract: true; visible: Theme.liquid && root.rest && !root.tiles && width > 2 }
 
         HoverHandler { id: bodyHover }
         // нажатие в любом месте панели: сплющивается и отпружинивает
