@@ -38,5 +38,6 @@ ls -l "${out}"
 
 tag=${2:-vX.Y.Z}
 log "готово. Выложить в релиз (тег ${tag}):"
-printf '    gh release upload %s %s/%s.part* %s/%s.sha256 %s/vanks-setup.pyz\n' \
-    "${tag}" "${out}" "${name}" "${out}" "${name}" "${DIST}"
+# пути — с кавычками: в них бывают пробелы («Новый том»)
+printf '    gh release upload %q %q.part* %q %q\n' \
+    "${tag}" "${out}/${name}" "${out}/${name}.sha256" "${DIST}/vanks-setup.pyz"
