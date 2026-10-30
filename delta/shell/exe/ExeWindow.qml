@@ -6,11 +6,14 @@ import Quickshell
 import Quickshell.Io
 import qs.common
 import qs.common.ui
+import qs.settings.parts
 
 // Окно «Как открыть программу?» для .exe/.msi: обычно (Wine системы) или
 // через лаунчер — Proton CachyOS (Авто — самый свежий) или Wine в отдельном
 // префиксе. «Всегда так» запоминает выбор для этой программы (exe.excluded /
 // exe.always), поменять — «Настройки» → «Рекомендации». Запускает delta-exe --run.
+// Установщик (setup.exe, .msi) через лаунчер ставит программу в свой префикс:
+// delta-exe --install — её ярлыки потом появляются в меню приложений.
 FloatingWindow {
     id: win
 
@@ -22,14 +25,22 @@ FloatingWindow {
     property string runner: "auto"        // auto · proton · wine
     property string protonPath: ""
     property bool always: false
+    // похоже на установщик — по умолчанию ставим программу, а не просто запускаем
+    readonly property bool looksInstaller: /(setup|install|инстал|\.msi$)/i.test(fileName)
+    property bool install: looksInstaller
+    // имя программы: без расширения, «setup», версий и подчёркиваний
+    property string appName: fileName.replace(/\.(exe|msi)$/i, "")
+        .replace(/[_.]+/g, " ")
+        .replace(/\b(setup|installer|install|win(32|64)?|x(64|86)|v?\d+(\s\d+)*)\b/gi, " ")
+        .replace(/\s+/g, " ").trim() || fileName
     property var info: ({ protons: [], wine: false, umu: false })
     readonly property bool canRun: file.length > 0 && (mode === "normal" || runner === "wine" ? info.wine
         : runner === "proton" ? protonPath.length > 0 : true)
 
     title: I18n.tr("Как открыть программу?")
     implicitWidth: 600
-    implicitHeight: 600
-    minimumSize: Qt.size(520, 520)
+    implicitHeight: 680
+    minimumSize: Qt.size(520, 600)
     color: "transparent"
 
     onClosed: Qt.quit()
@@ -55,6 +66,9 @@ FloatingWindow {
                 list.push(key);
                 Settings.set("exe.excluded", list);
             }
+        } else if (install) {
+            const r = runner === "proton" ? "proton:" + protonPath : runner;
+            cmd = ["delta-exe", "--install", r, file, appName.trim() || fileName];
         } else {
             const r = runner === "proton" ? "proton:" + protonPath : runner;
             cmd = ["delta-exe", "--run", "launcher", r, file];
@@ -192,12 +206,43 @@ FloatingWindow {
                 }
             }
 
+            // --- установить программу ---
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: win.mode === "launcher"
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    ColumnLayout {
+                        spacing: 2
+                        Layout.fillWidth: true
+                        Label { text: I18n.tr("Это установщик — поставить программу"); font.weight: Font.DemiBold; Layout.fillWidth: true }
+                        Label {
+                            text: I18n.tr("Программа получит свою папку Windows, её ярлыки появятся в меню приложений")
+                            tone: 3; size: "small"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        }
+                    }
+                    Toggle { checked: win.install; onToggled: v => { win.install = v; Sounds.play("pop", 60); } }
+                }
+                Field {
+                    Layout.fillWidth: true
+                    visible: win.install
+                    icon: "edit"
+                    placeholder: I18n.tr("Название программы")
+                    text: win.appName
+                    onTextChanged: win.appName = text
+                }
+            }
+
             Item { Layout.fillHeight: true }
 
             // --- «всегда так» и кнопки ---
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
+                // установщик запускают один раз — запоминать нечего
+                visible: !(win.mode === "launcher" && win.install)
                 Rectangle {
                     implicitWidth: 22; implicitHeight: 22; radius: 7
                     color: win.always ? Theme.accent : "transparent"
@@ -220,8 +265,8 @@ FloatingWindow {
                 Item { Layout.fillWidth: true }
                 Btn { text: I18n.tr("Отмена"); kind: "ghost"; onClicked: Qt.quit() }
                 Btn {
-                    text: I18n.tr("Запустить")
-                    icon: "play"
+                    text: win.mode === "launcher" && win.install ? I18n.tr("Установить") : I18n.tr("Запустить")
+                    icon: win.mode === "launcher" && win.install ? "download" : "play"
                     kind: "accent"
                     enabled: win.canRun
                     onClicked: win.launch()

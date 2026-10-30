@@ -36,10 +36,61 @@ declare -A AUR_PKGS=(
 
 say()  { printf '%s\n' "$*" 2>/dev/null || true; [ -w "${LOG}" ] && printf '%s\n' "$*" >>"${LOG}"; return 0; }
 step() { say "::step:: $*"; }
-die()  { printf '%s\n' "$*" >&2 2>/dev/null; [ -w "${LOG}" ] && printf 'ОШИБКА: %s\n' "$*" >>"${LOG}"; exit 1; }
+# к своему тексту — причина от pacman (окно показывает последнюю строку stderr)
+die()  {
+    local m=$* e
+    e=$(pacman_error)
+    [ -n "${e}" ] && m="${m}: ${e}"
+    printf '%s\n' "${m}" >&2 2>/dev/null; [ -w "${LOG}" ] && printf 'ОШИБКА: %s\n' "${m}" >>"${LOG}"; exit 1
+}
 run()  {
     "$@" 2>&1 | while IFS= read -r line; do say "${line}"; done
     return "${PIPESTATUS[0]}"
+}
+
+# Очередь установок. Delta ставит пакеты из помощника, «Рекомендаций»,
+# «Обновлений» и лаунчера — второе окно не должно падать с «pacman занят»:
+# установки Delta ждут друг друга (flock), а чужой pacman (терминал,
+# магазин через libalpm) узнаём по открытому файлу замка, а не по имени
+# процесса, и тоже ждём. Замок без хозяина (выключили питание, убили
+# процесс) убираем — только его.
+QUEUE=/run/delta-packages.lock
+WAIT_MAX=1800   # полчаса: обновление системы на медленной сети идёт долго
+
+lock_holder() {  # кто держит замок pacman: имя процесса или пусто
+    local fd pid
+    fd=$(find /proc/[0-9]*/fd -maxdepth 1 -lname "${LOCK}" -print -quit 2>/dev/null)
+    if [ -n "${fd}" ]; then
+        pid=${fd#/proc/}; pid=${pid%%/*}
+        cat "/proc/${pid}/comm" 2>/dev/null || echo pacman
+        return 0
+    fi
+    pgrep -x pacman >/dev/null && { echo pacman; return 0; }
+    return 1
+}
+
+wait_turn() {
+    exec 9>"${QUEUE}"
+    if ! flock -n 9; then
+        step "Жду, пока закончится другая установка"
+        flock -w "${WAIT_MAX}" 9 || die "Другая установка идёт больше получаса — попробуйте позже"
+    fi
+    local who waited=0
+    while [ -e "${LOCK}" ] && who=$(lock_holder); do
+        [ "${waited}" = 0 ] && step "Жду, пока ${who} закончит работу с пакетами"
+        sleep 2; waited=$((waited + 2))
+        [ "${waited}" -lt "${WAIT_MAX}" ] || die "${who} занят пакетами больше получаса — закройте его и попробуйте снова"
+    done
+    if [ -e "${LOCK}" ]; then
+        say "убираю оставшийся замок базы пакетов ${LOCK}"
+        rm -f "${LOCK}"
+    fi
+}
+
+# последняя ошибка pacman из журнала — её и показываем вместо «не удалось»
+pacman_error() {
+    [ -r "${LOG}" ] || return 0
+    grep -E '^error: ' "${LOG}" | tail -n1 | sed 's/^error: //'
 }
 
 cmd_detect() {
@@ -146,12 +197,7 @@ cmd_install() {
     # транзакции, оставил бы систему наполовину обновлённой)
     trap '' HUP PIPE
     : >"${LOG}" 2>/dev/null
-    for _ in $(seq 60); do [ -e "${LOCK}" ] || break; pgrep -x pacman >/dev/null || break; sleep 1; done
-    if [ -e "${LOCK}" ]; then
-        pgrep -x pacman >/dev/null && die "Сейчас уже идёт установка пакетов. Попробуйте через пару минут."
-        say "убираю оставшийся замок базы пакетов ${LOCK}"
-        rm -f "${LOCK}"
-    fi
+    wait_turn
 
     local before after
     before=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
@@ -160,7 +206,7 @@ cmd_install() {
     step "Обновляю ключи подписи"
     run pacman -Sy --needed --noconfirm archlinux-keyring || die "Не удалось получить списки пакетов — нет интернета?"
     step "Скачиваю и устанавливаю (${#} пакетов)"
-    run pacman -Su --needed --noconfirm "$@" || die "Установка не удалась — подробности в ${LOG}"
+    run pacman -Su --needed --noconfirm "$@" || die "Установка не удалась"
     [ "${#aur[@]}" -gt 0 ] && aur_install "${aur[@]}"
 
     if printf '%s\n' "$@" | grep -qx linux-zen; then grub_prefer_zen; fi

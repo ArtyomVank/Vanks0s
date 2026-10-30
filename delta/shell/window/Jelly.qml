@@ -55,13 +55,14 @@ Scope {
     Connections {
         target: DragState
         function onBegan() {
-            if (!root.enabled) return;
+            root.note("drag", "перетаскивание замечено (" + DragState.address + ")");
+            if (!root.enabled) { root.note("off", "выключено: windows.jelly = 0 или анимации окон выключены"); return; }
             // прежняя копия ещё не ушла — окно возвращаем сразу
             handBack.stop();
             if (root.hidden) { root.setOpacity(true); root.hidden = false; }
             root.active = false;
             const h = Hyprland.toplevels.values.find(t => root.norm(t.address) === DragState.address);
-            if (!h || !h.wayland) return;
+            if (!h || !h.wayland) { root.note("lost", "окно " + DragState.address + " не найдено среди окон Wayland (XWayland?)"); return; }
             root.addr = DragState.address;
             root.toplevel = h;
             root.monitorName = DragState.monitor;
@@ -76,6 +77,7 @@ Scope {
             // перетаскивание) не должен «спрятать» окно раньше своего кадра
             root.capturing = false;
             Qt.callLater(() => root.capturing = root.active);
+            probe.restart();
         }
         function onMoved() {
             if (!root.active || DragState.address !== root.addr) return;
@@ -96,6 +98,26 @@ Scope {
             if (snapped || !root.hidden) root.stopNow(snapped);
             else { root.releasing = true; settleLimit.restart(); }
         }
+    }
+
+    // Желе молча не включается, если что-то по пути не сработало: окно тогда
+    // просто едет. Причину пишем в журнал оболочки один раз за сеанс —
+    //     qs log -p /usr/share/delta/shell/shell.qml | grep желе
+    property var noted: ({})
+    function note(kind, text) {
+        if (noted[kind]) return;
+        noted[kind] = true;
+        if (kind === "drag") console.info("желе:", text);
+        else console.warn("желе:", text);
+    }
+    // копия так и не получила кадр — захват окна (screencopy) не работает:
+    // чаще всего это видеокарта без драйвера (NVIDIA на nouveau) или
+    // программный рендер; окно при этом не прячется и едет как обычно
+    Timer {
+        id: probe
+        interval: 700
+        onTriggered: if (root.active && DragState.dragging && !cap.hasContent)
+            root.note("capture", "нет кадра окна за 0,7 с — захват окна (screencopy) не работает, окно едет без желе")
     }
 
     // пружины колец: дальние мягче и сильнее раскачиваются

@@ -45,6 +45,9 @@ depends=(
     'xdg-terminal-exec' 'dex'
     # обновления: checkupdates (pacman-contrib), релизы Delta с GitHub (curl, jq)
     'pacman-contrib' 'curl'
+    # программы Windows (delta-exe): ссылки из них — в браузер системы
+    # (xdg-open), значки установленных программ — из .exe (icoutils)
+    'xdg-utils' 'icoutils'
 )
 optdepends=(
     'vankos-wallpapers: набор обоев Vanks OS'
