@@ -49,6 +49,11 @@ nested_display() {
 cmd_check() {
     local rc=0 f out tmp
     for f in "${DELTA}"/bin/*; do
+        # delta-games — на Python
+        if head -n1 "${f}" | grep -q python; then
+            python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' "${f}" || { log "синтаксис: ${f}"; rc=1; }
+            continue
+        fi
         bash -n "${f}" || { log "синтаксис: ${f}"; rc=1; }
     done
     jq -e 'type == "object"' "${DELTA}/defaults/settings.json" >/dev/null || { log "JSON: defaults/settings.json"; rc=1; }

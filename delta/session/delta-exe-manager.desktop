@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=Windows Programs
-Name[ru]=Программы Windows
-Comment=Windows programs and games installed or launched through Proton CachyOS
-Comment[ru]=Программы и игры Windows, поставленные или запущенные через Proton CachyOS
+Name=Windows Games and Programs
+Name[ru]=Игры и программы Windows
+Comment=Steam and Epic Games libraries, Windows programs and games through Proton CachyOS
+Comment[ru]=Библиотеки Steam и Epic Games, программы и игры Windows через Proton CachyOS
 Exec=delta-exe --manager
 Icon=wine
 Terminal=false
 Categories=Game;Utility;Wine;
-Keywords=wine;proton;exe;windows;
+Keywords=wine;proton;exe;windows;steam;epic;xbox;games;
 StartupWMClass=delta-exe-manager

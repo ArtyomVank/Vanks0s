@@ -276,7 +276,7 @@ hl.window_rule({
     name  = "delta-exe-manager",
     match = { class = "^delta-exe-manager$" },
     float = true,
-    size  = "760 720",
+    size  = "1000 720",
     center = true,
 })
 hl.window_rule({

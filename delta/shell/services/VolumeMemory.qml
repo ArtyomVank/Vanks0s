@@ -54,9 +54,24 @@ Scope {
     }
     onNodesChanged: restoreAll()
 
+    // Первые 20 с после входа громкость, сама упавшая на 40 % (по умолчанию
+    // WirePlumber'а — так делал экран входа, пока его звук ещё закрывался),
+    // не запоминаем, а возвращаем сохранённую
+    readonly property double startedAt: Date.now()
+    function stray(n) {
+        const s = saved[n.name];
+        return Date.now() - startedAt < 20000 && s && typeof s.volume === "number"
+            && Math.abs(n.audio.volume - 0.4) < 0.006 && Math.abs(s.volume - 0.4) > 0.01;
+    }
+
     // изменения — в файл через полсекунды после последнего
     function remember(n) {
         if (!n || !n.ready || !n.audio || !restored[n.name]) return;
+        if (stray(n)) {
+            console.info("[delta] громкость " + n.name + " сама упала на 40 % — возвращаю " + Math.round(saved[n.name].volume * 100) + " %");
+            n.audio.volume = saved[n.name].volume;
+            return;
+        }
         const s = Object.assign({}, saved);
         s[n.name] = { volume: Math.round(n.audio.volume * 1000) / 1000, muted: n.audio.muted };
         saved = s;

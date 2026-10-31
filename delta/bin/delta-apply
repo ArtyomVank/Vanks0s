@@ -191,6 +191,34 @@ mv -f "${tmp}" "${OUT}"
 trap - EXIT
 log "записан ${OUT}"
 
+# Браузеры на Chromium в HDR. С управлением цветом Wayland
+# (WaylandWpColorManagerV1) Chromium рисует всё — и обычные страницы — в
+# пространстве HDR с белым 203 кд/м², а яркость и насыщенность SDR из
+# «Дисплея» (sdrbrightness/sdrsaturation Hyprland) к нему не применяются:
+# рядом с остальными окнами он тусклый и блёклый. Пока HDR включён, браузер
+# получает флаг, который это отключает, — и выглядит как все. Блок между
+# метками delta:hdr в ~/.config/<браузер>-flags.conf, остальное не трогаем.
+# Подхватывается при следующем запуске браузера.
+browser_flags() {
+    local on=$1 name bin f tmp
+    for name in chromium:chromium chrome:google-chrome-stable brave:brave; do
+        bin=${name#*:}
+        f=${XDG_CONFIG_HOME:-$HOME/.config}/${name%%:*}-flags.conf
+        [ -f "${f}" ] || { [ "${on}" = true ] && command -v "${bin}" >/dev/null; } || continue
+        tmp=$(mktemp "${f}.XXXXXX") || continue
+        { sed '/^# delta:hdr:begin/,/^# delta:hdr:end/d' "${f}" 2>/dev/null || true; } >"${tmp}"
+        if [ "${on}" = true ]; then
+            printf '# delta:hdr:begin — пишет delta-apply, пока в Delta включён HDR\n--disable-features=WaylandWpColorManagerV1\n# delta:hdr:end\n' >>"${tmp}"
+        fi
+        if grep -q '[^[:space:]]' "${tmp}"; then
+            cmp -s "${tmp}" "${f}" && rm -f "${tmp}" || mv -f "${tmp}" "${f}"
+        else
+            rm -f "${tmp}" "${f}"
+        fi
+    done
+}
+browser_flags "$(jq '[.display.layouts[]?[]? | select(.disabled != true and .hdr == true)] | length > 0' <<<"${merged}")"
+
 if [ "${mode}" = apply ] && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     hyprctl reload >/dev/null && log "Hyprland перезагрузил конфиг"
 fi

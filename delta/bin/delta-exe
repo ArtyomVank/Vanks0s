@@ -16,6 +16,7 @@
 #   delta-exe --list                        то же для окна (JSON)
 #   delta-exe --set-runner <префикс> <раннер> · --winecfg <префикс>
 #   delta-exe --folder <префикс> · --remove <префикс>
+#   delta-exe --proton         путь к самому свежему Proton CachyOS (для delta-games)
 #
 # Игре с steam_api*.dll нужен Steam: если Steam для Linux установлен, он
 # запускается, а Proton идёт напрямую с STEAM_COMPAT_CLIENT_INSTALL_PATH на
@@ -620,6 +621,8 @@ case "${1:-}" in
         exit 0
         ;;
     --runners) runners_json; exit 0 ;;
+    # путь к самому свежему Proton CachyOS (нет — скачать): им запускает игры Epic delta-games
+    --proton)  p=$(latest_proton); [ -n "${p}" ] || p=$(fetch_proton | tail -n1); [ -n "${p}" ] || exit 1; printf '%s\n' "${p}"; exit 0 ;;
     --fetch)   fetch_proton; exit $? ;;
     --install) [ -n "${3:-}" ] || exit 2; install_app "$2" "$3" "${4:-}"; exit 0 ;;
     --app)     [ -n "${3:-}" ] || exit 2; run_app "$2" "$3" ;;

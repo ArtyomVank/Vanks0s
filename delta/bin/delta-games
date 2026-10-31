@@ -1,0 +1,525 @@
+#!/usr/bin/env python3
+# Delta — аккаунты игровых магазинов и библиотека игр для «Программ Windows».
+#
+#   delta-games status                    аккаунты: JSON {steam, epic, xbox}
+#   delta-games library [--refresh]       игры из библиотек: JSON [{store, id, title, …}]
+#   delta-games login steam|epic|xbox     войти: Steam — его окно входа, Epic —
+#                                         страница входа в браузере, Xbox — облачные игры
+#   delta-games epic-code <код или JSON>  закончить вход в Epic кодом со страницы
+#   delta-games logout epic               выйти из Epic
+#   delta-games play steam|epic <id>      запустить игру
+#   delta-games install steam|epic <id>   установить игру
+#   delta-games xbox                      облачные игры Xbox в окне браузера
+#
+# Steam — его собственный клиент для Linux: вход, покупки и запуск идут через
+# него, и игры видят аккаунт, как в Windows. Библиотека — без сети: установленные
+# (steamapps/appmanifest_*.acf во всех папках libraryfolders.vdf) и остальные
+# купленные — Steam хранит их обложки в appcache/librarycache, а названия и тип
+# («игра» или «инструмент») — в двоичном appcache/appinfo.vdf.
+#
+# Epic Games — через legendary (открытый клиент Epic, на нём работает Heroic):
+# ставится сам в ~/.local/share/delta/legendary при первом входе. Игры
+# запускаются им же с Proton CachyOS (delta-exe --proton) — legendary передаёт
+# игре вход в аккаунт Epic (-AUTH_PASSWORD…), и онлайн-игры не вылетают.
+#
+# Microsoft Store / Xbox: игры магазина Microsoft защищены так, что в Wine и
+# Proton не запускаются, а библиотеку Microsoft сторонним программам не отдаёт.
+# Работает облачный Xbox (xbox.com/play) — вход в аккаунт Microsoft на его
+# странице, игры Game Pass по сети.
+
+import json
+import os
+import re
+import shlex
+import shutil
+import struct
+import subprocess
+import sys
+import time
+
+HOME = os.path.expanduser("~")
+DATA = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(HOME, ".local/share"), "delta")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "delta")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "delta")
+LEGENDARY_VENV = os.path.join(DATA, "legendary")
+EPIC_GAMES = os.environ.get("DELTA_EPIC_GAMES") or os.path.join(HOME, "Games", "Epic")
+EPIC_LOGIN = "https://legendary.gl/epiclogin"
+XBOX_URL = "https://www.xbox.com/play"
+
+
+def say(title, body=""):
+    try:
+        subprocess.run(["notify-send", "-a", "Delta", "-i", "applications-games", title, body],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except Exception:
+        print(title, body, file=sys.stderr)
+
+
+def detach(cmd, env=None, log=None):
+    out = open(log, "ab") if log else subprocess.DEVNULL
+    return subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                            start_new_session=True)
+
+
+def running(name):
+    return subprocess.run(["pgrep", "-x", name], stdout=subprocess.DEVNULL).returncode == 0
+
+
+def open_url(url):
+    for opener in ("delta-open-url", "xdg-open"):
+        if shutil.which(opener):
+            detach([opener, url])
+            return
+
+
+# ---------------------------------------------------------------- Steam ---
+
+def steam_root():
+    for d in (".local/share/Steam", ".steam/steam", ".steam/root"):
+        p = os.path.join(HOME, d)
+        if os.path.isfile(os.path.join(p, "steamapps", "libraryfolders.vdf")) or os.path.isdir(os.path.join(p, "steamapps")):
+            return os.path.realpath(p)
+    return None
+
+
+def vdf_text(path):
+    """Текстовый VDF Steam → dict (ключи строчными не делаем)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            src = f.read()
+    except OSError:
+        return {}
+    tokens = re.findall(r'"((?:[^"\\]|\\.)*)"|([{}])', src)
+    stack, cur, key = [], {}, None
+    for s, brace in tokens:
+        if brace == "{":
+            new = {}
+            if key is not None:
+                cur[key] = new
+            stack.append(cur)
+            cur, key = new, None
+        elif brace == "}":
+            cur = stack.pop() if stack else cur
+            key = None
+        elif key is None:
+            key = s
+        else:
+            cur[key] = s.replace('\\"', '"').replace("\\\\", "\\")
+            key = None
+    return cur
+
+
+def appinfo(path):
+    """appcache/appinfo.vdf (v28/v29) → {appid: (имя, тип)}."""
+    try:
+        with open(path, "rb") as f:
+            buf = f.read()
+    except OSError:
+        return {}
+    if len(buf) < 8:
+        return {}
+    magic = struct.unpack_from("<I", buf, 0)[0]
+    if magic not in (0x07564428, 0x07564429):
+        return {}
+    pos, strings = 8, None
+    if magic == 0x07564429:
+        table = struct.unpack_from("<q", buf, 8)[0]
+        pos = 16
+        if 0 < table < len(buf):
+            count = struct.unpack_from("<I", buf, table)[0]
+            strings, p = [], table + 4
+            for _ in range(count):
+                end = buf.index(b"\0", p)
+                strings.append(buf[p:end].decode("utf-8", "replace"))
+                p = end + 1
+
+    def cstr(p):
+        end = buf.index(b"\0", p)
+        return buf[p:end].decode("utf-8", "replace"), end + 1
+
+    def key(p):
+        if strings is not None:
+            i = struct.unpack_from("<I", buf, p)[0]
+            return (strings[i] if i < len(strings) else ""), p + 4
+        return cstr(p)
+
+    def node(p, end, want):
+        """Читает узел до 0x08; собирает common/name и common/type."""
+        out = {}
+        while p < end:
+            t = buf[p]
+            p += 1
+            if t == 0x08:
+                return out, p
+            k, p = key(p)
+            if t == 0x00:
+                sub, p = node(p, end, want)
+                if k in want:
+                    out[k] = sub
+            elif t == 0x01:
+                v, p = cstr(p)
+                out[k] = v
+            elif t in (0x02, 0x04, 0x06):
+                p += 4
+            elif t == 0x03:
+                p += 4
+            elif t in (0x07, 0x0A):
+                p += 8
+            else:
+                break
+        return out, p
+
+    apps = {}
+    header = 4 + 4 + 8 + 20 + 4 + 20
+    while pos + 8 <= len(buf):
+        appid, size = struct.unpack_from("<II", buf, pos)
+        if appid == 0:
+            break
+        start, nxt = pos + 8, pos + 8 + size
+        try:
+            # корневой узел «appinfo»: тип 0x00 и имя, внутри — common/name, common/type
+            p = start + header
+            if buf[p] != 0x00:
+                raise ValueError
+            _, p = key(p + 1)
+            data, _ = node(p, nxt, {"common"})
+            common = data.get("common", {})
+            if common.get("name"):
+                apps[appid] = (common["name"], str(common.get("type", "")).lower())
+        except (IndexError, struct.error, ValueError):
+            pass
+        pos = nxt
+    return apps
+
+
+TOOLS = re.compile(r"^(Proton\b|Steam Linux Runtime|Steamworks Common|SteamVR|Steam Audio|Spacewar$)", re.I)
+
+
+def steam_cover(root, appid):
+    d = os.path.join(root, "appcache", "librarycache", str(appid))
+    best = None
+    if os.path.isdir(d):
+        for dirpath, _, files in os.walk(d):
+            for f in files:
+                if f.startswith("library_600x900"):
+                    return os.path.join(dirpath, f)
+                if f == "header.jpg" and not best:
+                    best = os.path.join(dirpath, f)
+    flat = os.path.join(root, "appcache", "librarycache", f"{appid}_library_600x900.jpg")
+    if os.path.isfile(flat):
+        return flat
+    return best or f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appid}/library_600x900.jpg"
+
+
+def steam_user(root):
+    users = vdf_text(os.path.join(root, "config", "loginusers.vdf")).get("users", {})
+    best = None
+    for sid, u in users.items():
+        if not isinstance(u, dict):
+            continue
+        if u.get("MostRecent") == "1" or best is None or int(u.get("timestamp", 0) or 0) > int(best[1].get("timestamp", 0) or 0):
+            best = (sid, u)
+    return (best[0], best[1].get("PersonaName", "")) if best else ("", "")
+
+
+def steam_status():
+    root = steam_root()
+    sid, name = steam_user(root) if root else ("", "")
+    return {"installed": bool(shutil.which("steam")), "running": running("steam"),
+            "user": name, "id": sid}
+
+
+def steam_library():
+    root = steam_root()
+    if not root:
+        return []
+    info = appinfo(os.path.join(root, "appcache", "appinfo.vdf"))
+    games = {}
+    folders = vdf_text(os.path.join(root, "steamapps", "libraryfolders.vdf")).get("libraryfolders", {})
+    paths = [v.get("path") for v in folders.values() if isinstance(v, dict) and v.get("path")] or [root]
+    for lib in paths:
+        apps = os.path.join(lib, "steamapps")
+        try:
+            names = os.listdir(apps)
+        except OSError:
+            continue
+        for f in names:
+            m = re.match(r"appmanifest_(\d+)\.acf$", f)
+            if not m:
+                continue
+            st = vdf_text(os.path.join(apps, f)).get("AppState", {})
+            appid = int(m.group(1))
+            title = st.get("name") or info.get(appid, ("", ""))[0]
+            kind = info.get(appid, ("", ""))[1]
+            if not title or TOOLS.search(title) or (kind and kind not in ("game", "demo")):
+                continue
+            games[appid] = {"store": "steam", "id": str(appid), "title": title, "installed": True,
+                            "size": int(st.get("SizeOnDisk", 0) or 0), "cover": steam_cover(root, appid)}
+    # купленные, но не установленные: обложки Steam держит для всей библиотеки
+    cache = os.path.join(root, "appcache", "librarycache")
+    try:
+        cached = os.listdir(cache)
+    except OSError:
+        cached = []
+    for f in cached:
+        m = re.match(r"^(\d+)", f)
+        if not m:
+            continue
+        appid = int(m.group(1))
+        if appid in games or appid not in info:
+            continue
+        title, kind = info[appid]
+        if kind not in ("game",) or TOOLS.search(title):
+            continue
+        games[appid] = {"store": "steam", "id": str(appid), "title": title, "installed": False,
+                        "size": 0, "cover": steam_cover(root, appid)}
+    return list(games.values())
+
+
+def steam_cmd(*args):
+    if not shutil.which("steam"):
+        say("Steam не установлен", "Поставьте его: «Настройки» → «Рекомендации»")
+        return 1
+    detach(["steam", *args])
+    return 0
+
+
+# ----------------------------------------------------------------- Epic ---
+
+def legendary():
+    own = os.path.join(LEGENDARY_VENV, "bin", "legendary")
+    if os.access(own, os.X_OK):
+        return own
+    return shutil.which("legendary")
+
+
+def legendary_setup():
+    if legendary():
+        return legendary()
+    say("Epic Games", "Готовлю вход: ставлю legendary (клиент Epic), это меньше минуты")
+    os.makedirs(DATA, exist_ok=True)
+    log = os.path.join(STATE, "epic.log")
+    os.makedirs(STATE, exist_ok=True)
+    with open(log, "ab") as out:
+        ok = subprocess.run([sys.executable, "-m", "venv", LEGENDARY_VENV], stdout=out, stderr=out).returncode == 0
+        ok = ok and subprocess.run([os.path.join(LEGENDARY_VENV, "bin", "pip"), "install", "-q", "legendary-gl"],
+                                   stdout=out, stderr=out).returncode == 0
+    if not ok:
+        say("Не удалось поставить legendary", "Нужен интернет. Подробности — в ~/.local/state/delta/epic.log")
+        return None
+    return legendary()
+
+
+def lgd(*args, timeout=120):
+    exe = legendary()
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, *args], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None
+    return r
+
+
+def epic_user():
+    cfg = os.environ.get("LEGENDARY_CONFIG_PATH") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "legendary")
+    try:
+        with open(os.path.join(cfg, "user.json")) as f:
+            return json.load(f).get("displayName", "")
+    except (OSError, ValueError):
+        return ""
+
+
+def epic_installing():
+    d = os.path.join(STATE, "epic-installing")
+    try:
+        return sorted(os.listdir(d))
+    except OSError:
+        return []
+
+
+def epic_status():
+    return {"ready": bool(legendary()), "user": epic_user() if legendary() else "", "installing": epic_installing()}
+
+
+def epic_library(refresh=False):
+    if not legendary() or not epic_user():
+        return []
+    os.makedirs(CACHE, exist_ok=True)
+    cache = os.path.join(CACHE, "epic-library.json")
+    owned = None
+    if not refresh and os.path.isfile(cache) and time.time() - os.path.getmtime(cache) < 6 * 3600:
+        try:
+            with open(cache) as f:
+                owned = json.load(f)
+        except (OSError, ValueError):
+            owned = None
+    if owned is None:
+        r = lgd("list", "--json", timeout=180)
+        try:
+            owned = json.loads(r.stdout) if r and r.returncode == 0 else []
+        except ValueError:
+            owned = []
+        if owned:
+            with open(cache, "w") as f:
+                json.dump(owned, f)
+    r = lgd("list-installed", "--json", timeout=60)
+    try:
+        installed = {g["app_name"]: g for g in json.loads(r.stdout)} if r and r.returncode == 0 else {}
+    except (ValueError, KeyError, TypeError):
+        installed = {}
+    busy = set(epic_installing())
+    games = []
+    for g in owned:
+        app = g.get("app_name")
+        if not app:
+            continue
+        meta = g.get("metadata") or {}
+        images = {i.get("type"): i.get("url") for i in meta.get("keyImages", []) if isinstance(i, dict)}
+        cover = images.get("DieselGameBoxTall") or images.get("OfferImageTall") or images.get("DieselGameBox") or ""
+        games.append({"store": "epic", "id": app, "title": g.get("app_title") or meta.get("title") or app,
+                      "installed": app in installed, "installing": app in busy,
+                      "size": int((installed.get(app) or {}).get("install_size", 0) or 0), "cover": cover})
+    return games
+
+
+def epic_code(raw):
+    raw = raw.strip()
+    if raw.startswith("{"):
+        try:
+            raw = json.loads(raw).get("authorizationCode", "")
+        except ValueError:
+            raw = ""
+    m = re.search(r"[0-9a-f]{32}", raw)
+    code = m.group(0) if m else raw.strip('"')
+    if not code:
+        say("Epic Games", "Код не найден — скопируйте всю страницу с authorizationCode")
+        return 1
+    if not legendary_setup():
+        return 1
+    r = lgd("auth", "--code", code)
+    if r and r.returncode == 0 and epic_user():
+        say("Epic Games", f"Вы вошли как {epic_user()}")
+        return 0
+    say("Вход в Epic не удался", "Код одноразовый и живёт пару минут — откройте страницу входа ещё раз")
+    return 1
+
+
+def proton():
+    r = subprocess.run(["delta-exe", "--proton"], capture_output=True, text=True)
+    p = r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else ""
+    return p if p and os.access(os.path.join(p, "proton"), os.X_OK) else None
+
+
+def epic_play(app):
+    if not legendary():
+        say("Epic Games", "Сначала войдите в аккаунт Epic")
+        return 1
+    pr = proton()
+    if not pr:
+        say("Нет Proton", "Его можно скачать в «Программах Windows»")
+        return 1
+    prefix = os.path.join(DATA, "prefixes", "epic-" + re.sub(r"[^A-Za-z0-9_.-]", "_", app))
+    os.makedirs(prefix, exist_ok=True)
+    env = dict(os.environ)
+    if shutil.which("umu-run"):
+        env.update({"WINEPREFIX": prefix, "PROTONPATH": pr, "GAMEID": "umu-0", "STORE": "egs"})
+        wrapper = "umu-run"
+    else:
+        if os.path.isdir(os.path.join(prefix, "drive_c")) and not os.path.exists(os.path.join(prefix, "pfx")):
+            os.symlink(".", os.path.join(prefix, "pfx"))
+        steam = steam_root() or os.path.join(HOME, ".steam", "root")
+        env.update({"STEAM_COMPAT_DATA_PATH": prefix, "STEAM_COMPAT_CLIENT_INSTALL_PATH": steam, "UMU_ID": "umu-0"})
+        wrapper = shlex.quote(os.path.join(pr, "proton")) + " run"
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, "exe.log"), "a") as f:
+        f.write(f"\n=== {time.strftime('%F %T')}  Epic: legendary launch {app} (prefix {prefix})\n")
+    detach([legendary(), "launch", app, "--no-wine", "--wrapper", wrapper], env=env,
+           log=os.path.join(STATE, "exe-last.log"))
+    return 0
+
+
+def epic_install(app):
+    if not legendary() or not epic_user():
+        say("Epic Games", "Сначала войдите в аккаунт Epic")
+        return 1
+    busy = os.path.join(STATE, "epic-installing")
+    os.makedirs(busy, exist_ok=True)
+    os.makedirs(EPIC_GAMES, exist_ok=True)
+    mark = os.path.join(busy, app)
+    open(mark, "w").close()
+    log = os.path.join(STATE, f"epic-install-{app}.log")
+    say("Epic Games", "Игра устанавливается в ~/Games/Epic — Delta сообщит, когда закончит")
+    # сам процесс установки — в фоне, отдельно от окна; метка — пока идёт
+    script = ('"$1" install "$2" --base-path "$3" -y --skip-sdl; c=$?; rm -f "$4"; '
+              'if [ $c = 0 ]; then notify-send -a Delta -i applications-games "Игра установлена" "Её можно запускать из «Программ Windows»"; '
+              'else notify-send -a Delta -i applications-games "Установка не удалась" "Подробности — в $5"; fi')
+    detach(["sh", "-c", script, "sh", legendary(), app, EPIC_GAMES, mark, log], log=log)
+    return 0
+
+
+# ----------------------------------------------------------------- Xbox ---
+
+def browser():
+    for b in ("chromium", "google-chrome-stable", "brave", "microsoft-edge-stable"):
+        if shutil.which(b):
+            return b
+    return ""
+
+
+def xbox():
+    b = browser()
+    if b:
+        # отдельным окном, как приложение; вход в аккаунт Microsoft — на странице
+        detach([b, "--app=" + XBOX_URL])
+    else:
+        open_url(XBOX_URL)
+    return 0
+
+
+# ------------------------------------------------------------------ CLI ---
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    arg = argv[2] if len(argv) > 2 else ""
+    rest = argv[3] if len(argv) > 3 else ""
+    if cmd == "status":
+        print(json.dumps({"steam": steam_status(), "epic": epic_status(), "xbox": {"browser": browser()}},
+                         ensure_ascii=False))
+    elif cmd == "library":
+        games = steam_library() + epic_library(refresh="--refresh" in argv)
+        games.sort(key=lambda g: (not g["installed"], g["title"].lower()))
+        print(json.dumps(games, ensure_ascii=False))
+    elif cmd == "login" and arg == "steam":
+        return steam_cmd("steam://open/main")
+    elif cmd == "login" and arg == "epic":
+        if not legendary_setup():
+            return 1
+        open_url(EPIC_LOGIN)
+    elif cmd == "login" and arg == "xbox":
+        return xbox()
+    elif cmd == "epic-code":
+        return epic_code(arg)
+    elif cmd == "logout" and arg == "epic":
+        r = lgd("auth", "--delete")
+        return 0 if r and r.returncode == 0 else 1
+    elif cmd == "play" and arg == "steam" and rest.isdigit():
+        return steam_cmd("steam://rungameid/" + rest)
+    elif cmd == "install" and arg == "steam" and rest.isdigit():
+        return steam_cmd("steam://install/" + rest)
+    elif cmd == "play" and arg == "epic" and rest:
+        return epic_play(rest)
+    elif cmd == "install" and arg == "epic" and rest:
+        return epic_install(rest)
+    elif cmd == "xbox":
+        return xbox()
+    else:
+        print(__doc__ if __doc__ else "delta-games status|library|login|epic-code|logout|play|install|xbox",
+              file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv) or 0)

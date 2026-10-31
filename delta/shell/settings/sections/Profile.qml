@@ -96,7 +96,7 @@ ColumnLayout {
         SettingRow {
             icon: "unlock"
             title: I18n.tr("Входить без пароля")
-            subtitle: I18n.tr("При включении и после выхода — «Добро пожаловать» и экран блокировки, без экрана входа. Браузер может один раз спросить пароль")
+            subtitle: I18n.tr("При включении — «Добро пожаловать» и сразу экран блокировки, без экрана входа. Браузер может один раз спросить пароль")
             Toggle {
                 checked: root.autologinUser === root.me.userName
                 onToggled: v => root.setAutologin(v)

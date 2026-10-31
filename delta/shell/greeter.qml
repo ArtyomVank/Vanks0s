@@ -12,7 +12,8 @@ import qs.greeter
 
 // Экран входа Delta — greeter для greetd. Выглядит как экран блокировки
 // (тот же LockSurface): обои и тема последнего пользователя, часы, аватар.
-// При запуске сначала «Добро пожаловать» (WelcomeCard), потом экран входа.
+// После включения сначала «Добро пожаловать» (WelcomeCard), потом экран входа;
+// после выхода из сессии — сразу экран входа.
 // После пароля доигрывает анимацию разблокировки и только потом просит greetd
 // запустить сессию — greetd ждёт, что greeter сразу завершится.
 //
@@ -28,23 +29,24 @@ ShellRoot {
     signal exitRequested()
     signal resetRequested()
     property bool leaving: false
-    // при запуске — «Добро пожаловать», потом экран входа своей анимацией.
-    // После выхода при автовходе (delta-relogin, метка /run/delta-relogin)
-    // экран входа не нужен: greetd вот-вот перезапустится и войдёт сам, —
-    // заставка держится, пока есть метка (не дольше 20 с)
+    // «Добро пожаловать» — только при первом запуске после включения
+    // компьютера (метка в /run/delta-greeter, tmpfs, и включён меньше 2 минут).
+    // После выхода из сессии
+    // экран входа появляется сразу
     property bool starting: true
-    property int held: 0
-    readonly property string reloginFlag: Quickshell.env("DELTA_RELOGIN_FLAG") || "/run/delta-relogin"
-    Timer { interval: 1600; running: true; onTriggered: reloginCheck.running = true }
+    property int welcome: -1             // -1 — ещё не знаем, 1 — показать, 0 — без заставки
+    readonly property string bootMark: (Quickshell.env("DELTA_GREETER_RUN") || "/run/delta-greeter") + "/started"
     Process {
-        id: reloginCheck
-        command: ["test", "-e", shell.reloginFlag]
+        running: true
+        // при автовходе greeter после включения не запускался — метки нет, но
+        // компьютер включён давно: это выход из сессии
+        command: ["sh", "-c", 'test -e "$1" && exit 1; touch "$1" 2>/dev/null; awk "{ exit !(\\$1 < 120) }" /proc/uptime', "sh", shell.bootMark]
         onExited: code => {
-            if (code === 0 && shell.held < 40) { shell.held++; recheck.restart(); }
-            else shell.starting = false;
+            shell.welcome = code === 0 ? 1 : 0;
+            if (code === 0) welcomeTimer.start(); else shell.starting = false;
         }
     }
-    Timer { id: recheck; interval: 500; onTriggered: reloginCheck.running = true }
+    Timer { id: welcomeTimer; interval: 1600; onTriggered: shell.starting = false }
 
     Connections {
         target: be
@@ -124,8 +126,13 @@ ShellRoot {
             // заставка запуска: гаснет, и экран входа въезжает своей анимацией
             WelcomeCard {
                 anchors.fill: parent
-                done: !shell.starting
+                done: shell.welcome === 1 && !shell.starting
                 onReveal: surface.playEnter()
+                // после выхода — без заставки: экран входа въезжает сразу
+                readonly property bool skip: shell.welcome === 0
+                function skipNow() { opacity = 0; surface.playEnter(); }
+                onSkipChanged: if (skip) skipNow()
+                Component.onCompleted: if (skip) skipNow()
             }
         }
     }
