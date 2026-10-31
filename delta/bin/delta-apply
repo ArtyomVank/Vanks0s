@@ -127,11 +127,14 @@ lua=$(jq -r '
   # без размытия (обои, «джинн», кнопки окон, желе, край) оно снова снято.
   # GNOME: панели сплошные — размывать под ними нечего.
   (if .appearance.style == "gnome" then
-     "hl.layer_rule({ name = \"delta-flat-surfaces\", match = { namespace = \"^delta-\" }, blur = false, no_anim = true })"
+     "hl.layer_rule({ name = \"delta-flat-surfaces\", match = { namespace = \"^delta-.*\" }, blur = false, no_anim = true })"
    else empty end),
-  # Жидкое стекло почти прозрачное — размываем и под едва видимой подложкой.
+  # Жидкое стекло почти прозрачное — размываем и под едва видимой подложкой
+  # (её непрозрачность 0.12 + 0.26 × матовость), но не под тенью карточек:
+  # иначе вокруг них размытый ореол.
   (if .appearance.style == "liquid" then
-     "hl.layer_rule({ name = \"delta-liquid-surfaces\", match = { namespace = \"^delta-\" }, blur = true, ignore_alpha = 0.02, no_anim = true })",
+     ([0.08, ([0.2, 0.08 + 0.26 * (.appearance.frost | num(0.5) | clamp(0; 1))] | min)] | max * 100 | round / 100) as $ia
+     | "hl.layer_rule({ name = \"delta-liquid-surfaces\", match = { namespace = \"^delta-.*\" }, blur = true, ignore_alpha = \($ia), no_anim = true })",
      "hl.layer_rule({ name = \"delta-liquid-plain\", match = { namespace = \"^delta-(wallpaper|genie|window-controls|jelly|snap)$\" }, blur = false, no_anim = true })"
    else empty end),
   "",

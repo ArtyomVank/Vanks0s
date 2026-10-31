@@ -123,10 +123,12 @@ hl.animation({ leaf = "workspaces",    enabled = true, speed = 3,   spring = "de
 -- них анимации Hyprland выключены правилом ниже
 hl.animation({ leaf = "layers",        enabled = true, speed = 3,   bezier = "deltaOut", style = "fade" })
 
--- Все поверхности оболочки называются delta-*.
+-- Все поверхности оболочки называются delta-*. Hyprland 0.57 сравнивает имя
+-- с шаблоном целиком, поэтому «.*» в конце обязательно: с «^delta-» правило
+-- не подходило ни к одной панели, и под доками и меню не было размытия.
 hl.layer_rule({
     name  = "delta-shell-surfaces",
-    match = { namespace = "^delta-" },
+    match = { namespace = "^delta-.*" },
     blur         = true,
     ignore_alpha = 0.35,
     no_anim      = true,

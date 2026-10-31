@@ -52,7 +52,7 @@ hl.config({
 -- стекло greeter'а размывается, как в оболочке
 hl.layer_rule({
     name  = "delta-greeter",
-    match = { namespace = "^delta-" },
+    match = { namespace = "^delta-.*" },
     blur  = true,
     ignore_alpha = 0.35,
     no_anim = true,

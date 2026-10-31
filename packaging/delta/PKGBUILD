@@ -9,7 +9,7 @@
 
 pkgname=delta
 pkgver=0.5.8
-pkgrel=1
+pkgrel=2
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
 url="https://github.com/ArtyomVank/Vanks0s"
