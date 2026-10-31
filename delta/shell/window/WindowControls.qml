@@ -13,13 +13,19 @@ import qs.minimize
 //
 // Hyprland не рисует заголовки, поэтому кнопки — слой оболочки поверх
 // активного окна на каждом мониторе. Геометрию окна знает только Hyprland:
-// Quickshell спрашивает её сам (refreshToplevels, без запуска hyprctl), часто —
-// пока окно двигается или меняет размер, редко — в покое. Поэтому пилюля идёт
-// за окном почти без отставания.
+// Quickshell спрашивает её сам (refreshToplevels, без запуска hyprctl) —
+// чаще после событий окна, реже в покое, а пока окно перетаскивают — совсем
+// нет: каждый такой запрос — работа для композитора, окно бы подтормаживало.
 //
 // Программы со своими кнопками в заголовке (браузеры, Electron, GNOME) кнопок
 // Delta не получают: список — windows.buttonsSkip (регулярные выражения по
 // классу окна). Правый щелчок по пилюле добавляет туда текущую программу.
+// Без кнопок всегда: окна на весь экран (игры, видео), игры (Hyprland
+// помечает их content type «game», Proton — класс steam_app_* или *.exe) и
+// окна самой Delta — настройки, первая настройка, delta-exe рисуют своё.
+//
+// Пока окно двигается (перетаскивание, клавиши, анимация), пилюля прячется:
+// поспевать за окном кадр в кадр слой оболочки не может и дёргался бы.
 //
 // Настройка: windows.buttons (Настройки → Окна → Кнопки окна).
 Scope {
@@ -41,6 +47,12 @@ Scope {
         return out;
     }
     function skipped(cls) { return cls.length > 0 && skipRe.some(r => r.test(cls)); }
+    // игры и окна Delta — без кнопок, что бы ни было в списке
+    readonly property var builtinSkip: /^(delta(-.*)?|steam_app_.*|.*\.exe|gamescope|steam_proton|explorer\.exe)$/i
+    function system(w) {
+        return (w.fullscreen ?? 0) >= 2 || w.contentType === "game" || builtinSkip.test(w.class ?? "")
+            || builtinSkip.test(w.initialClass ?? "");
+    }
     function skipApp(cls) {
         if (!cls) return;
         const list = Settings.get("windows.buttonsSkip", []);
@@ -61,7 +73,7 @@ Scope {
         if (ws.startsWith("special:")) { setWin(null); return; }
         // at/size — списки Qt, не массивы JS: Array.isArray для них false
         if (!(w.at?.length >= 2) || !(w.size?.length >= 2)) { setWin(null); return; }
-        if (skipped(w.class ?? "")) { setWin(null); return; }
+        if (skipped(w.class ?? "") || system(w)) { setWin(null); return; }
         setWin({
             address: norm(w.address),
             x: w.at[0], y: w.at[1], w: w.size[0], h: w.size[1],
@@ -79,13 +91,19 @@ Scope {
         if (o === null && n === null) return;
         if (o && n && o.address === n.address && o.x === n.x && o.y === n.y && o.w === n.w && o.h === n.h
             && o.monitor === n.monitor && o.fullscreen === n.fullscreen && o.class === n.class) return;
-        if (o && n && o.address === n.address) wakeFast();
+        if (o && n && o.address === n.address) {
+            wakeFast();
+            // сдвинулось или поменяло размер — прячем пилюлю до остановки
+            if (o.x !== n.x || o.y !== n.y || o.w !== n.w || o.h !== n.h) { moving = true; still.restart(); }
+        }
         win = n;
     }
+    property bool moving: false
+    Timer { id: still; interval: 260; onTriggered: root.moving = false }
 
     // --- опрос --------------------------------------------------------------
 
-    // окно двигается: опрашиваем каждый кадр, пока не замрёт на 400 мс
+    // после событий окна опрашиваем чаще, пока не замрёт на 400 мс
     property bool fast: false
     function wakeFast() { fast = true; calm.restart(); }
     Timer { id: calm; interval: 400; onTriggered: root.fast = false }
@@ -101,11 +119,17 @@ Scope {
     }
 
     Timer {
-        interval: root.fast ? 16 : 120
+        interval: root.fast ? 80 : 200
         repeat: true
-        running: root.enabled && !root.hidden
+        running: root.enabled && !root.hidden && !DragState.dragging
         triggeredOnStart: true
         onTriggered: root.refresh()
+    }
+
+    // окно отпустили — сразу узнаём, где оно теперь
+    Connections {
+        target: DragState
+        function onDraggingChanged() { if (!DragState.dragging) { root.wakeFast(); root.refresh(); } }
     }
 
     // ответ Hyprland пришёл — данные активного окна обновились
@@ -157,7 +181,7 @@ Scope {
     function fullscreen(addr) {
         // без window диспетчер действует на активное окно — сначала фокус
         focus(addr);
-        Motion.fullscreen();
+        Motion.maximize();
     }
     function minimize(addr) {
         const h = Minimizer.byAddress(addr);
@@ -177,6 +201,8 @@ Scope {
             readonly property var mon: Hyprland.monitors.values.find(m => m.name === layer.modelData.name) ?? null
             readonly property var w: root.win && mon && root.win.monitor === mon.id ? root.win : null
             readonly property bool show: root.enabled && !root.hidden && w !== null
+            // двигается — пилюля исчезает (ввод в неё тоже), потом появляется на месте
+            readonly property bool still: !root.moving && !DragState.dragging
 
             // размеры пилюли с тремя кнопками
             readonly property int btn: 22
@@ -198,7 +224,7 @@ Scope {
             implicitHeight: layer.modelData.height
 
             // ввод — только в прямоугольник кнопок, остальное пропускаем в окно
-            mask: show ? buttonRegion : emptyRegion
+            mask: show && still ? buttonRegion : emptyRegion
             Region { id: emptyRegion }
             Region {
                 id: buttonRegion
@@ -213,7 +239,7 @@ Scope {
                 color: Theme.glass2
                 border.width: 1
                 border.color: Theme.line
-                opacity: layer.show ? 1 : 0
+                opacity: layer.show && layer.still ? 1 : 0
                 visible: opacity > 0
 
                 // правый щелчок — эта программа рисует свои кнопки, наши ей не нужны

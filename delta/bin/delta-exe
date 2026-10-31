@@ -11,6 +11,11 @@
 #   delta-exe --app <префикс> <файл>        запуск установленной (из ярлыка в меню)
 #   delta-exe --runners                     найденные Proton CachyOS, Wine, umu (JSON)
 #   delta-exe --fetch                       скачать последний Proton CachyOS
+#   delta-exe --manager                     «Программы Windows»: все префиксы, их
+#                                           программы и раннеры (окно)
+#   delta-exe --list                        то же для окна (JSON)
+#   delta-exe --set-runner <префикс> <раннер> · --winecfg <префикс>
+#   delta-exe --folder <префикс> · --remove <префикс>
 #
 # Игре с steam_api*.dll нужен Steam: если Steam для Linux установлен, он
 # запускается, а Proton идёт напрямую с STEAM_COMPAT_CLIENT_INSTALL_PATH на
@@ -22,6 +27,11 @@
 # с GitHub (CachyOS/proton-cachyos) в ~/.local/share/delta/proton. Префикс
 # у каждой программы свой: ~/.local/share/delta/prefixes/<имя>.
 # Запуск через umu-run (umu-launcher), без него — прямо через proton.
+# Установщики — всегда прямо через proton и до конца (wineserver -w): многие
+# запускают дочерний процесс и выходят, а контейнер umu убил бы его вместе с
+# собой. Exe из уже существующего префикса (программа поставлена раньше —
+# лаунчером или обычно, в ~/.wine) запускается в нём же, его раннером: в новом
+# пустом префиксе ей не хватило бы библиотек, которые ставил установщик.
 #
 # Окно выбора можно выключить: «Настройки» → «Рекомендации» (exe.enabled);
 # там же список программ, которые всегда открываются обычно (exe.excluded),
@@ -31,6 +41,7 @@ set -u
 DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
 SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
 ENTRY=${DELTA_EXE_ENTRY:-${SHELL_DIR}/exe-app.qml}
+MANAGER=${DELTA_EXE_MANAGER_ENTRY:-${SHELL_DIR}/exe-manager.qml}
 CONFIG=${XDG_CONFIG_HOME:-${HOME}/.config}/delta/settings.json
 DATA=${XDG_DATA_HOME:-${HOME}/.local/share}/delta
 PROTONS=${DATA}/proton
@@ -38,9 +49,25 @@ PREFIXES=${DATA}/prefixes
 APPS=${XDG_DATA_HOME:-${HOME}/.local/share}/applications
 ICONS=${DATA}/icons
 REPO=${DELTA_PROTON_REPO:-CachyOS/proton-cachyos}
+STATE=${XDG_STATE_HOME:-${HOME}/.local/state}/delta
+LOG=${STATE}/exe.log
 export DELTA_DATA
 
 say() { notify-send -a "Delta" -i applications-games "$@" 2>/dev/null || printf '%s\n' "$*" >&2; }
+
+# для «Программ Windows»: запущенные exe ($1) в списке $2 — без повторов,
+# последний наверху, не больше 30
+remember() {
+    [[ $1 == /* ]] || return 0
+    mkdir -p "$(dirname -- "$2")"
+    { printf '%s\n' "$1"; grep -vxF -- "$1" "$2" 2>/dev/null; } | head -n 30 >"$2.new" && mv "$2.new" "$2"
+}
+
+# журнал установок — последние ~2000 строк
+trim_log() {
+    [ "$(wc -l <"${LOG}" 2>/dev/null || echo 0)" -gt 4000 ] || return 0
+    tail -n 2000 "${LOG}" >"${LOG}.new" && mv "${LOG}.new" "${LOG}"
+}
 
 # имя программы для настроек: файл без пути, строчными
 key_of() { basename -- "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -120,7 +147,14 @@ runners_json() {
 
 # --- запуск ---
 run_normal() {
+    local root name
+    if root=$(prefix_root "$1"); then
+        # программа из префикса лаунчера — Wine системы его не знает
+        if name=$(prefix_name "${root}"); then run_launcher "$(prefix_runner "${name}" auto)" "$1" "${name}"; fi
+        run_in_wine_prefix "${root}" "$1"
+    fi
     command -v wine >/dev/null || { say "Нет Wine" "Поставьте его: «Настройки» → «Рекомендации» → «Библиотеки»"; exit 1; }
+    remember "$1" "${DATA}/normal"
     cd -- "$(dirname -- "$1")" || true
     exec wine "$1"
 }
@@ -189,15 +223,18 @@ start_steam() {
 # (установщики запускают настоящую установку отдельным процессом и выходят).
 CMD=()
 prepare() {
-    local runner=$1 file=$2 prefix=$3 how=${4:-} proton="" steam="" id=""
+    local runner=$1 file=$2 prefix=$3 how=${4:-} proton="" steam="" id="" args
     mkdir -p "${prefix}"
+    # .msi сам не запускается — его открывает msiexec
+    args=("${file}")
+    [[ ${file,,} == *.msi ]] && args=(msiexec /i "${file}")
     case "${runner}" in
         wine)
             command -v wine >/dev/null || { say "Нет Wine"; exit 1; }
             if [ "${how}" = wait ]; then
-                CMD=(env "WINEPREFIX=${prefix}" sh -c 'wine "$1"; wineserver -w' sh "${file}")
+                CMD=(env "WINEPREFIX=${prefix}" sh -c 'wine "$@"; wineserver -w' sh "${args[@]}")
             else
-                CMD=(env "WINEPREFIX=${prefix}" wine "${file}")
+                CMD=(env "WINEPREFIX=${prefix}" wine "${args[@]}")
             fi
             return 0
             ;;
@@ -212,13 +249,15 @@ prepare() {
             ;;
     esac
 
-    # «reg» и прочие команды внутри префикса — не игра, Steam им не нужен
-    if [[ ${file} == /* ]] && wants_steam "${file}" && steam=$(steam_dir); then
+    # «reg» и прочие команды внутри префикса — не игра, Steam им не нужен;
+    # установщику тоже (а рядом с ним в «Загрузках» может лежать чужая игра)
+    if [ "${how}" != wait ] && [[ ${file} == /* ]] && wants_steam "${file}" && steam=$(steam_dir); then
         start_steam
         id=$(app_id "${file}")
     fi
-    if [ -z "${steam}" ] && command -v umu-run >/dev/null; then
-        CMD=(env "WINEPREFIX=${prefix}" "PROTONPATH=${proton}" "GAMEID=${GAMEID:-umu-default}" umu-run "${file}")
+    PROTON=${proton}
+    if [ -z "${steam}" ] && [ "${how}" != wait ] && command -v umu-run >/dev/null; then
+        CMD=(env "WINEPREFIX=$(prefix_dir "${prefix}")" "PROTONPATH=${proton}" "GAMEID=${GAMEID:-umu-default}" umu-run "${args[@]}")
         return 0
     fi
     # Proton напрямую: префикс как у Steam (pfx внутри). Префикс от umu —
@@ -230,7 +269,7 @@ prepare() {
     fi
     CMD=(env "STEAM_COMPAT_DATA_PATH=${prefix}" "STEAM_COMPAT_CLIENT_INSTALL_PATH=${steam}")
     [ -n "${id}" ] && CMD+=("SteamAppId=${id}" "SteamGameId=${id}" "STEAM_COMPAT_APP_ID=${id}")
-    CMD+=("${proton}/proton" "$([ "${how}" = wait ] && echo waitforexitandrun || echo run)" "${file}")
+    CMD+=("${proton}/proton" "$([ "${how}" = wait ] && echo waitforexitandrun || echo run)" "${args[@]}")
 }
 
 # winebrowser префикса — на xdg-open: ссылки из программ открывает браузер
@@ -245,14 +284,86 @@ browser_links() {
 }
 
 prefix_of() { printf '%s/%s\n' "${PREFIXES}" "$1"; }
+# где сама система Windows: Proton напрямую кладёт её в pfx, umu и Wine — в
+# корень (у префикса от umu pfx — ссылка на «.»)
+prefix_dir() { if [ -d "$1/pfx" ] && [ ! -L "$1/pfx" ]; then echo "$1/pfx"; else echo "$1"; fi; }
+# wineserver того же Proton: ждать, пока в префиксе закончатся все процессы
+proton_wineserver() {
+    local b
+    for b in "$1/files/bin/wineserver" "$1/dist/bin/wineserver"; do
+        [ -x "${b}" ] && { echo "${b}"; return 0; }
+    done
+    return 1
+}
+# префикс, внутри которого лежит файл: папка с drive_c и system.reg
+prefix_root() {
+    local d
+    d=$(dirname -- "$1")
+    while [ -n "${d}" ] && [ "${d}" != / ]; do
+        [ -d "${d}/drive_c" ] && [ -f "${d}/system.reg" ] && { echo "${d}"; return 0; }
+        d=$(dirname -- "${d}")
+    done
+    return 1
+}
+# имя нашего префикса по его папке (prefixes/<имя> или prefixes/<имя>/pfx)
+prefix_name() {
+    case "$1" in
+        "${PREFIXES}"/*) local n=${1#"${PREFIXES}"/}; echo "${n%%/*}" ;;
+        *) return 1 ;;
+    esac
+}
+# Префикс программы, поставленной лаунчером вне префикса (на другой диск):
+# её ярлык (X-Delta-Exe) или прошлые запуски (.delta-exe) — того же файла или
+# соседнего в той же папке
+known_prefix() {
+    local f=$1 dir d hit
+    dir=$(dirname -- "${f}")
+    for d in "${APPS}"/delta-exe-*.desktop; do
+        [ -f "${d}" ] || continue
+        hit=$(sed -n 's/^X-Delta-Exe=//p' "${d}" | head -n1)
+        [ "${hit}" = "${f}" ] || [ "$(dirname -- "${hit}")" = "${dir}" ] || continue
+        sed -n 's/^X-Delta-Prefix=//p' "${d}" | head -n1
+        return 0
+    done
+    for d in "${PREFIXES}"/*/.delta-exe; do
+        [ -f "${d}" ] || continue
+        while IFS= read -r hit; do
+            [ "$(dirname -- "${hit}")" = "${dir}" ] && { basename -- "$(dirname -- "${d}")"; return 0; }
+        done <"${d}"
+    done
+    return 1
+}
+# раннер, которым ставили программу в префикс (иначе — тот, что выбрали)
+prefix_runner() {
+    local f
+    f=$(prefix_of "$1")/.delta-runner
+    if [ -s "${f}" ]; then head -n1 "${f}"; else echo "$2"; fi
+}
+# программа из чужого префикса Wine (обычно ~/.wine): там же, Wine системы
+run_in_wine_prefix() {
+    command -v wine >/dev/null || { say "Нет Wine" "Программа поставлена через Wine — поставьте его: «Настройки» → «Рекомендации» → «Библиотеки»"; exit 1; }
+    remember "$2" "${DATA}/normal"
+    cd -- "$(dirname -- "$2")" || true
+    exec env "WINEPREFIX=$1" wine "$2"
+}
 # имя префикса и ярлыка: латиница, цифры, . _ - (кириллица и пробелы — в «-»)
 slug() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9._-' '-' | sed 's/^-*//; s/-*$//' | cut -c1-48; }
 
 run_launcher() {
-    local runner=$1 file=$2 name=${3:-} prefix
+    local runner=$1 file=$2 name=${3:-} prefix root
+    # exe из уже существующего префикса — в нём же и тем же раннером
+    if [ -z "${name}" ] && root=$(prefix_root "${file}"); then
+        name=$(prefix_name "${root}") || run_in_wine_prefix "${root}" "${file}"
+        runner=$(prefix_runner "${name}" "${runner}")
+    elif [ -z "${name}" ] && name=$(known_prefix "${file}") && [ -d "$(prefix_of "${name}")" ]; then
+        runner=$(prefix_runner "${name}" "${runner}")
+    else
+        name=${name:-}
+    fi
     if [ -z "${name}" ]; then name=$(key_of "${file}"); name=${name%.*}; fi
     prefix=$(prefix_of "${name}")
     mkdir -p "${prefix}"
+    remember "${file}" "${prefix}/.delta-exe"
     cd -- "$(dirname -- "${file}")" || true
     [ "${runner}" = wine ] || browser_links "${runner}" "${prefix}"
     prepare "${runner}" "${file}" "${prefix}"
@@ -316,12 +427,13 @@ add_app() {  # префикс, имя префикса, ярлык или пус
         echo 'Categories=Wine;'
         echo 'StartupNotify=true'
         echo "X-Delta-Prefix=${pname}"
+        echo "X-Delta-Exe=${exe}"
     } >"${file}"
     printf '%s\n' "${title}"
 }
 
 install_app() {
-    local runner=$1 file=$2 pname prefix before after lnk exe added=() n
+    local runner=$1 file=$2 pname prefix before after lnk exe added=() n ws code
     pname=$(slug "$3")
     [ -n "${pname}" ] || pname=$(slug "$(basename -- "${file%.*}")")
     [ -n "${pname}" ] || pname=app
@@ -333,7 +445,17 @@ install_app() {
     [ "${runner}" = wine ] || browser_links "${runner}" "${prefix}"
     say "Установка" "Идёт установка «$3» — следуйте шагам установщика"
     prepare "${runner}" "${file}" "${prefix}" wait
-    "${CMD[@]}"
+    # вывод — в журнал: если установщик сразу закрылся, там видно почему
+    mkdir -p "${STATE}"
+    printf '\n=== %s  %s\n' "$(date '+%F %T')" "${CMD[*]}" >>"${LOG}"
+    "${CMD[@]}" >>"${LOG}" 2>&1
+    code=$?
+    # установщик мог передать работу дочернему процессу и выйти — ждём все
+    if [ "${runner}" != wine ] && ws=$(proton_wineserver "${PROTON}"); then
+        WINEPREFIX=$(prefix_dir "${prefix}") "${ws}" -w >>"${LOG}" 2>&1
+    fi
+    printf '=== код %s\n' "${code}" >>"${LOG}"
+    trim_log
     after=$(list_links "${prefix}")
 
     # новые ярлыки (или все, если префикс уже был с ними), кроме удаления и справки
@@ -359,8 +481,10 @@ install_app() {
     command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
     if [ "${n}" -gt 0 ]; then
         say "Программа установлена" "$(printf '%s, ' "${added[@]}" | sed 's/, $//') — в меню приложений"
+    elif [ "${code}" != 0 ] && [ -z "${after}" ]; then
+        say "Установка не удалась" "Установщик закрылся с ошибкой (код ${code}). Подробности: ${LOG}"
     else
-        say "Установка закончилась" "Ярлыков программа не оставила. Префикс: ${prefix}"
+        say "Установка закончилась" "Ярлыков программа не оставила — её можно запустить из «Программ Windows»"
     fi
 }
 
@@ -372,6 +496,66 @@ run_app() {
     run_launcher "${runner}" "${file}" "${pname}"
 }
 
+# --- «Программы Windows» ---
+# программы префикса $1 (имя): ярлыки из меню и всё, что в нём запускали
+apps_json() {
+    local name=$1 prefix d exe
+    prefix=$(prefix_of "${name}")
+    {
+        for d in "${APPS}"/delta-exe-*.desktop; do
+            [ -f "${d}" ] && grep -qx "X-Delta-Prefix=${name}" "${d}" || continue
+            exe=$(sed -n 's/^X-Delta-Exe=//p' "${d}" | head -n1)
+            jq -n --arg title "$(sed -n 's/^Name=//p' "${d}" | head -n1)" --arg exe "${exe}" \
+                --arg icon "$(sed -n 's/^Icon=//p' "${d}" | head -n1)" --arg desktop "${d}" \
+                '{ title: $title, exe: $exe, icon: $icon, desktop: $desktop }'
+        done
+        [ -f "${prefix}/.delta-exe" ] && while IFS= read -r exe; do
+            [ -f "${exe}" ] || continue
+            jq -n --arg title "$(basename -- "${exe%.*}")" --arg exe "${exe}" \
+                '{ title: $title, exe: $exe, icon: "", desktop: "" }'
+        done <"${prefix}/.delta-exe"
+    } | jq -s 'unique_by(.exe | ascii_downcase) | sort_by(.desktop == "", (.title | ascii_downcase))'
+}
+list_json() {
+    local d name prefixes="" normal
+    for d in "${PREFIXES}"/*/; do
+        [ -d "${d}" ] || continue
+        name=$(basename -- "${d}")
+        prefixes+=$(jq -n --arg name "${name}" --arg path "${d%/}" \
+            --arg runner "$(prefix_runner "${name}" auto)" \
+            --arg size "$(du -sh -- "${d}" 2>/dev/null | cut -f1)" \
+            --argjson ready "$([ -d "$(prefix_dir "${d%/}")/drive_c" ] && echo true || echo false)" \
+            --argjson apps "$(apps_json "${name}")" \
+            '{ name: $name, path: $path, runner: $runner, size: $size, ready: $ready, apps: $apps }')
+    done
+    normal=$(while IFS= read -r f; do [ -f "${f}" ] && jq -n --arg title "$(basename -- "${f%.*}")" --arg exe "${f}" '{ title: $title, exe: $exe, icon: "", desktop: "" }'; done \
+        <"${DATA}/normal" 2>/dev/null | jq -s .)
+    jq -n --argjson prefixes "$(printf '%s' "${prefixes}" | jq -s .)" --argjson normal "${normal:-[]}" \
+        --argjson runners "$(runners_json)" --arg home "${PREFIXES}" \
+        '{ prefixes: $prefixes, normal: $normal, runners: $runners, home: $home }'
+}
+# только наши префиксы: имя без «/» и «..»
+check_prefix() {
+    case "$1" in ""|.|..|*/*) echo "delta-exe: неверное имя префикса" >&2; exit 2 ;; esac
+    [ -d "$(prefix_of "$1")" ] || { say "Префикс не найден" "$1"; exit 1; }
+}
+winecfg() {
+    local runner
+    runner=$(prefix_runner "$1" auto)
+    [ "${runner}" = wine ] || browser_links "${runner}" "$(prefix_of "$1")"
+    prepare "${runner}" winecfg "$(prefix_of "$1")"
+    exec "${CMD[@]}"
+}
+remove_prefix() {
+    local d
+    for d in "${APPS}"/delta-exe-*.desktop; do
+        [ -f "${d}" ] && grep -qx "X-Delta-Prefix=$1" "${d}" && rm -f -- "${d}"
+    done
+    rm -rf -- "$(prefix_of "$1")"
+    command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
+    return 0
+}
+
 case "${1:-}" in
     -h|--help)
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
@@ -381,6 +565,12 @@ case "${1:-}" in
     --fetch)   fetch_proton; exit $? ;;
     --install) [ -n "${3:-}" ] || exit 2; install_app "$2" "$3" "${4:-}"; exit 0 ;;
     --app)     [ -n "${3:-}" ] || exit 2; run_app "$2" "$3" ;;
+    --manager) exec qs -p "${MANAGER}" -d ;;
+    --list)    list_json; exit 0 ;;
+    --set-runner) check_prefix "${2:-}"; [ -n "${3:-}" ] || exit 2; printf '%s\n' "$3" >"$(prefix_of "$2")/.delta-runner"; exit 0 ;;
+    --winecfg) check_prefix "${2:-}"; winecfg "$2" ;;
+    --folder)  check_prefix "${2:-}"; exec xdg-open "$(drive_c "$(prefix_of "$2")")" ;;
+    --remove)  check_prefix "${2:-}"; remove_prefix "$2"; exit 0 ;;
     --run)
         mode=${2:-}
         if [ "${mode}" = normal ]; then

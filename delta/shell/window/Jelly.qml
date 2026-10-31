@@ -292,7 +292,7 @@ Scope {
             property vector4d o34: root.o34
             property vector4d o5: root.o5
             property variant source: tex
-            mesh: GridMesh { resolution: Qt.size(24, 24) }
+            mesh: GridMesh { resolution: Qt.size(48, 48) }
             vertexShader: Qt.resolvedUrl("shaders/jelly.vert.qsb")
             fragmentShader: Qt.resolvedUrl("shaders/jelly.frag.qsb")
         }

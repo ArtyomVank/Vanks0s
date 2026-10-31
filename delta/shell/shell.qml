@@ -52,6 +52,7 @@ ShellRoot {
     Notifications { id: notifications }
     Osd { id: osd }
     Lock { id: lock }          // показывает и окно питания (overlay "power")
+    Welcome {}             // «Добро пожаловать, подождите» после экрана входа, пока грузится стол
     Launcher {}
     Wallpapers {}
     DesktopMenu {}         // правый щелчок по рабочему столу: виджеты, обои, настройки
@@ -64,6 +65,7 @@ ShellRoot {
     ThemeSync {}           // оформление для программ GTK/Qt
     Polkit {}              // окно «Нужно подтверждение» (агент polkit)
     UpdateCheck {}         // фоновая проверка обновлений и уведомление о них
+    VolumeMemory {}        // громкость и «без звука» между входами (если WirePlumber не вернул)
     ShellFx {}             // звуки рабочих столов, меню, острова; вспышка снимка (ipc fx flash)
     Oobe {}                // первая настройка при первом входе (delta-shell ipc call oobe start)
 

@@ -14,4 +14,8 @@ Singleton {
     function fullscreen() {
         Hyprland.dispatch(Hyprland.usingLua ? 'hl.dsp.window.fullscreen()' : "fullscreen 0");
     }
+    // развернуть, оставив панель и доки (кнопка окна, как перетаскивание к верху)
+    function maximize() {
+        Hyprland.dispatch(Hyprland.usingLua ? 'hl.dsp.window.fullscreen({ mode = "maximized" })' : "fullscreen 1");
+    }
 }

@@ -273,6 +273,13 @@ hl.window_rule({
     center = true,
 })
 hl.window_rule({
+    name  = "delta-exe-manager",
+    match = { class = "^delta-exe-manager$" },
+    float = true,
+    size  = "760 720",
+    center = true,
+})
+hl.window_rule({
     name  = "calamares",
     match = { class = "^(calamares|io.calamares.calamares)$" },
     float = true,
@@ -382,6 +389,37 @@ local function drag_tick()
             drag.addr = w.address
             drag.x0, drag.y0, drag.w0, drag.h0 = w.at.x, w.at.y, w.size.x, w.size.y
             drag.cx0, drag.cy0 = p.x, p.y
+            drag.fs0, drag.fl0 = w.fullscreen, w.floating
+            return
+        end
+        -- развёрнутое окно взяли: Hyprland вернул ему прежний размер — дальше
+        -- оно едет как обычное, отсчёт заново от этого места и размера
+        if w.fullscreen ~= drag.fs0 or w.floating ~= drag.fl0 then
+            drag.x0, drag.y0, drag.w0, drag.h0 = w.at.x, w.at.y, w.size.x, w.size.y
+            drag.cx0, drag.cy0 = p.x, p.y
+            drag.fs0, drag.fl0 = w.fullscreen, w.floating
+            drag.snapped[w.address] = nil
+            return
+        end
+        -- развёрнутое окно тянут за верхнюю полосу (заголовок): Hyprland такое
+        -- окно не двигает — возвращаем прежний размер под курсором и до
+        -- отпускания ведём окно сами (drag.manual), как в GNOME
+        if w.fullscreen == 1 and drag.cy0 - drag.y0 <= 44
+            and math.abs(p.x - drag.cx0) + math.abs(p.y - drag.cy0) >= 14 then
+            local old = drag.snapped[w.address]
+                or { w = math.floor(w.size.x * 0.6), h = math.floor(w.size.y * 0.7) }
+            drag.snapped[w.address] = nil
+            local fx = (drag.cx0 - drag.x0) / math.max(1, w.size.x)
+            drag.gx, drag.gy = math.floor(old.w * fx), math.floor(drag.cy0 - drag.y0)
+            local sel = "address:" .. w.address
+            hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", window = sel }))
+            hl.dispatch(hl.dsp.window.resize({ x = old.w, y = old.h, window = sel }))
+            hl.dispatch(hl.dsp.window.move({ x = math.floor(p.x - drag.gx), y = math.floor(p.y - drag.gy), window = sel }))
+            w = hl.get_active_window() or w
+            drag.moving, drag.manual, drag.zone = true, true, ""
+            drag.fs0, drag.fl0 = w.fullscreen, w.floating
+            drag_write("begin", w, "", nil)
+            drag_note("начато (из развёрнутого) " .. w.address .. " " .. (w.class or "?"))
             return
         end
         if not w.floating or w.fullscreen ~= 0 then return end
@@ -405,6 +443,11 @@ local function drag_tick()
         drag_note("начато " .. w.address .. " " .. (w.class or "?") .. (w.xwayland and " (XWayland)" or ""))
         return
     end
+    if drag.manual and (int(p.x) ~= drag.mx or int(p.y) ~= drag.my) then
+        drag.mx, drag.my = int(p.x), int(p.y)
+        hl.dispatch(hl.dsp.window.move({ x = math.floor(p.x - drag.gx), y = math.floor(p.y - drag.gy), window = "address:" .. w.address }))
+        w = hl.get_active_window() or w
+    end
     local zone, z = drag_zone(w.monitor, p)
     -- окно стоит на месте — файл не трогаем, оболочке нечего пересчитывать
     if w.at.x == drag.lx and w.at.y == drag.ly and zone == drag.zone then return end
@@ -422,6 +465,7 @@ local drag_timer = nil
 -- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
 function delta_drag.press()
     drag.addr, drag.moving, drag.zone, drag.lx, drag.ly = nil, false, "", nil, nil
+    drag.manual, drag.mx, drag.my = false, nil, nil
     if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 4, type = "repeat" }) end
     drag_timer:set_enabled(true)
 end
@@ -437,7 +481,7 @@ function delta_drag.release()
         end
         return
     end
-    drag.moving = false
+    drag.moving, drag.manual = false, false
     local w = hl.get_active_window()
     local zone, z = drag.zone, drag.rect
     if w and zone ~= "" and z then

@@ -122,7 +122,8 @@ Scope {
         const s = session;
         if (!s) { auth.fail("Нет ни одной сессии в " + sessionsDir); return; }
         const cmd = s.exec.replace(/%[a-zA-Z]/g, "").trim().split(/\s+/);
-        const env = ["XDG_SESSION_TYPE=wayland", "XDG_SESSION_DESKTOP=" + s.id,
+        // DELTA_LOGIN: пароль уже введён — оболочка не блокирует экран ещё раз
+        const env = ["DELTA_LOGIN=greeter", "XDG_SESSION_TYPE=wayland", "XDG_SESSION_DESKTOP=" + s.id,
             "XDG_CURRENT_DESKTOP=" + (s.desktopNames || s.id).replace(/;$/, "").replace(/;/g, ":")];
         saveState();
         if (mock) { console.info("[greeter] (проверка) запуск: " + cmd.join(" ") + " | " + env.join(" ")); return; }

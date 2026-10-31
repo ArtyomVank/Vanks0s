@@ -267,7 +267,9 @@ Singleton {
             f.push("mode = " + lstr(e.mode), "position = " + lstr(e.position), "scale = " + e.scale,
                    "transform = " + e.transform, "vrr = " + e.vrr);
             if (e.mirror) f.push("mirror = " + lstr(e.mirror));
-            if (e.hdr) f.push('cm = "hdr"', "bitdepth = 10", "sdrbrightness = " + e.sdrBrightness, "sdrsaturation = " + e.sdrSaturation);
+            // белый обычной картинки — 203 кд/м², как в delta-apply
+            if (e.hdr) f.push('cm = "hdr"', "bitdepth = 10", "sdrbrightness = " + e.sdrBrightness, "sdrsaturation = " + e.sdrSaturation,
+                              "sdr_max_luminance = 203");
             else if (e.cm) { f.push("cm = " + lstr(e.cm)); if (e.bitdepth === 10) f.push("bitdepth = 10"); }
             if (e.icc) f.push("icc = " + lstr(e.icc));
         }

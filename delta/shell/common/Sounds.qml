@@ -32,7 +32,7 @@ Singleton {
         { id: "volume", label: "Громкость", note: "Щелчок при смене громкости", icon: "volume",
           sounds: ["audio-volume-change"] },
         { id: "lock", label: "Блокировка и питание", note: "Разблокировка, выход, зарядка", icon: "lock",
-          sounds: ["unlock", "service-logout", "power-plug", "power-unplug"] },
+          sounds: ["unlock", "service-login", "service-logout", "power-plug", "power-unplug"] },
         { id: "timer", label: "Таймер", note: "Время вышло", icon: "clock",
           sounds: ["alarm-clock-elapsed"] },
         { id: "shot", label: "Снимок экрана", note: "Щелчок затвора", icon: "screenshot",

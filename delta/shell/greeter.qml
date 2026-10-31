@@ -12,8 +12,10 @@ import qs.greeter
 
 // Экран входа Delta — greeter для greetd. Выглядит как экран блокировки
 // (тот же LockSurface): обои и тема последнего пользователя, часы, аватар.
-// После пароля доигрывает анимацию разблокировки и только потом просит
-// greetd запустить сессию — greetd ждёт, что greeter сразу завершится.
+// После пароля доигрывает анимацию разблокировки, показывает «Добро пожаловать,
+// подождите» (её же оболочка держит, пока грузится рабочий стол — lock/Welcome.qml)
+// и только потом просит greetd запустить сессию — greetd ждёт, что greeter сразу
+// завершится.
 //
 //   qs -p /usr/share/delta/shell/greeter.qml          (так запускает session/greetd/hyprland.lua)
 //   DELTA_GREETER_MOCK=1 — без greetd, для вложенной сессии:
@@ -39,7 +41,7 @@ ShellRoot {
     }
     Timer {
         id: launchTimer
-        interval: 840
+        interval: 1150
         onTriggered: {
             be.launch();
             // в режиме проверки сессия не запускается — возвращаемся к экрану входа
@@ -100,6 +102,25 @@ ShellRoot {
                     target: shell
                     function onExitRequested() { surface.playExit(); }
                     function onResetRequested() { surface.reset(); surface.playEnter(); }
+                }
+            }
+
+            // после анимации входа — заставка, с которой начнётся сессия
+            WelcomeCard {
+                id: welcome
+                anchors.fill: parent
+                name: be.displayName
+                visible: opacity > 0
+                opacity: 0
+                SequentialAnimation {
+                    id: welcomeAnim
+                    PauseAnimation { duration: 600 }
+                    NumberAnimation { target: welcome; property: "opacity"; to: 1; duration: 450; easing.type: Easing.InOutQuad }
+                }
+                Connections {
+                    target: shell
+                    function onExitRequested() { welcomeAnim.restart(); }
+                    function onResetRequested() { welcomeAnim.stop(); welcome.opacity = 0; }
                 }
             }
         }

@@ -31,7 +31,7 @@ hl.config({
         disable_hyprland_logo    = true,
         disable_splash_rendering = true,
         disable_watchdog_warning = true,
-        background_color         = 0x000000,
+        background_color         = 0x14141a,
         -- курсор и клавиатура будят экран входа, если он погас
         mouse_move_enables_dpms  = true,
         key_press_enables_dpms   = true,

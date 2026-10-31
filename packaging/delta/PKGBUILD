@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.5.5
+pkgver=0.5.6
 pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
@@ -102,6 +102,9 @@ package() {
     # .exe/.msi: «Открыть обычно или через лаунчер» (delta-exe)
     install -Dm644 "${_src}/session/delta-exe.desktop" \
         "${pkgdir}/usr/share/applications/delta-exe.desktop"
+    # «Программы Windows»: все префиксы лаунчера и их программы
+    install -Dm644 "${_src}/session/delta-exe-manager.desktop" \
+        "${pkgdir}/usr/share/applications/delta-exe-manager.desktop"
     install -Dm644 "${_src}/session/delta-welcome.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \

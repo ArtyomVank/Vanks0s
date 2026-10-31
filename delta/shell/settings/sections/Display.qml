@@ -448,7 +448,7 @@ ColumnLayout {
                 subtitle: I18n.tr("Как выглядят окна и рабочий стол в режиме HDR")
                 wide: true
                 Slider {
-                    from: 0.5; to: 2; step: 0.05
+                    from: 0.5; to: 3; step: 0.05
                     value: page.cfg ? page.cfg.sdrBrightness : 1
                     onMoved: v => page.edit(page.selected, { sdrBrightness: Math.round(v * 100) / 100 })
                 }

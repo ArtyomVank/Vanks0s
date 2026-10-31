@@ -68,7 +68,7 @@ Scope {
     function finishUnlock() {
         persist.locked = false;
         unlocking = false;
-        Sounds.play("unlock");
+        Sounds.play("service-login");
         ShellState.unlocking = false;
         ShellState.desktopShown = true;
         lockedHint(false);
@@ -274,6 +274,8 @@ Scope {
     // (своя у каждого запуска Hyprland) живёт до выхода из сессии, поэтому перезапуск
     // оболочки не блокирует экран ещё раз. DELTA_LOCK_ON_START=1 — то же без
     // настройки (tools/delta-dev.sh fresh: «первый запуск» во вложенной сессии).
+    // Вошли паролем на экране входа (DELTA_LOGIN=greeter) — второй раз не блокируем:
+    // вместо этого Welcome.qml показывает «Подождите», пока грузится рабочий стол.
     // Там же — восстановление после падения оболочки: logind помнит LockedHint.
     Process {
         id: startCheck
@@ -287,7 +289,8 @@ Scope {
                 const first = l[0] === "1";
                 const wasLocked = !root.dryRun && (l[1] || "").trim() === "b true";
                 if (wasLocked) { console.info("[delta] сессия была заблокирована — восстанавливаем блокировку"); root.lock(true); }
-                else if (first && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) root.lock(true);
+                else if (first && Quickshell.env("DELTA_LOGIN") !== "greeter"
+                         && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) root.lock(true);
             }
         }
     }

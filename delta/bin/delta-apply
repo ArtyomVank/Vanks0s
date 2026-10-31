@@ -64,10 +64,13 @@ lua=$(jq -r '
         + (if $m.transform != null then [ kv("transform"; $m.transform | int(0) | clamp(0; 7) | tostring) ] else [] end)
         + (if $m.vrr != null then [ kv("vrr"; $m.vrr | int(0) | clamp(0; 3) | tostring) ] else [] end)
         + (if $m.mirror then [ kv("mirror"; $m.mirror | lstr) ] else [] end)
+        # обычная картинка в HDR: белый — 203 кд/м² (опорный белый BT.2408) вместо
+        # 80 по умолчанию у Hyprland, с которыми окна и рабочий стол тусклые
         + (if $m.hdr == true then
              [ kv("cm"; "\"hdr\""),
                kv("sdrbrightness"; ($m.sdrBrightness // 1) | num(1) | clamp(0.5; 3) | tostring),
-               kv("sdrsaturation"; ($m.sdrSaturation // 1) | num(1) | clamp(0.5; 2) | tostring) ]
+               kv("sdrsaturation"; ($m.sdrSaturation // 1) | num(1) | clamp(0.5; 2) | tostring),
+               kv("sdr_max_luminance"; ($m.sdrNits // 203) | num(203) | clamp(80; 1000) | tostring) ]
            elif ($m.cm // "") | test("^(auto|srgb|dcip3|dp3|adobe|wide|edid|hdredid)$") then
              [ kv("cm"; $m.cm | lstr) ]
            else [] end)

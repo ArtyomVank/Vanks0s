@@ -755,5 +755,17 @@ var strings = {
     "Интерфейс": "Interface",
     "Меню, виджеты, остров, первая настройка": "Menus, widgets, the island, first setup",
     "Толщина": "Thickness",
+    "Всё, что ставили и запускали через лаунчер, — у каждой программы своя папка Windows": "Everything installed or launched through the launcher — each program has its own Windows folder",
+    "Ещё не скачан — скачается при первом запуске (около 500 МБ)": "Not downloaded yet — it will download on first launch (about 500 MB)",
+    "Открывали обычно (Wine системы)": "Opened normally (system Wine)",
+    "Пока пусто. Откройте файл .exe или .msi и выберите «Через лаунчер» — программа появится здесь": "Nothing here yet. Open an .exe or .msi file and choose “Through the launcher” — the program will appear here",
+    "Программ не нашлось — запустите её .exe через лаунчер ещё раз": "No programs found — launch its .exe through the launcher again",
+    "Скачано:": "Downloaded:",
+    "Скачать последний": "Download latest",
+    "Скачивается последняя версия…": "Downloading the latest version…",
+    "Точно удалить?": "Delete for sure?",
+    "Все программы": "All programs",
+    "Добро пожаловать,": "Welcome,",
+    "Подождите…": "Please wait…",
     "": ""
 };

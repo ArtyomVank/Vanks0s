@@ -262,6 +262,12 @@ FloatingWindow {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
+                Btn {
+                    text: I18n.tr("Все программы")
+                    icon: "apps"
+                    kind: "ghost"
+                    onClicked: { Quickshell.execDetached(["delta-exe", "--manager"]); Qt.quit(); }
+                }
                 Item { Layout.fillWidth: true }
                 Btn { text: I18n.tr("Отмена"); kind: "ghost"; onClicked: Qt.quit() }
                 Btn {
