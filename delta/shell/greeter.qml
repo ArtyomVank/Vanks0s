@@ -12,10 +12,9 @@ import qs.greeter
 
 // Экран входа Delta — greeter для greetd. Выглядит как экран блокировки
 // (тот же LockSurface): обои и тема последнего пользователя, часы, аватар.
-// После пароля доигрывает анимацию разблокировки, показывает «Добро пожаловать,
-// подождите» (её же оболочка держит, пока грузится рабочий стол — lock/Welcome.qml)
-// и только потом просит greetd запустить сессию — greetd ждёт, что greeter сразу
-// завершится.
+// При запуске сначала «Добро пожаловать» (WelcomeCard), потом экран входа.
+// После пароля доигрывает анимацию разблокировки и только потом просит greetd
+// запустить сессию — greetd ждёт, что greeter сразу завершится.
 //
 //   qs -p /usr/share/delta/shell/greeter.qml          (так запускает session/greetd/hyprland.lua)
 //   DELTA_GREETER_MOCK=1 — без greetd, для вложенной сессии:
@@ -44,7 +43,7 @@ ShellRoot {
     }
     Timer {
         id: launchTimer
-        interval: 1150
+        interval: 840
         onTriggered: {
             be.launch();
             // в режиме проверки сессия не запускается — возвращаемся к экрану входа
@@ -108,35 +107,11 @@ ShellRoot {
                 }
             }
 
-            // заставка запуска: тает, экран входа въезжает своей анимацией
+            // заставка запуска: гаснет, и экран входа въезжает своей анимацией
             WelcomeCard {
                 anchors.fill: parent
-                visible: opacity > 0
-                opacity: shell.starting ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
-                Connections {
-                    target: shell
-                    function onStartingChanged() { if (!shell.starting) surface.playEnter(); }
-                }
-            }
-
-            // после анимации входа — заставка, с которой начнётся сессия
-            WelcomeCard {
-                id: welcome
-                anchors.fill: parent
-                name: be.displayName
-                visible: opacity > 0
-                opacity: 0
-                SequentialAnimation {
-                    id: welcomeAnim
-                    PauseAnimation { duration: 600 }
-                    NumberAnimation { target: welcome; property: "opacity"; to: 1; duration: 450; easing.type: Easing.InOutQuad }
-                }
-                Connections {
-                    target: shell
-                    function onExitRequested() { welcomeAnim.restart(); }
-                    function onResetRequested() { welcomeAnim.stop(); welcome.opacity = 0; }
-                }
+                done: !shell.starting
+                onReveal: surface.playEnter()
             }
         }
     }

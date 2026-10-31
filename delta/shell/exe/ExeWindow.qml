@@ -28,11 +28,17 @@ FloatingWindow {
     // похоже на установщик — по умолчанию ставим программу, а не просто запускаем
     readonly property bool looksInstaller: /(setup|install|инстал|\.msi$)/i.test(fileName)
     property bool install: looksInstaller
-    // имя программы: без расширения, «setup», версий и подчёркиваний
-    property string appName: fileName.replace(/\.(exe|msi)$/i, "")
-        .replace(/[_.]+/g, " ")
-        .replace(/\b(setup|installer|install|win(32|64)?|x(64|86)|v?\d+(\s\d+)*)\b/gi, " ")
-        .replace(/\s+/g, " ").trim() || fileName
+    // имя программы: без расширения, «setup», версий и подчёркиваний; у
+    // безликого setup.exe — по папке, в которой он лежит («REPO v0.4 by X»)
+    function cleanName(n) {
+        return n.replace(/\.(exe|msi)$/i, "")
+            .replace(/[_.]+/g, " ")
+            .replace(/\b(setup|installer|install|win(32|64)?|x(64|86)|v?\d+(\s\d+)*)\b/gi, " ")
+            .replace(/\b(by|repack)\b.*$/i, " ")
+            .replace(/[()\[\]]/g, " ")
+            .replace(/\s+/g, " ").replace(/^[\s-]+|[\s-]+$/g, "");
+    }
+    property string appName: cleanName(fileName) || cleanName(file.split("/").slice(-2, -1)[0] || "") || fileName
     property var info: ({ protons: [], wine: false, umu: false })
     readonly property bool canRun: file.length > 0 && (mode === "normal" || runner === "wine" ? info.wine
         : runner === "proton" ? protonPath.length > 0 : true)

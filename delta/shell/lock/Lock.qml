@@ -37,17 +37,15 @@ Scope {
     // сигналы для поверхностей на всех мониторах
     signal exitRequested()
 
-    // Запуск сессии начинается с «Добро пожаловать, подождите», пока грузится
-    // рабочий стол. Дальше — экран блокировки (блокировка при запуске, автовход:
-    // заставка лежит поверх него и тает) или сразу рабочий стол (вошли паролем
-    // на экране входа — Welcome.qml).
+    // Блокировка при запуске сессии (автовход) начинается с «Добро пожаловать»:
+    // заставка лежит поверх экрана блокировки, гаснет, и он въезжает. После
+    // входа паролем на экране входа заставки нет — сразу рабочий стол.
     property bool welcome: false
     Timer {
         interval: 1600
         running: root.welcome && Settings.ready
         onTriggered: root.welcome = false
     }
-    Welcome { id: welcomeOverlay }
 
     function lock(quick) {
         if (persist.locked) return;
@@ -255,17 +253,14 @@ Scope {
                 }
             }
 
-            // заставка запуска: тает, и экран блокировки появляется своей анимацией
+            // заставка запуска: гаснет, и экран блокировки въезжает своей анимацией
             WelcomeCard {
+                // только у блокировки при запуске; обычная (Super+L) — без неё
+                property bool armed: false
                 anchors.fill: parent
-                name: Account.name
-                visible: opacity > 0
-                opacity: root.welcome ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
-            }
-            Connections {
-                target: root
-                function onWelcomeChanged() { if (!root.welcome && content.item) content.item.playEnter(); }
+                Component.onCompleted: { armed = root.welcome; opacity = armed ? 1 : 0; }
+                done: armed && !root.welcome
+                onReveal: if (content.item) content.item.playEnter()
             }
         }
     }
@@ -300,8 +295,7 @@ Scope {
     // (своя у каждого запуска Hyprland) живёт до выхода из сессии, поэтому перезапуск
     // оболочки не блокирует экран ещё раз. DELTA_LOCK_ON_START=1 — то же без
     // настройки (tools/delta-dev.sh fresh: «первый запуск» во вложенной сессии).
-    // Первый запуск — сначала «Добро пожаловать» (см. welcome выше). Вошли паролем на
-    // экране входа (DELTA_LOGIN=greeter) — второй раз не блокируем.
+    // Вошли паролем на экране входа (DELTA_LOGIN=greeter) — второй раз не блокируем.
     // Там же — восстановление после падения оболочки: logind помнит LockedHint.
     Process {
         id: startCheck
@@ -317,14 +311,11 @@ Scope {
                 if (wasLocked) {
                     console.info("[delta] сессия была заблокирована — восстанавливаем блокировку");
                     root.lock(true);
-                    welcomeOverlay.dismiss();
                 } else if (first && Quickshell.env("DELTA_LOGIN") !== "greeter"
                          && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) {
                     root.welcome = true;
                     root.lock(true);
-                    welcomeOverlay.dismiss();
-                } else if (first) welcomeOverlay.release();
-                else welcomeOverlay.dismiss();
+                }
             }
         }
     }

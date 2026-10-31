@@ -221,20 +221,45 @@ start_steam() {
 # Собирает команду в CMD (переменные — через env) для раннера $1, файла $2 и
 # префикса $3; $4 = wait — ждать, пока в префиксе закончатся все процессы
 # (установщики запускают настоящую установку отдельным процессом и выходят).
+# DLL рядом с exe — первыми, как в Windows. Wine для части системных DLL
+# (winmm, winhttp, version, dinput8, dxgi, d3d9…) берёт свои встроенные, и
+# библиотеки, которые программа принесла с собой, не грузятся: моды
+# (BepInEx — winhttp, ReShade — dxgi, ASI-загрузчики — dinput8/winmm),
+# обёртки графики, свои сборки. Ядро Windows не трогаем.
+local_dlls() {
+    local f n names=()
+    [[ $1 == /* ]] || return 0
+    for f in "$(dirname -- "$1")"/*.[dD][lL][lL]; do
+        [ -f "${f}" ] || continue
+        n=$(basename -- "${f}"); n=${n%.*}; n=${n,,}
+        [[ ${n} =~ ^[a-z0-9_]+$ ]] || continue
+        case "${n}" in
+            kernel32|kernelbase|ntdll|user32|gdi32|win32u|advapi32|sechost|ole32|oleaut32|combase|rpcrt4|shell32|ucrtbase|msvcrt|ws2_32|crypt32|bcrypt|setupapi|wow64*) continue ;;
+        esac
+        names+=("${n}")
+        [ "${#names[@]}" -ge 48 ] && break
+    done
+    [ "${#names[@]}" -gt 0 ] || return 0
+    local IFS=,
+    printf '%s=n,b' "${names[*]}"
+}
+
 CMD=()
 prepare() {
-    local runner=$1 file=$2 prefix=$3 how=${4:-} proton="" steam="" id="" args
+    local runner=$1 file=$2 prefix=$3 how=${4:-} proton="" steam="" id="" args ov dlls=()
     mkdir -p "${prefix}"
     # .msi сам не запускается — его открывает msiexec
     args=("${file}")
     [[ ${file,,} == *.msi ]] && args=(msiexec /i "${file}")
+    ov=$(local_dlls "${file}")
+    [ -n "${ov}" ] && dlls=("WINEDLLOVERRIDES=${WINEDLLOVERRIDES:+${WINEDLLOVERRIDES};}${ov}")
     case "${runner}" in
         wine)
             command -v wine >/dev/null || { say "Нет Wine"; exit 1; }
             if [ "${how}" = wait ]; then
-                CMD=(env "WINEPREFIX=${prefix}" sh -c 'wine "$@"; wineserver -w' sh "${args[@]}")
+                CMD=(env "WINEPREFIX=${prefix}" "${dlls[@]}" sh -c 'wine "$@"; wineserver -w' sh "${args[@]}")
             else
-                CMD=(env "WINEPREFIX=${prefix}" wine "${args[@]}")
+                CMD=(env "WINEPREFIX=${prefix}" "${dlls[@]}" wine "${args[@]}")
             fi
             return 0
             ;;
@@ -257,7 +282,7 @@ prepare() {
     fi
     PROTON=${proton}
     if [ -z "${steam}" ] && [ "${how}" != wait ] && command -v umu-run >/dev/null; then
-        CMD=(env "WINEPREFIX=$(prefix_dir "${prefix}")" "PROTONPATH=${proton}" "GAMEID=${GAMEID:-umu-default}" umu-run "${args[@]}")
+        CMD=(env "WINEPREFIX=$(prefix_dir "${prefix}")" "PROTONPATH=${proton}" "GAMEID=${GAMEID:-umu-default}" "${dlls[@]}" umu-run "${args[@]}")
         return 0
     fi
     # Proton напрямую: префикс как у Steam (pfx внутри). Префикс от umu —
@@ -267,8 +292,11 @@ prepare() {
         steam=${HOME}/.steam/root
         mkdir -p "${steam}"
     fi
-    CMD=(env "STEAM_COMPAT_DATA_PATH=${prefix}" "STEAM_COMPAT_CLIENT_INSTALL_PATH=${steam}")
-    [ -n "${id}" ] && CMD+=("SteamAppId=${id}" "SteamGameId=${id}" "STEAM_COMPAT_APP_ID=${id}")
+    CMD=(env "STEAM_COMPAT_DATA_PATH=${prefix}" "STEAM_COMPAT_CLIENT_INSTALL_PATH=${steam}" "${dlls[@]}")
+    # protonfixes в Proton CachyOS без номера игры падает до запуска программы
+    # (ищет цифры в пути префикса) — как umu, передаём UMU_ID
+    if [ -n "${id}" ]; then CMD+=("SteamAppId=${id}" "SteamGameId=${id}" "STEAM_COMPAT_APP_ID=${id}")
+    else CMD+=("UMU_ID=${GAMEID:-umu-default}"); fi
     CMD+=("${proton}/proton" "$([ "${how}" = wait ] && echo waitforexitandrun || echo run)" "${args[@]}")
 }
 

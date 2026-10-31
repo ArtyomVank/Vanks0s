@@ -3,19 +3,31 @@ import QtQuick.Shapes
 import qs.common
 import qs.common.ui
 
-// «Добро пожаловать — подождите»: тёмный экран с кольцом загрузки. Его
-// показывает экран входа после пароля и оболочка, пока грузится рабочий стол:
-// вместо чёрного экрана и второй блокировки — одна заставка, как в Windows.
-// Цвет — как фон Hyprland (background_color 0x14141a в обоих конфигах), чтобы
-// стык между композитором экрана входа и сессией был незаметен.
+// «Добро пожаловать — подождите»: тёмный экран с кольцом загрузки — первое,
+// что видно после загрузки системы. Его показывают экран входа (greeter.qml)
+// и экран блокировки при запуске сессии (Lock.qml). done = true — надпись
+// гаснет, полсекунды тёмный экран, reveal() — пора въезжать экрану входа,
+// и заставка тает. Цвет — как фон Hyprland (background_color 0x14141a).
 Rectangle {
     id: root
 
     property string name: ""
+    property bool done: false
+    signal reveal()
 
     color: "#14141a"
+    visible: opacity > 0
+
+    SequentialAnimation {
+        running: root.done
+        NumberAnimation { target: col; property: "opacity"; to: 0; duration: 400; easing.type: Easing.InOutQuad }
+        PauseAnimation { duration: 500 }
+        ScriptAction { script: root.reveal() }
+        NumberAnimation { target: root; property: "opacity"; to: 0; duration: 500; easing.type: Easing.InOutQuad }
+    }
 
     Column {
+        id: col
         anchors.centerIn: parent
         spacing: 22
 
@@ -43,7 +55,7 @@ Rectangle {
                 RotationAnimator on rotation {
                     from: 0; to: 360; duration: 1100
                     loops: Animation.Infinite
-                    running: root.visible
+                    running: root.visible && col.opacity > 0
                 }
             }
         }
