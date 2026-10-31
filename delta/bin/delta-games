@@ -10,6 +10,8 @@
 #   delta-games play steam|epic <id>      запустить игру
 #   delta-games install steam|epic <id>   установить игру
 #   delta-games xbox                      облачные игры Xbox в окне браузера
+#   delta-games appid <название>          номер игры из вашей библиотеки Steam с таким
+#                                         названием (для delta-exe: игра вне папки Steam)
 #
 # Steam — его собственный клиент для Linux: вход, покупки и запуск идут через
 # него, и игры видят аккаунт, как в Windows. Библиотека — без сети: установленные
@@ -222,8 +224,29 @@ def steam_user(root):
     return (best[0], best[1].get("PersonaName", "")) if best else ("", "")
 
 
+def fix_steam_root(root):
+    """~/.steam/root должна быть ссылкой на папку Steam (по ней Steam ищут
+    Proton, umu, protontricks, лаунчеры игр). Прежний delta-exe создавал там
+    пустую папку, и Steam клал ссылку внутрь неё. Чиним, если в папке ничего,
+    кроме этой ссылки (как fix_steam_root в delta-exe)."""
+    link = os.path.join(HOME, ".steam", "root")
+    if not root or os.path.islink(link) or not os.path.isdir(link):
+        return
+    try:
+        inside = os.listdir(link)
+        if any(n != "Steam" or not os.path.islink(os.path.join(link, n)) for n in inside):
+            return
+        for n in inside:
+            os.unlink(os.path.join(link, n))
+        os.rmdir(link)
+        os.symlink(root, link)
+    except OSError:
+        pass
+
+
 def steam_status():
     root = steam_root()
+    fix_steam_root(root)
     sid, name = steam_user(root) if root else ("", "")
     return {"installed": bool(shutil.which("steam")), "running": running("steam"),
             "user": name, "id": sid}
@@ -274,6 +297,18 @@ def steam_library():
         games[appid] = {"store": "steam", "id": str(appid), "title": title, "installed": False,
                         "size": 0, "cover": steam_cover(root, appid)}
     return list(games.values())
+
+
+def steam_appid(name):
+    """Номер игры из библиотеки Steam, чьё название совпадает с name без
+    учёта регистра, пробелов и знаков («REPO» = «R.E.P.O.»). Только купленные
+    и установленные игры этого аккаунта."""
+    key = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    want = key(name)
+    if not want:
+        return None
+    hits = [g["id"] for g in steam_library() if key(g["title"]) == want]
+    return hits[0] if len(hits) == 1 else None
 
 
 def steam_cmd(*args):
@@ -514,6 +549,11 @@ def main(argv):
         return epic_install(rest)
     elif cmd == "xbox":
         return xbox()
+    elif cmd == "appid" and arg:
+        appid = steam_appid(arg)
+        if not appid:
+            return 1
+        print(appid)
     else:
         print(__doc__ if __doc__ else "delta-games status|library|login|epic-code|logout|play|install|xbox",
               file=sys.stderr)

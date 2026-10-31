@@ -18,10 +18,12 @@
 #   delta-exe --folder <префикс> · --remove <префикс>
 #   delta-exe --proton         путь к самому свежему Proton CachyOS (для delta-games)
 #
-# Игре с steam_api*.dll нужен Steam: если Steam для Linux установлен, он
-# запускается, а Proton идёт напрямую с STEAM_COMPAT_CLIENT_INSTALL_PATH на
-# него (umu запускает игры без Steam) — игра видит Steam, как «сторонняя игра»
-# в его библиотеке. Ссылки из программ (вход, «открыть сайт») открывает
+# Игре с steam_api*.dll нужен Steam. Игра из библиотеки Steam запускается
+# через сам Steam (steam://rungameid). Остальным: Steam для Linux запускается,
+# лаунчер ждёт входа в аккаунт, а Proton идёт напрямую с
+# STEAM_COMPAT_CLIENT_INSTALL_PATH на него и номером игры (steam_appid.txt,
+# иначе — игра с тем же названием из вашей библиотеки Steam). Steam не
+# установлен — уведомление, как его поставить. Ссылки из программ (вход, «открыть сайт») открывает
 # браузер системы: в каждом префиксе winebrowser настроен на delta-open-url
 # (xdg-open без окружения Proton), а в контейнере umu — на xdg-open.
 #
@@ -188,13 +190,11 @@ game_root() {
 # Глубоко: у Unity — Игра_Data/Plugins/x86_64 (4 уровня), у Unreal Engine —
 # Engine/Binaries/ThirdParty/Steamworks/Steamv1xx/Win64 (7)
 wants_steam() { find "$(game_root "$1")" -maxdepth 7 -iname 'steam_api*.dll' -print -quit 2>/dev/null | grep -q .; }
-# номер игры в Steam: steam_appid.txt от разработчика, а у игры из библиотеки
-# Steam (steamapps/common/<папка>) — её appmanifest_<номер>.acf
-app_id() {
-    local root f lib dir m d
+# номер игры, поставленной самим Steam (steamapps/common/<папка>): её
+# appmanifest_<номер>.acf
+library_id() {
+    local root lib dir m d
     root=$(game_root "$1")
-    f=$(find "${root}" -maxdepth 4 -name steam_appid.txt -print -quit 2>/dev/null)
-    if [ -n "${f}" ]; then tr -dc '0-9' <"${f}" | head -c 12; return 0; fi
     [[ ${root} == */steamapps/common/* ]] || return 0
     lib=${root%%/steamapps/common/*}/steamapps
     dir=${root#"${lib}"/common/}
@@ -205,15 +205,58 @@ app_id() {
         [ "${d,,}" = "${dir,,}" ] && { basename -- "${m}" .acf | tr -dc '0-9'; return 0; }
     done
 }
+# номер игры в Steam: steam_appid.txt от разработчика, игра из библиотеки
+# Steam — её appmanifest, иначе — игра с тем же названием, что и папка, из
+# вашей библиотеки Steam (delta-games appid): без номера Steam не знает, что
+# это за игра, и не пускает её
+app_id() {
+    local root f id
+    root=$(game_root "$1")
+    f=$(find "${root}" -maxdepth 4 -name steam_appid.txt -print -quit 2>/dev/null)
+    if [ -n "${f}" ]; then tr -dc '0-9' <"${f}" | head -c 12; return 0; fi
+    id=$(library_id "$1")
+    [ -n "${id}" ] && { printf '%s\n' "${id}"; return 0; }
+    command -v delta-games >/dev/null && delta-games appid "$(basename -- "${root}")" 2>/dev/null
+}
+# ~/.steam/root — ссылка на папку Steam: по ней Steam ищут Proton, umu,
+# protontricks и лаунчеры игр. Прежний delta-exe, пока Steam не был
+# установлен, создавал там пустую папку, и Steam потом клал ссылку внутрь
+# неё (~/.steam/root/Steam) — Steam «не находился». Чиним, если в папке
+# ничего, кроме этой ссылки.
+fix_steam_root() {
+    local root=${HOME}/.steam/root dir=$1 f
+    [ -d "${root}" ] && [ ! -L "${root}" ] || return 0
+    for f in "${root}"/* "${root}"/.[!.]*; do
+        [ -e "${f}" ] || [ -L "${f}" ] || continue
+        [ -L "${f}" ] && [ "$(basename -- "${f}")" = Steam ] || return 0
+        rm -f -- "${f}"
+    done
+    rmdir -- "${root}" 2>/dev/null && ln -sfn -- "${dir}" "${root}"
+}
+# вошли ли в Steam: его журнал соединения кончается состоянием «Logged On»
+# (а не выходом LogOff), и журнал свежее, чем запуск Steam
+steam_logged_in() {
+    local log=$1/logs/connection_log.txt last
+    pgrep -x steam >/dev/null || return 1
+    [ -f "${log}" ] || return 1
+    [ "${HOME}/.steam/steam.pid" -nt "${log}" ] && return 1
+    last=$(tail -n 40 -- "${log}" | grep -E '^\[[^]]*\] \[(Logged|Logging|Connecting|Disconnect)' | tail -n1)
+    [[ ${last} == *"] [Logged On,"* && ${last} != *"LogOff("* ]]
+}
+# Steam запущен и в него вошли — иначе игра не подключится к Steam и
+# закроется. Ждём до двух минут: вход бывает с паролем и кодом.
 start_steam() {
-    pgrep -x steam >/dev/null && return 0
+    local dir=$1 i
+    steam_logged_in "${dir}" && return 0
     command -v steam >/dev/null || return 1
-    say "Steam" "Запускаю Steam — игре он нужен"
-    setsid steam -silent >/dev/null 2>&1 &
-    # готов, когда поднялся его браузер (вход в аккаунт уже прошёл)
-    local _
-    for _ in $(seq 60); do
-        pgrep -x steamwebhelper >/dev/null && { sleep 3; return 0; }
+    if ! pgrep -x steam >/dev/null; then
+        say "Steam" "Запускаю Steam — игре он нужен"
+        setsid -f steam -silent >/dev/null 2>&1 </dev/null
+    fi
+    for i in $(seq 120); do
+        steam_logged_in "${dir}" && { sleep 2; return 0; }
+        # через 10 с без входа — подсказать, что ждём именно его
+        [ "${i}" -eq 10 ] && say "Войдите в Steam" "Игра запустится сразу после входа в аккаунт"
         sleep 1
     done
     return 0
@@ -278,9 +321,15 @@ prepare() {
 
     # «reg» и прочие команды внутри префикса — не игра, Steam им не нужен;
     # установщику тоже (а рядом с ним в «Загрузках» может лежать чужая игра)
-    if [ "${how}" != wait ] && [[ ${file} == /* ]] && wants_steam "${file}" && steam=$(steam_dir); then
-        start_steam
-        id=$(app_id "${file}")
+    if [ "${how}" != wait ] && [[ ${file} == /* ]] && wants_steam "${file}"; then
+        if steam=$(steam_dir); then
+            fix_steam_root "${steam}"
+            start_steam "${steam}"
+            id=$(app_id "${file}")
+        else
+            steam=""
+            say "Игре нужен Steam" "Поставьте Steam в «Играх и программах Windows» (плитка Steam) и войдите в аккаунт — без него игра может не запуститься"
+        fi
     fi
     PROTON=${proton}
     if [ -z "${steam}" ] && [ "${how}" != wait ] && command -v umu-run >/dev/null; then
@@ -290,8 +339,10 @@ prepare() {
     # Proton напрямую: префикс как у Steam (pfx внутри). Префикс от umu —
     # сам себе pfx: ссылка, чтобы оба способа видели одну и ту же систему.
     [ -d "${prefix}/drive_c" ] && [ ! -e "${prefix}/pfx" ] && ln -s . "${prefix}/pfx"
+    # без Steam Proton всё равно ждёт папку клиента — своя, пустая; не
+    # ~/.steam/root: туда потом ставит свою ссылку сам Steam
     if [ -z "${steam}" ]; then
-        steam=${HOME}/.steam/root
+        steam=${DATA}/no-steam
         mkdir -p "${steam}"
     fi
     CMD=(env "STEAM_COMPAT_DATA_PATH=${prefix}" "STEAM_COMPAT_CLIENT_INSTALL_PATH=${steam}" "${dlls[@]}")
@@ -381,7 +432,16 @@ run_in_wine_prefix() {
 slug() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9._-' '-' | sed 's/^-*//; s/-*$//' | cut -c1-48; }
 
 run_launcher() {
-    local runner=$1 file=$2 name=${3:-} prefix root
+    local runner=$1 file=$2 name=${3:-} prefix root id
+    # игра, поставленная самим Steam, — через Steam: его Proton и настройки
+    # игры, вход в аккаунт, облачные сохранения
+    if [[ ${file} == /* ]] && id=$(library_id "${file}") && [ -n "${id}" ] && command -v steam >/dev/null; then
+        mkdir -p "${STATE}"
+        printf '\n=== %s  через Steam: steam://rungameid/%s (%s)\n' "$(date '+%F %T')" "${id}" "${file}" >>"${LOG}"
+        pgrep -x steam >/dev/null || say "Steam" "Игра из библиотеки Steam — запускаю её через Steam"
+        setsid -f steam "steam://rungameid/${id}" >/dev/null 2>&1 </dev/null
+        exit 0
+    fi
     # exe из уже существующего префикса — в нём же и тем же раннером
     if [ -z "${name}" ] && root=$(prefix_root "${file}"); then
         name=$(prefix_name "${root}") || run_in_wine_prefix "${root}" "${file}"
@@ -420,7 +480,7 @@ run_logged() {
         plog=$(find "$(drive_c "${prefix}")/users" -maxdepth 6 -name Player.log -newermt "@${t0}" 2>/dev/null | head -n1)
         if [ -n "${plog}" ] && grep -qiE 'Steam not initialized|SteamApi_Init failed|SteamAPI_Init\(\) failed' "${plog}"; then
             printf '=== Player.log: игра не подключилась к Steam\n' >>"${LOG}"
-            say "Игра не подключилась к Steam" "Ей нужен запущенный Steam со входом в аккаунт. Откройте Steam, войдите и запустите игру снова; игры из библиотеки Steam запускайте из самого Steam"
+            say "Игра не подключилась к Steam" "Steam её не пустил: игры нет в вашей библиотеке Steam или неизвестен её номер (steam_appid.txt). Купленную игру поставьте через Steam — она запустится из «Игр и программ Windows»"
         elif [ "${code}" -ne 0 ]; then
             say "Программа закрылась через ${secs} с" "Код ${code}. Подробности — в ~/.local/state/delta/exe.log"
         fi
