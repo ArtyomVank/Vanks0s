@@ -53,7 +53,7 @@ Page {
                     required property int index
                     required property string modelData
                     readonly property bool on: index === root.hello
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.centerIn: parent
                     text: modelData
                     size: "display"
                     font.pixelSize: 48

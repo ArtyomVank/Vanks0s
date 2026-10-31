@@ -229,7 +229,7 @@ FloatingWindow {
                             tone: 3; size: "small"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                         }
                     }
-                    Toggle { checked: win.install; onToggled: v => { win.install = v; Sounds.play("pop", 60); } }
+                    Toggle { checked: win.install; onToggled: v => win.install = v }
                 }
                 Field {
                     Layout.fillWidth: true

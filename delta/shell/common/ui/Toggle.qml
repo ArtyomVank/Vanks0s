@@ -1,7 +1,7 @@
 import QtQuick
 import qs.common
 
-// Переключатель.
+// Переключатель. Щёлкает мягким звуком вверх или вниз (Sounds: toggle-on/off).
 //     Toggle { checked: Settings.get("notifications.dnd", false); onToggled: v => Settings.set("notifications.dnd", v) }
 Rectangle {
     id: root
@@ -33,6 +33,9 @@ Rectangle {
     HoverHandler { cursorShape: Qt.PointingHandCursor }
     TapHandler {
         enabled: root.enabled
-        onTapped: root.toggled(!root.checked)
+        onTapped: {
+            Sounds.play(root.checked ? "toggle-off" : "toggle-on", 40);
+            root.toggled(!root.checked);
+        }
     }
 }

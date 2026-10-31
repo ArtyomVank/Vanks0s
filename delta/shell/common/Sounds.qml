@@ -20,7 +20,9 @@ Singleton {
     readonly property string ownDir: Quickshell.shellDir + "/sounds/"
     readonly property var own: ["oobe-hello", "oobe-step", "oobe-back", "oobe-select", "oobe-hold", "oobe-done",
         "pop", "workspace", "island", "swoosh", "drop", "unlock",
-        "snap-in", "snap", "launcher", "tick", "sparkle", "app-open"]
+        "snap-in", "snap", "launcher", "tick", "sparkle", "app-open",
+        "oobe-step1", "oobe-step2", "oobe-step3", "oobe-step4", "oobe-step5", "oobe-step6", "oobe-fill",
+        "toggle-on", "toggle-off", "hover"]
     // группы для «Настройки → Звук»; звук без группы — «Интерфейс»
     readonly property var groups: [
         { id: "notify", label: "Уведомления", note: "Пришло сообщение", icon: "bell",

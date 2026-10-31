@@ -3,9 +3,11 @@ import QtQuick.Layouts
 import qs.common
 import qs.common.ui
 
-// Шаг первой настройки: значок, заголовок, пояснение и содержимое. Когда шаг
-// становится текущим, всё въезжает по очереди (shown → appear): значок
-// выпрыгивает с искрами, заголовок печатается по буквам со щелчками.
+// Шаг первой настройки: значок, заголовок, пояснение и содержимое — всё по
+// центру, без плашек. Когда шаг становится текущим, всё въезжает по очереди
+// (shown → appear): значок выпрыгивает с искрами, заголовок печатается по
+// буквам со щелчками. Содержимое не шире 820 px — на широком экране оно не
+// расползается по краям.
 Item {
     id: root
 
@@ -16,33 +18,48 @@ Item {
     default property alias content: body.data
 
     onShownChanged: if (shown) {
-        head.y = 26; head.opacity = 0; body.opacity = 0; bodyShift.y = 34; badge.scale = 0.5;
-        typer.play(260);
+        head.y = 22; head.opacity = 0; body.opacity = 0; bodyShift.y = 30; glyph.scale = 0.4;
+        typer.play(240);
         appear.restart();
     }
 
     Typewriter { id: typer; full: root.title }
 
     ColumnLayout {
-        anchors { fill: parent; leftMargin: 48; rightMargin: 48; topMargin: 40; bottomMargin: 12 }
-        spacing: 22
+        anchors { fill: parent; leftMargin: 40; rightMargin: 40; topMargin: 44; bottomMargin: 8 }
+        spacing: 28
 
         Item {
             Layout.fillWidth: true
             implicitHeight: headCol.implicitHeight
-            ColumnLayout {
+            Column {
                 id: headCol
                 width: parent.width
-                spacing: 8
-                Rectangle {
-                    id: badge
-                    implicitWidth: 52; implicitHeight: 52; radius: 17
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
-                    Sym { anchors.centerIn: parent; name: root.icon; size: 26; color: Theme.accent }
+                spacing: 10
+                Item {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 40; height: 40
+                    Sym { id: glyph; anchors.centerIn: parent; name: root.icon; size: 32; color: Theme.accent }
                     Sparkles { id: spark; anchors.centerIn: parent; width: 150; height: 150 }
                 }
-                Label { text: typer.text; size: "h1"; font.pixelSize: 30; Layout.fillWidth: true; Layout.topMargin: 6 }
-                Label { text: root.subtitle; tone: 2; wrapMode: Text.WordWrap; Layout.fillWidth: true; visible: text.length > 0 }
+                Label {
+                    width: parent.width
+                    // место под весь заголовок сразу: строки ниже не прыгают, пока он печатается
+                    height: Math.max(implicitHeight, 44)
+                    text: typer.text
+                    size: "h1"
+                    font.pixelSize: 34
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Label {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(parent.width, 600)
+                    text: root.subtitle
+                    tone: 3
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: text.length > 0
+                }
             }
             QtObject { id: head; property real y: 0; property real opacity: 1 }
             transform: Translate { y: head.y }
@@ -51,7 +68,8 @@ Item {
 
         Item {
             id: body
-            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: Math.min(parent.width, 820)
             Layout.fillHeight: true
             opacity: 1
             transform: Translate { id: bodyShift; y: 0 }
@@ -65,7 +83,7 @@ Item {
             SequentialAnimation {
                 PauseAnimation { duration: 120 * Theme.anim.k }
                 ScriptAction { script: { spark.burst(); Sounds.play("sparkle", 0); } }
-                NumberAnimation { target: badge; property: "scale"; to: 1; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 2.6 }
+                NumberAnimation { target: glyph; property: "scale"; to: 1; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 2.6 }
             }
             NumberAnimation { target: head; property: "y"; to: 0; duration: 620; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
             NumberAnimation { target: head; property: "opacity"; to: 1; duration: 380; easing.type: Easing.OutCubic }

@@ -6,8 +6,10 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import QtQuick.Effects
 import qs.common
 import qs.common.ui
+import "../wallpaper/media.js" as Media
 
 // Первая настройка (OOBE). На весь экран и непрозрачная: при первом входе на
 // чёрном фоне капли стекаются с краёв к центру и разливаются на весь экран,
@@ -32,12 +34,15 @@ Scope {
     property real time: 0
 
     readonly property int pages: 7
+    // подписи шагов — у индикатора внизу
+    readonly property var stepNames: ["Язык", "Оформление", "Стиль", "Обои", "Доки", "Звуки и движение", "Готово"]
 
     function start() {
         page = 0;
         hole = 0;
         gather = 0;
         leaving = false;
+        startPage.button.reset();
         ShellState.desktopShown = false;
         active = true;
         gatherAnim.restart();
@@ -47,7 +52,7 @@ Scope {
     function go(to) {
         to = Math.max(0, Math.min(pages - 1, to));
         if (to === page || leaving) return;
-        Sounds.play(to > page ? "oobe-step" : "oobe-back", 60);
+        Sounds.play(to > page ? "oobe-step" + Math.min(6, to) : "oobe-back", 60);
         page = to;
     }
 
@@ -136,6 +141,9 @@ Scope {
         function next(): void { root.go(root.page + 1); }
         function page(n: int): void { root.go(n); }
         function finish(): void { if (root.active) root.finish(Qt.point(win.width / 2, win.height * 0.62)); }
+        // зажать и отпустить «Начать», как пробелом (последний шаг)
+        function press(): void { if (root.active && root.page === root.pages - 1) startPage.button.keyDown(); }
+        function release(): void { if (root.active) startPage.button.keyUp(); }
     }
 
     NumberAnimation { id: gatherAnim; target: root; property: "gather"; from: 0; to: 1; duration: 2300; easing.type: Easing.OutCubic }
@@ -171,8 +179,8 @@ Scope {
         color: "transparent"
 
         // содержимое — по центру, а стекло разливается на весь экран
-        readonly property real cw: Math.min(1000, width - 96)
-        readonly property real ch: Math.min(680, height - 96)
+        readonly property real cw: Math.min(960, width - 96)
+        readonly property real ch: Math.min(720, height - 80)
         readonly property real cx: (width - cw) / 2
         readonly property real cy: (height - ch) / 2
 
@@ -204,6 +212,41 @@ Scope {
                 property color accent: Theme.accent
                 property color dim: Qt.rgba(0.01, 0.01, 0.02, 1)
                 fragmentShader: Qt.resolvedUrl("shaders/gather.frag.qsb")
+            }
+
+            // --- выбранные обои за стеклом: размыты и притушены, меняются на лету ---
+            Item {
+                id: backdrop
+                anchors.fill: parent
+                readonly property string path: Settings.get("wallpaper.path", "")
+                readonly property string still: Media.isVideo(path) ? Settings.get("wallpaper.poster", "") : path
+                opacity: Math.max(0, (root.gather - 0.6) / 0.4)
+                visible: still.length > 0
+                Image {
+                    id: wallImg
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize.width: 960
+                    source: backdrop.still.length ? Media.fileUrl(backdrop.still) : ""
+                    visible: false
+                }
+                MultiEffect {
+                    anchors.fill: parent
+                    source: wallImg
+                    blurEnabled: true
+                    blur: 1
+                    blurMax: 64
+                    saturation: 0.15
+                    opacity: wallImg.status === Image.Ready ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 600 } }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.base
+                    opacity: Theme.light ? 0.62 : 0.7
+                    Behavior on color { ColorAnimation { duration: 400 } }
+                }
             }
 
             // --- карточка ---
@@ -238,41 +281,64 @@ Scope {
                     Slot { index: 6; current: root.page; PageStart { id: startPage; anchors.fill: parent; shown: root.page === 6; onStarted: at => root.finish(at) } }
                 }
 
-                // --- навигация ---
+                // --- навигация: круглая «назад», полоски шагов, «Далее» ---
                 Item {
                     id: nav
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 28 }
-                    height: 44
+                    height: 48
 
                     Btn {
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                         icon: "chevron-left"
-                        text: I18n.tr("Назад")
                         kind: "ghost"
+                        implicitHeight: 44
                         opacity: root.page > 0 ? 1 : 0
                         enabled: root.page > 0
                         Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
                         onClicked: root.go(root.page - 1)
                     }
 
-                    Row {
+                    // полоска на каждый шаг; пройденные и текущий — цветом, щелчок — к шагу
+                    Column {
                         anchors.centerIn: parent
-                        spacing: 8
-                        Repeater {
-                            model: root.pages
-                            delegate: Rectangle {
-                                id: dotItem
-                                required property int index
-                                readonly property bool on: index === root.page
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: on ? 28 : 8
-                                height: 8
-                                radius: 4
-                                color: on ? Theme.accent : index < root.page ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Theme.soft2
-                                Behavior on width { NumberAnimation { duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
-                                Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
-                                MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: root.go(dotItem.index) }
+                        spacing: 9
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: 6
+                            Repeater {
+                                model: root.pages
+                                delegate: Item {
+                                    id: seg
+                                    required property int index
+                                    readonly property bool on: index === root.page
+                                    width: on ? 44 : 26
+                                    height: 14
+                                    Behavior on width { NumberAnimation { duration: 460 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.8 } }
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width
+                                        height: segTap.containsMouse ? 6 : 4
+                                        radius: height / 2
+                                        color: seg.index <= root.page ? Theme.accent : Theme.soft2
+                                        opacity: seg.index < root.page ? 0.55 : 1
+                                        Behavior on color { ColorAnimation { duration: Theme.anim.normal } }
+                                        Behavior on height { NumberAnimation { duration: Theme.anim.fast } }
+                                    }
+                                    MouseArea {
+                                        id: segTap
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.go(seg.index)
+                                    }
+                                }
                             }
+                        }
+                        Label {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: I18n.tr(root.stepNames[root.page]) + "  ·  " + (root.page + 1) + " / " + root.pages
+                            size: "caption"
+                            tone: 3
                         }
                     }
 
@@ -281,6 +347,7 @@ Scope {
                         text: I18n.tr("Далее")
                         icon: "arrow-right"
                         kind: "accent"
+                        implicitHeight: 44
                         opacity: root.page < root.pages - 1 ? 1 : 0
                         enabled: root.page < root.pages - 1
                         Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
@@ -296,6 +363,7 @@ Scope {
                 if (root.page === root.pages - 1 && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) startPage.button.keyDown();
                 else if (event.key === Qt.Key_Right || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.go(root.page + 1);
                 else if (event.key === Qt.Key_Left || event.key === Qt.Key_Backspace) root.go(root.page - 1);
+                else if (event.key >= Qt.Key_1 && event.key < Qt.Key_1 + root.pages) root.go(event.key - Qt.Key_1);
                 event.accepted = true;
             }
             Keys.onReleased: event => {

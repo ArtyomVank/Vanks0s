@@ -106,13 +106,13 @@ Page {
                     icon: "apps"
                     title: I18n.tr("Прятать нижний док")
                     subtitle: I18n.tr("Появляется, когда курсор у нижнего края экрана")
-                    Toggle { checked: Settings.get("docks.apps.autohide", true) === true; onToggled: v => { Settings.set("docks.apps.autohide", v); Sounds.play("pop", 60); } }
+                    Toggle { checked: Settings.get("docks.apps.autohide", true) === true; onToggled: v => Settings.set("docks.apps.autohide", v) }
                 }
                 SettingRow {
                     icon: "maximize"
                     title: I18n.tr("Увеличение значков")
                     subtitle: I18n.tr("Значки под курсором вырастают, как волна")
-                    Toggle { checked: Settings.get("docks.apps.magnify", true) !== false; onToggled: v => { Settings.set("docks.apps.magnify", v); Sounds.play("pop", 60); } }
+                    Toggle { checked: Settings.get("docks.apps.magnify", true) !== false; onToggled: v => Settings.set("docks.apps.magnify", v) }
                 }
             }
         }

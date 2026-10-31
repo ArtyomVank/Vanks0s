@@ -36,13 +36,13 @@ Page {
                 icon: "sliders"
                 title: I18n.tr("Анимации")
                 subtitle: I18n.tr("Плавное появление окон и переходы")
-                Toggle { checked: Settings.get("windows.animations", true) !== false; onToggled: v => { Settings.set("windows.animations", v); Sounds.play("pop", 60); } }
+                Toggle { checked: Settings.get("windows.animations", true) !== false; onToggled: v => Settings.set("windows.animations", v) }
             }
             SettingRow {
                 icon: "cursor"
                 title: I18n.tr("Желе при перемещении окон")
                 subtitle: I18n.tr("Окно пружинит за курсором, когда его тащат")
-                Toggle { checked: Number(Settings.get("windows.jelly", 0.5)) > 0; onToggled: v => { Settings.set("windows.jelly", v ? 0.5 : 0); Sounds.play("pop", 60); } }
+                Toggle { checked: Number(Settings.get("windows.jelly", 0.5)) > 0; onToggled: v => Settings.set("windows.jelly", v ? 0.5 : 0) }
             }
             SettingRow {
                 icon: "minus"

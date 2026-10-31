@@ -49,6 +49,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onContainsMouseChanged: if (containsMouse && !root.selected) Sounds.play("hover", 70)
         onClicked: {
             Sounds.play("oobe-select", 60);
             root.picked();
