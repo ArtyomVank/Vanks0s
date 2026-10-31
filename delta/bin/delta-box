@@ -11,7 +11,11 @@
 #   delta-box --file <exe>        запустить любой файл внутри Box
 #   delta-box --install <файл>    установщик — в Box, ярлыки его программ в меню
 #   delta-box --remove <имя>      удалить копию программы из Box (оригинал цел)
-#   delta-box ipc call box reload|quit   команда окну
+#   delta-box --get steam|chrome  скачать официальный установщик для Windows и
+#                                 поставить в Box (для опытных: родные версии
+#                                 для Linux работают лучше). Пишет для окна
+#                                 «::step:: <текст>» и «::progress:: <0…100>»
+#   delta-box ipc call box reload|quit|get steam   команда окну
 #
 # Box — обычный префикс лаунчера «delta-box» (~/.local/share/delta/prefixes):
 # раннер (Авто — самый свежий Proton CachyOS, или Wine), настройки Wine и
@@ -30,6 +34,7 @@ BOX=${DATA}/prefixes/${NAME}
 DB=${BOX}/.delta-box.json
 EXE=${DELTA_EXE:-delta-exe}
 
+dry() { [ "${DELTA_DRY_RUN:-}" = 1 ] || [ -n "${DELTA_NESTED:-}" ]; }
 say() { notify-send -a "Delta Box" -i applications-games "$@" 2>/dev/null || printf '%s\n' "$*" >&2; }
 fail() { jq -n --arg e "$1" '{ error: $e }'; exit 1; }
 
@@ -162,6 +167,44 @@ remove_app() {
 
 runner() { head -n1 "${BOX}/.delta-runner" 2>/dev/null || echo auto; }
 
+# официальные установщики для Windows: адрес, имя файла, название
+get_info() {
+    case "$1" in
+        steam)  echo "https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe SteamSetup.exe Steam" ;;
+        # полный установщик (MSI): заглушке chrome_installer.exe внутри Wine часто не хватает сети
+        chrome) echo "https://dl.google.com/tag/s/dl/chrome/install/googlechromestandaloneenterprise64.msi GoogleChrome.msi Google Chrome" ;;
+        *) return 1 ;;
+    esac
+}
+get_app() {
+    local url file title dir total size pid
+    read -r url file title < <(get_info "$1") || { echo "delta-box: не знаю, что такое «$1»" >&2; exit 2; }
+    dir=${XDG_CACHE_HOME:-${HOME}/.cache}/delta/box-get
+    mkdir -p "${dir}" "${BOX}"
+    printf '::step:: %s\n' "Скачиваю ${title}"
+    if dry; then
+        for size in 20 45 70 100; do printf '::progress:: %s\n' "${size}"; sleep 0.4; done
+        printf '::step:: %s\n' "Пробный режим: установщик ${file} не запускается"
+        return 0
+    fi
+    # скачанный за последние сутки — берём его, иначе свежий (с докачкой)
+    if [ -z "$(find "${dir}" -maxdepth 1 -name "${file}" -mmin -1440 2>/dev/null)" ]; then
+        total=$(curl -sIL --max-time 20 -- "${url}" | tr -d '\r' | awk 'tolower($1) == "content-length:" { n = $2 } END { print n + 0 }')
+        curl -fsL --retry 3 -C - -o "${dir}/${file}.part" -- "${url}" &
+        pid=$!
+        while kill -0 "${pid}" 2>/dev/null; do
+            size=$(stat -c %s -- "${dir}/${file}.part" 2>/dev/null || echo 0)
+            [ "${total:-0}" -gt 0 ] && printf '::progress:: %s\n' "$((size * 100 / total))"
+            sleep 0.5
+        done
+        wait "${pid}" || { printf '::step:: %s\n' "Не удалось скачать ${title} — проверьте интернет"; return 1; }
+        mv -- "${dir}/${file}.part" "${dir}/${file}"
+    fi
+    printf '::progress:: 100\n'
+    printf '::step:: %s\n' "Установка ${title} — следуйте шагам установщика"
+    "${EXE}" --install "$(runner)" "${dir}/${file}" "${NAME}"
+}
+
 case "${1:-}" in
     -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     "")        mkdir -p "${BOX}"; exec qs -p "${ENTRY}" -d ;;
@@ -179,5 +222,6 @@ case "${1:-}" in
     --file)    [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --app "${NAME}" "$(realpath -- "$2")" ;;
     --install) [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --install "$(runner)" "$(realpath -- "$2")" "${NAME}" ;;
     --remove)  check_name "${2:-}"; remove_app "$2" ;;
+    --get)     get_app "${2:-}" ;;
     *) echo "delta-box: неизвестный ключ $1 (см. --help)" >&2; exit 2 ;;
 esac

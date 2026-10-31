@@ -298,6 +298,9 @@ prepare() {
     # .msi сам не запускается — его открывает msiexec
     args=("${file}")
     [[ ${file,,} == *.msi ]] && args=(msiexec /i "${file}")
+    # Chrome и Steam для Windows: их песочница под Wine не запускается
+    [[ ${file,,} == */chrome.exe ]] && args+=(--no-sandbox)
+    [[ ${file,,} == */steam.exe ]] && args+=(-no-cef-sandbox)
     ov=$(local_dlls "${file}")
     [ -n "${ov}" ] && dlls=("WINEDLLOVERRIDES=${WINEDLLOVERRIDES:+${WINEDLLOVERRIDES};}${ov}")
     case "${runner}" in

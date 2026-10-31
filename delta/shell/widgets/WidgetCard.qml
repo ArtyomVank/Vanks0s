@@ -35,6 +35,8 @@ Item {
     readonly property bool bg: item.bg !== false
     readonly property bool isClock: item.id === "clock"
     readonly property bool isApp: WidgetTypes.isApp(item.id)
+    // поле входа: без «×» и уголка, только переносится
+    readonly property bool fixed: WidgetTypes.fixed(place, item.id)
     // ярлык держат нажатым — карточка и значок вдавливаются
     readonly property bool pressing: isApp && !editing && tapper.pressed
     signal launched()
@@ -199,6 +201,7 @@ Item {
                     case "timer": return timerC;
                     case "sun": return sunC;
                     case "photo": return photoC;
+                    case "login": return loginC;
                     }
                     return root.isApp ? appC : null;
                 }
@@ -261,7 +264,7 @@ Item {
 
         // «×» — убрать виджет
         Rectangle {
-            visible: root.editing && !root.dragging
+            visible: root.editing && !root.dragging && !root.fixed
             x: -8 * root.unit; y: -8 * root.unit
             width: 24 * root.unit; height: width
             radius: width / 2
@@ -273,7 +276,7 @@ Item {
 
         // уголок — изменить размер
         Rectangle {
-            visible: root.editing && !root.dragging
+            visible: root.editing && !root.dragging && !root.fixed
             x: parent.width - width + 7 * root.unit; y: parent.height - height + 7 * root.unit
             width: 22 * root.unit; height: width
             radius: width / 2
@@ -316,4 +319,5 @@ Item {
     Component { id: sunC; SunWidget { card: root } }
     Component { id: photoC; PhotoWidget { card: root } }
     Component { id: appC; AppWidget { card: root } }
+    Component { id: loginC; LoginWidget { card: root } }
 }

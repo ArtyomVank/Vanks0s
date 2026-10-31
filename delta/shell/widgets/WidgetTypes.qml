@@ -68,7 +68,9 @@ Singleton {
         music:    { name: "Музыка", icon: "music", def: [3, 1], min: [3, 1], max: [5, 2],
                     modes: [["short", "Короткий", 3, 1], ["wide", "Широкий", 4, 2]] },
         battery:  { name: "Батарея", icon: "battery", def: [2, 1], min: [2, 1], max: [4, 2],
-                    modes: [["number", "Число", 2, 1], ["ring", "Кольцо", 2, 2]], needsBattery: true }
+                    modes: [["number", "Число", 2, 1], ["ring", "Кольцо", 2, 2]], needsBattery: true },
+        // поле входа (аватар, имя, пароль): есть всегда, только передвигается
+        login:    { name: "Вход", icon: "lock", def: [5, 3], min: [5, 3], max: [5, 3], modes: [], fixed: true }
     })
     readonly property var lock: Object.assign({}, desktop, lockOwn)
     readonly property var lockOrder: ["clock", "analog", "notifs", "photo", "weather", "calendar", "music", "sun", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "battery"]
@@ -117,6 +119,8 @@ Singleton {
         if (isApp(id)) return layer === "lock" ? null : app;
         return table(layer)[id] || null;
     }
+    // нельзя убрать и изменить размер (поле входа)
+    function fixed(layer, id) { const t = info(layer, id); return !!(t && t.fixed); }
     function available(layer, id) {
         const t = info(layer, id);
         return t !== null && (!t.needsBattery || hasBattery);

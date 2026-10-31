@@ -12,6 +12,8 @@ import qs.common.ui
 // «Добавить папку» — папка копируется в C:\Program Files общего префикса,
 // у программы выбирается файл запуска (единственный — сам), и она появляется
 // плиткой здесь и в меню приложений. Ниже — что поставили в Box установщиком,
+// «Скачать в Box» — Steam и Chrome для Windows официальными установщиками
+// (для опытных: версии для Linux работают лучше),
 // и сама система: раннер, настройки Wine, диск C:. Данные — delta-box --list,
 // действия — он же с ключами; окна выбора папки и файла — zenity.
 FloatingWindow {
@@ -24,6 +26,10 @@ FloatingWindow {
     property string removing: ""         // программа, которая ждёт второго нажатия «Удалить»
     property var picking: null           // { name, exes } — выбор файла запуска
     readonly property var protons: db.runners?.protons ?? []
+    // «Скачать в Box»: что качается и ставится сейчас
+    property string getting: ""          // steam · chrome
+    property string getStep: ""
+    property int getProgress: 0
 
     title: "Delta Box"
     implicitWidth: 960
@@ -62,6 +68,29 @@ FloatingWindow {
         onExited: win.reload()
     }
     function change(cmd) { changer.command = cmd; changer.running = true; }
+
+    // «Скачать в Box»: delta-box --get — шаги и проценты строками
+    Process {
+        id: getter
+        stdout: SplitParser {
+            onRead: line => {
+                if (line.startsWith("::progress:: ")) win.getProgress = parseInt(line.slice(13)) || 0;
+                else if (line.startsWith("::step:: ")) win.getStep = I18n.tr(line.slice(9));
+            }
+        }
+        onExited: code => {
+            Sounds.play(code === 0 ? "oobe-select" : "dialog-warning", 60);
+            win.getting = "";
+            win.reload();
+        }
+    }
+    function getApp(id) {
+        if (getting) return;
+        getting = id; getStep = ""; getProgress = 0;
+        Sounds.play("oobe-step", 0);
+        getter.command = ["delta-box", "--get", id];
+        getter.running = true;
+    }
 
     // окно выбора папки → копия в Box
     Process {
@@ -202,6 +231,70 @@ FloatingWindow {
         }
     }
 
+    // плитка «Скачать в Box»: значок, название, что это; щелчок — скачать и поставить
+    component GetTile: Rectangle {
+        id: gt
+        required property var modelData
+        readonly property bool busy: win.getting === modelData.id
+        readonly property string src: Quickshell.iconPath(modelData.icon, true) || Quickshell.iconPath(modelData.icon2 ?? "", true)
+        Layout.fillWidth: true
+        implicitHeight: 76
+        radius: 18
+        color: gtHov.hovered && !win.getting ? Theme.soft2 : Theme.soft
+        border.width: 1
+        border.color: gt.busy ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.6) : Theme.line
+        opacity: win.getting && !gt.busy ? 0.55 : 1
+        Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
+        Behavior on opacity { NumberAnimation { duration: Theme.anim.normal } }
+
+        HoverHandler { id: gtHov; cursorShape: win.getting ? Qt.ArrowCursor : Qt.PointingHandCursor }
+        TapHandler { enabled: !win.getting; onTapped: win.getApp(gt.modelData.id) }
+
+        // ход загрузки — заливка снизу карточки
+        Rectangle {
+            visible: gt.busy
+            anchors { left: parent.left; bottom: parent.bottom; margins: 1 }
+            height: 3
+            radius: 2
+            width: (parent.width - 2) * win.getProgress / 100
+            color: Theme.accent
+            Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+        }
+        RowLayout {
+            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+            spacing: 12
+            Item {
+                implicitWidth: 42; implicitHeight: 42
+                IconImage { id: gic; anchors.fill: parent; source: gt.src; visible: gt.src !== "" && status === Image.Ready }
+                Rectangle {
+                    anchors.fill: parent
+                    visible: !gic.visible
+                    radius: 13
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    Sym { anchors.centerIn: parent; name: gt.modelData.sym; size: 22; color: Theme.accent }
+                }
+            }
+            ColumnLayout {
+                spacing: 1
+                Layout.fillWidth: true
+                Label { text: gt.modelData.title; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
+                Label {
+                    text: gt.busy ? (win.getStep || I18n.tr("Подготовка…")) + (win.getProgress > 0 && win.getProgress < 100 ? " · " + win.getProgress + "%" : "")
+                                  : I18n.tr(gt.modelData.text)
+                    tone: 3; size: "small"; Layout.fillWidth: true; elide: Text.ElideRight
+                }
+            }
+            Sym { visible: !gt.busy; name: "download"; size: 18; color: Theme.accent }
+            Sym {
+                visible: gt.busy
+                name: "refresh"
+                size: 18
+                color: Theme.accent
+                RotationAnimation on rotation { running: gt.busy; from: 0; to: 360; duration: 1200; loops: Animation.Infinite }
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: Theme.radius
@@ -333,6 +426,39 @@ FloatingWindow {
                         Layout.fillWidth: true
                         spacing: 12
                         Repeater { model: win.db.others; delegate: AppTile {} }
+                    }
+
+                    // --- скачать в Box: Steam и Chrome для Windows ---
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 6
+                        spacing: 10
+                        Label { text: I18n.tr("Скачать в Box"); size: "title" }
+                        Rectangle {
+                            implicitWidth: expLabel.implicitWidth + 22
+                            implicitHeight: 26
+                            radius: 13
+                            color: Qt.rgba(1, 0.69, 0.13, 0.16)
+                            border.width: 1
+                            border.color: Qt.rgba(1, 0.69, 0.13, 0.45)
+                            Label { id: expLabel; anchors.centerIn: parent; text: I18n.tr("Только для опытных пользователей"); size: "caption"; font.weight: Font.DemiBold; color: "#ffb020" }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Label {
+                        text: I18n.tr("Версии для Windows работают через Proton и могут вести себя хуже родных. Обычно лучше Steam для Linux и браузер из магазина Delta — а эти нужны, если программа или игра просит именно их внутри Box")
+                        tone: 3; size: "small"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+                        Repeater {
+                            model: [
+                                { id: "steam", title: "Steam " + I18n.tr("для Windows"), icon: "steam", sym: "gamepad", text: "Для игр, которым нужен Steam внутри Box" },
+                                { id: "chrome", title: "Google Chrome " + I18n.tr("для Windows"), icon: "google-chrome", icon2: "chromium", sym: "globe", text: "Для программ, которым нужен браузер внутри Box" }
+                            ]
+                            delegate: GetTile {}
+                        }
                     }
 
                     // --- система Windows ---
@@ -470,10 +596,11 @@ FloatingWindow {
         }
     }
 
-    // delta-box ipc call box reload|quit — демо и проверки
+    // delta-box ipc call box reload|quit|get steam — демо и проверки
     IpcHandler {
         target: "box"
         function reload(): void { win.reload(); }
+        function get(id: string): void { win.getApp(id); }
         function quit(): void { Qt.quit(); }
     }
 

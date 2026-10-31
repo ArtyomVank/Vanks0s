@@ -65,9 +65,24 @@ Item {
             const h = clampInt(x.h ?? t.def[1], lim.min[1], Math.min(lim.max[1], rows));
             // сетка на другом мониторе могла быть шире — прижимаем к краю
             const c = clampInt(x.c, 0, cols - w), r = clampInt(x.r, 0, rows - h);
-            out.push(Object.assign({}, x, { c: c, r: r, w: w, h: h, mode: mode, bg: x.bg !== false }));
+            out.push(Object.assign({}, x, { c: c, r: r, w: w, h: h, mode: mode, bg: x.id !== "login" && x.bg !== false }));
         }
+        // поле входа на экране блокировки есть всегда: нет в раскладке — внизу
+        // посередине (или ближе всего к этому месту, если там виджеты)
+        if (place === "lock" && !seen.login) out.push(loginSpot(out));
         return out;
+    }
+    function loginSpot(list) {
+        const w = Math.min(5, cols), h = Math.min(3, rows);
+        const c0 = Math.floor((cols - w) / 2), r0 = rows - h;
+        const free = (c, r) => !list.some(o => c < o.c + o.w && o.c < c + w && r < o.r + o.h && o.r < r + h);
+        let best = { c: c0, r: r0 }, bestD = Infinity;
+        for (let r = 0; r <= rows - h; r++)
+            for (let c = 0; c <= cols - w; c++) {
+                const d = (c - c0) * (c - c0) + 2 * (r - r0) * (r - r0);
+                if (d < bestD && free(c, r)) { best = { c: c, r: r }; bestD = d; }
+            }
+        return { id: "login", c: best.c, r: best.r, w: w, h: h, mode: "", bg: false };
     }
 
     function find(id) { return items.find(x => x.id === id) || null; }
@@ -75,6 +90,9 @@ Item {
     // запись: правим «сырой» список, чтобы не потерять скрытые виджеты (батарея без батареи)
     function save(update) {
         const list = Settings.clone(Array.isArray(raw) ? raw : []) || [];
+        // поле входа, поставленное по умолчанию, записываем вместе с первым изменением
+        const login = place === "lock" ? find("login") : null;
+        if (login && !list.some(x => x && x.id === "login")) list.push(Object.assign({}, login));
         update(list);
         Settings.set(key, list);
     }
@@ -189,6 +207,7 @@ Item {
         return true;
     }
     function remove(id) {
+        if (WidgetTypes.fixed(place, id)) { say(I18n.tr("Поле входа убрать нельзя — его можно только передвинуть")); return; }
         save(list => {
             const i = list.findIndex(x => x && x.id === id);
             if (i >= 0) list.splice(i, 1);
@@ -373,6 +392,33 @@ Item {
         cell: root.cell
         unit: root.unit
         shown: root.editing
+    }
+
+    // линии середины: пока виджет тащат — видно, где центр; виджет ровно
+    // посередине — линия загорается (и тихо щёлкает)
+    readonly property bool centerX: !!plan && drag.type === "move" && Math.abs(plan.c + plan.w / 2 - cols / 2) < 0.01
+    readonly property bool centerY: !!plan && drag.type === "move" && Math.abs(plan.r + plan.h / 2 - rows / 2) < 0.01
+    onCenterXChanged: if (centerX) Sounds.play("tick", 60)
+    onCenterYChanged: if (centerY) Sounds.play("tick", 60)
+    Repeater {
+        model: 2
+        delegate: Rectangle {
+            required property int index
+            readonly property bool vertical: index === 0
+            readonly property bool hit: vertical ? root.centerX : root.centerY
+            readonly property bool shown: root.drag !== null && root.drag.type === "move"
+            z: 9
+            x: vertical ? root.gx + root.cols * root.cell / 2 - width / 2 : root.gx
+            y: vertical ? root.gy : root.gy + root.rows * root.cell / 2 - height / 2
+            width: vertical ? (hit ? 2 : 1) * Math.max(1, root.unit) : root.cols * root.cell
+            height: vertical ? root.rows * root.cell : (hit ? 2 : 1) * Math.max(1, root.unit)
+            radius: 1
+            color: hit ? Theme.accent : Qt.rgba(1, 1, 1, 0.35)
+            opacity: shown ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
+            Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
+        }
     }
 
     // «тень» места, куда встанет виджет

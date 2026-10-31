@@ -70,6 +70,13 @@ Item {
     readonly property bool gridHasNotifs: gridReady && Array.isArray(lockWidgets) && lockWidgets.some(w => w && (w.id === "notifs" || w.id === "notifications"))
 
     function focusField() { if (field.visible) field.focusInput(); }
+    // место поля входа — виджет «login» сетки (его передвигают в редакторе);
+    // сетки нет (вход без виджетов) — внизу посередине, как раньше
+    readonly property var loginBox: {
+        const g = gridReady ? gridLoader.item : null;
+        const it = g && g.find ? g.find("login") : null;
+        return it ? g.box(it.c, it.r, it.w, it.h) : null;
+    }
 
     // ---------- фон ----------
     LockBackground {
@@ -150,7 +157,8 @@ Item {
     Item {
         id: login
         visible: root.showLogin && !root.editing
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: Math.round(root.height * 0.09) }
+        x: root.loginBox ? Math.round(root.loginBox.x + (root.loginBox.w - width) / 2) : Math.round((root.width - width) / 2)
+        y: root.loginBox ? Math.round(root.loginBox.y + (root.loginBox.h - height) / 2) : root.height - height - Math.round(root.height * 0.09)
         width: 420
         height: loginCol.implicitHeight
         transform: [

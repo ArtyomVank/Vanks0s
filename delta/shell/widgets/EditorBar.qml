@@ -10,6 +10,8 @@ import qs.widgets.parts
 // Панель редактора виджетов: сверху — галерея карточек (нажатие добавляет
 // или убирает виджет), снизу — настройки выбранного виджета, по строке на
 // свойство. Панель узкая и стоит по центру снизу, чтобы не закрывать сетку.
+// Свёрнутая — одна шапка: так видно, что под ней (на экране блокировки внизу
+// поле входа, поэтому там панель открывается свёрнутой).
 Glass {
     id: root
 
@@ -27,8 +29,11 @@ Glass {
     Behavior on implicitHeight { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
     readonly property string place: grid.place
+    property bool collapsed: false
+    onShownChanged: if (shown) collapsed = place === "lock"
     readonly property var it: grid.sel ? grid.find(grid.sel) : null
     readonly property var info: it ? WidgetTypes.info(place, it.id) : null
+    readonly property bool fixed: !!it && WidgetTypes.fixed(place, it.id)
     readonly property bool isClock: !!it && it.id === "clock"
     readonly property bool isWeather: !!it && it.id === "weather"
     readonly property bool isNotifs: !!it && it.id === "notifs"
@@ -63,12 +68,19 @@ Glass {
                     color: root.grid.caption ? Theme.accents[4] : Theme.fg3
                 }
             }
+            Btn {
+                icon: root.collapsed ? "chevron-up" : "chevron-down"
+                text: root.collapsed ? I18n.tr("Виджеты") : ""
+                kind: "ghost"
+                onClicked: { root.collapsed = !root.collapsed; Sounds.play("tick", 0); }
+            }
             Btn { text: I18n.tr("Готово"); kind: "accent"; onClicked: root.grid.finish() }
         }
 
         // ---- галерея: карточка на каждый вид виджета ----
         ListView {
             id: gallery
+            visible: !root.collapsed
             Layout.fillWidth: true
             Layout.preferredHeight: 78
             orientation: ListView.Horizontal
@@ -142,11 +154,11 @@ Glass {
             }
         }
 
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.line }
+        Rectangle { visible: !root.collapsed; Layout.fillWidth: true; implicitHeight: 1; color: Theme.line }
 
         // ---- ничего не выбрано ----
         Label {
-            visible: !root.it
+            visible: !root.it && !root.collapsed
             Layout.fillWidth: true
             Layout.bottomMargin: 2
             horizontalAlignment: Text.AlignHCenter
@@ -156,7 +168,7 @@ Glass {
 
         // ---- выбранный виджет ----
         RowLayout {
-            visible: !!root.it
+            visible: !!root.it && !root.collapsed
             Layout.fillWidth: true
             spacing: 10
             Rectangle {
@@ -169,11 +181,18 @@ Glass {
                 text: !root.info ? "" : root.it && WidgetTypes.isApp(root.it.id) ? root.info.name + " · " + root.grid.nameOf(root.it.id) : root.info.name
                 font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight
             }
-            Btn { text: I18n.tr("Убрать со стола"); kind: "danger"; icon: "trash"; onClicked: root.grid.remove(root.it.id) }
+            Btn { visible: !root.fixed; text: I18n.tr("Убрать со стола"); kind: "danger"; icon: "trash"; onClicked: root.grid.remove(root.it.id) }
+        }
+        // поле входа: настроек нет, только место
+        Label {
+            visible: root.fixed && !root.collapsed
+            Layout.fillWidth: true
+            text: I18n.tr("Поле входа есть всегда: его можно передвинуть, но не убрать и не изменить размер. Линии подскажут, где середина экрана")
+            tone: 3; size: "small"; wrapMode: Text.WordWrap
         }
 
         GridLayout {
-            visible: !!root.it
+            visible: !!root.it && !root.fixed && !root.collapsed
             Layout.fillWidth: true
             columns: 2
             columnSpacing: 12

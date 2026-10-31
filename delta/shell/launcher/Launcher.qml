@@ -168,6 +168,16 @@ Scope {
                 const icon = ShellState.appIconGeometry["@launcher"];
                 const ic = icon && icon.screen === name ? icon : null;
                 if (!dock) return Qt.point(width / 2, height);
+                // док спрятан — капля течёт от края экрана, где его язычок
+                if (dock.shown === false) {
+                    const mx = dock.x + dock.w / 2, my = dock.y + dock.h / 2;
+                    switch (dock.edge) {
+                    case "top": return Qt.point(mx, 0);
+                    case "left": return Qt.point(0, my);
+                    case "right": return Qt.point(width, my);
+                    default: return Qt.point(mx, height);
+                    }
+                }
                 const cx = ic ? ic.x + ic.size / 2 : dock.x + dock.w / 2;
                 const cy = ic ? ic.y + ic.size / 2 : dock.y + dock.h / 2;
                 // от края острова дока напротив кнопки: край вздувается каплей

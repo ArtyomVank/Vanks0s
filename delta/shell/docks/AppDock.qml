@@ -45,8 +45,11 @@ PanelWindow {
 
     readonly property bool popupHere: DockService.appMenu !== null && DockService.appMenu.screen === screen?.name
     readonly property bool hovered: island.hovered || hot.containsMouse || hint.containsMouse
+    // окно приложений держит открытый док (капля течёт из его кнопки), но
+    // спрятанный не вызывает: иначе док выезжал своей каплей уже после
+    // капли окна — две капли и рывок. Тогда окно течёт от края экрана.
     readonly property bool want: Settings.ready && win.deskShown && !ShellState.widgetEditing && (!autohide || hovered || hold.running || popupHere
-                                 || ShellState.docksForced || DockService.peek
+                                 || (ShellState.docksForced && island.isOpen) || DockService.peek
                                  || Minimizer.animating)
     onHoveredChanged: if (!hovered) { hold.restart(); hoverIndex = -1; }
     Timer { id: hold; interval: 700 }
