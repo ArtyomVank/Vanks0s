@@ -37,7 +37,10 @@ Scope {
 
     IpcHandler {
         target: "fx"
-        function flash(): void { root.flash(); }
+        function flash(): void {
+            root.flash();
+            ShellState.island({ kind: "shot", icon: "screenshot", title: I18n.tr("Снимок экрана"), text: I18n.tr("Скопирован") });
+        }
     }
 
     // вспышка снимка: белая пелена гаснет за треть секунды, ввод не ловит

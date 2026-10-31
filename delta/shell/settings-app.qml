@@ -20,5 +20,7 @@ import qs.launcher.parts
 // «Настройки» Delta — отдельный процесс Quickshell (запуск: delta-settings).
 // AppId задаёт класс окна для правила Hyprland «delta-settings».
 ShellRoot {
+    // файлы не отслеживаем — см. shell.qml (кроме вложенной сессии)
+    settings.watchFiles: (Quickshell.env("DELTA_NESTED") || "") !== ""
     SettingsWindow {}
 }

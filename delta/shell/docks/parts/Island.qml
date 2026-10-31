@@ -33,6 +33,8 @@ Item {
     property bool want: true
     // плитки: в открытом виде без общей подложки (каждый элемент — своё стекло)
     property bool tiles: false
+    // стекло панели (у дока может быть своя непрозрачность — DockService.glassOf)
+    property color glass: Theme.glass
     property bool editing: false
     // какой это док и где окно на экране — чтобы край вздувался каплей
     // там, откуда течёт меню (ShellState.pullPoint)
@@ -254,7 +256,7 @@ Item {
 
     readonly property rect restRect: rectAt((vertical ? height : width) / 2, margin + thick / 2, aOpen, cOpen)
 
-    readonly property color openColor: tiles ? Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, 0) : Theme.glass
+    readonly property color openColor: tiles ? Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, 0) : root.glass
     function mixColor(a, b, x) { return Qt.rgba(mix(a.r, b.r, x), mix(a.g, b.g, x), mix(a.b, b.b, x), mix(a.a, b.a, x)); }
 
     // мягкая тень открытой панели
@@ -283,7 +285,7 @@ Item {
         bodyR: resting ? root.radiusOpen : root.g.bodyR
         k: 13
         glow: resting ? 0 : root.g.glow
-        color: resting ? (root.tiles ? Theme.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
+        color: resting ? (root.tiles ? root.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
         strokeColor: resting && !root.tiles ? (root.editing ? Theme.accent : Theme.liquid ? "transparent" : Theme.line) : "transparent"
         strokeW: root.editing ? 1.5 : 1
         // жидкое стекло — во всей фигуре, вместе с выпуклостями и каплей

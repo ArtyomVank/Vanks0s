@@ -89,6 +89,10 @@ hl.config({
         -- XDG_CURRENT_DESKTOP=Delta:Hyprland задаёт delta-session намеренно
         disable_xdg_env_checks   = true,
         animate_manual_resizes   = true,
+        -- конфиг перечитывает delta-apply (hyprctl reload); сам Hyprland его
+        -- не перечитывает: обновление пакета меняет файлы по одному, и на
+        -- полпути сверху экрана вылезла бы ошибка конфига
+        disable_autoreload       = true,
     },
 
     ecosystem = {
@@ -176,13 +180,19 @@ hl.config({
         kb_options   = "grp:alt_shift_toggle",
         repeat_rate  = 30,
         repeat_delay = 300,
-        follow_mouse = 1,
+        -- главное окно — то, по которому щёлкнули, а не то, над которым
+        -- прошла мышь: клавиатура остаётся у выбранного окна, прокрутка и
+        -- наведение работают в окне под курсором (см. raise_under_cursor)
+        follow_mouse = 2,
         sensitivity  = 0,
         touchpad = {
             natural_scroll = true,
             tap_to_click   = true,
         },
     },
+    -- фокус по щелчку переносил бы курсор в центр окна — и щелчок ушёл бы
+    -- не туда; фокус и так не следует за мышью, переносить незачем
+    cursor = { no_warps = true },
 })
 
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
@@ -463,9 +473,58 @@ end
 -- delta-dev check) падает, если создать его во время разбора конфига
 local drag_timer = nil
 
+-- Щелчок делает окно под курсором главным: фокус и наверх стопки. Hyprland
+-- и сам так делает, но под невидимыми окнами X11 (Wine, Proton, Steam)
+-- отдаёт щелчок прежнему активному окну — и отвечает заднее окно.
+-- hl.get_windows() идёт снизу вверх по стопке. Щелчки по докам и меню
+-- (слои top/overlay) окна под ними не трогают; слои на весь экран, которые
+-- ввод пропускают (кнопки окна, желе, край), не в счёт.
+local passthrough = {
+    ["delta-window-controls"] = true, ["delta-jelly"] = true, ["delta-snap"] = true, ["delta-genie"] = true,
+}
+local function inside(p, x, y, w, h) return p.x >= x and p.y >= y and p.x < x + w and p.y < y + h end
+local function raise_under_cursor()
+    local p = hl.get_cursor_pos()
+    if not p then return end
+    for _, l in ipairs(hl.get_layers()) do
+        if l.mapped and l.layer >= 2 and not passthrough[l.namespace] and inside(p, l.x, l.y, l.w, l.h) then return end
+    end
+    local mon = hl.get_monitor_at_cursor()
+    local ws = mon and mon.active_workspace
+    -- окно на весь экран — порядок решает Hyprland
+    if not ws or ws.has_fullscreen then return end
+    local list = hl.get_windows({ mapped = true })
+    local function shown(w)
+        return not w.hidden and w.workspace and w.workspace.visible and w.at and w.size
+            and inside(p, w.at.x, w.at.y, w.size.x, w.size.y)
+    end
+    local hit, top = nil, nil
+    -- закреплённые над всеми, плавающие над плиткой
+    for _, pass in ipairs({ "pinned", "floating", "tiled" }) do
+        top = nil
+        for i = #list, 1, -1 do
+            local w = list[i]
+            local kind = w.pinned and "pinned" or (w.floating and "floating" or "tiled")
+            if kind == pass and w.workspace and w.workspace.visible and not w.hidden then
+                top = top or w
+                if not hit and shown(w) then hit = w end
+            end
+        end
+        if hit then break end
+    end
+    if not hit then return end
+    local sel = "address:" .. hit.address
+    local a = hl.get_active_window()
+    if not a or a.address ~= hit.address then hl.dispatch(hl.dsp.focus({ window = sel })) end
+    if hit.floating and top and top.address ~= hit.address then
+        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = sel }))
+    end
+end
+
 -- delta_drag.press()/release() можно звать и через `hyprctl eval` —
 -- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
 function delta_drag.press()
+    raise_under_cursor()
     drag.addr, drag.moving, drag.zone, drag.lx, drag.ly = nil, false, "", nil, nil
     drag.manual, drag.mx, drag.my = false, nil, nil
     if not drag_timer then drag_timer = hl.timer(drag_tick, { timeout = 4, type = "repeat" }) end

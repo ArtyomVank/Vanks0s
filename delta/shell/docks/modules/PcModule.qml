@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import qs.common
 import qs.common.ui
+import qs.docks
 
 // Загрузка процессора и памяти. Читаем /proc раз в 3 с и только пока
 // модуль стоит в доке; подробности (видеокарта, температуры) — в PcMenu.
@@ -53,7 +54,11 @@ Item {
         Label {
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.vertical
-            text: root.full ? "ЦП " + root.cpu + "% · ОЗУ " + root.ram + "%" : root.cpu + "%"
+            // docks.top.opts.pcShow: both — ЦП и ОЗУ, cpu, ram
+            readonly property string show: DockService.opt("pcShow", "both")
+            text: show === "ram" ? (root.full ? "ОЗУ " : "") + root.ram + "%"
+                : show === "cpu" || !root.full ? (root.full ? "ЦП " : "") + root.cpu + "%"
+                : "ЦП " + root.cpu + "% · ОЗУ " + root.ram + "%"
             size: "small"
             tone: 2
             font.weight: Font.Bold

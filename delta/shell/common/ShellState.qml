@@ -67,6 +67,13 @@ Singleton {
     // dockId: "top" | "apps"; strength ~1 — заметно, 0.5 — слегка.
     signal dockPoked(string dockId, real strength)
     function pokeDock(dockId, strength) { dockPoked(dockId, strength === undefined ? 1 : strength); }
+
+    // --- «остров» верхнего дока: короткое событие системы ---
+    // ShellState.island({ kind: "timer", icon: "clock", title: "Таймер", text: "Время вышло" })
+    // icon — значок Delta (или image — картинка), color — цвет значка и
+    // подписи, ms — сколько держать. Показывает DockService (docks.top.island).
+    signal islandRequested(var spec)
+    function island(spec) { if (spec) islandRequested(spec); }
     // проверки во вложенной сессии: «курсор» над доком без настоящей мыши,
     // { "<экран>/<док>": координата вдоль края }; IPC docks hover
     property var devHover: ({})

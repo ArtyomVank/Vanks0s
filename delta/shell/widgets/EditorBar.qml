@@ -32,6 +32,7 @@ Glass {
     readonly property bool isClock: !!it && it.id === "clock"
     readonly property bool isWeather: !!it && it.id === "weather"
     readonly property bool isNotifs: !!it && it.id === "notifs"
+    readonly property bool isPhoto: !!it && it.id === "photo"
     // настройка часов: у виджета, иначе общая (как в ClockWidget)
     function clk(key, def) {
         return WidgetTypes.clockValue(it, key, place === "lock" ? Settings.get("lock.clock." + key, Settings.get("clock." + key, def)) : Settings.get("clock." + key, def));
@@ -238,6 +239,25 @@ Glass {
                     onToggled: v => root.grid.patch(root.it.id, { quiet: v })
                 }
                 Label { tone: 2; size: "small"; text: I18n.tr("Прятать виджет и надпись «Новых уведомлений нет»") }
+            }
+
+            // фото
+            Label { Layout.preferredWidth: 104; tone: 3; visible: root.isPhoto; text: I18n.tr("Фото") }
+            RowLayout {
+                visible: root.isPhoto
+                spacing: 10
+                Btn { text: I18n.tr("Выбрать фото"); icon: "image"; kind: "accent"; onClicked: photoPicker.pick() }
+                Label {
+                    tone: 3; size: "small"
+                    text: {
+                        const n = root.it && Array.isArray(root.it.photos) ? root.it.photos.length : 0;
+                        return n > 1 ? I18n.tr("Фото по очереди:") + " " + n : n === 1 ? I18n.tr("Одно фото") : I18n.tr("Можно выбрать несколько — будут сменяться")
+                    }
+                }
+                PhotoPicker {
+                    id: photoPicker
+                    onPicked: list => root.grid.patch("photo", { photos: list })
+                }
             }
 
             // погода

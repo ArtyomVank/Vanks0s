@@ -252,6 +252,25 @@ def steam_status():
             "user": name, "id": sid}
 
 
+def steam_owned(root):
+    """Номера игр из библиотеки вошедшего аккаунта: для них Steam ведёт
+    userdata/<аккаунт>/config/librarycache/<номер>.json. Общий
+    appcache/librarycache — только обложки, туда попадает и то, что Steam
+    показывал в магазине и рекомендациях."""
+    sid, _ = steam_user(root)
+    try:
+        account = int(sid) - 76561197960265728
+    except ValueError:
+        return set()
+    if account <= 0:
+        return set()
+    try:
+        names = os.listdir(os.path.join(root, "userdata", str(account), "config", "librarycache"))
+    except OSError:
+        return set()
+    return {int(m.group(1)) for m in (re.match(r"^(\d+)\.json$", f) for f in names) if m}
+
+
 def steam_library():
     root = steam_root()
     if not root:
@@ -278,7 +297,9 @@ def steam_library():
                 continue
             games[appid] = {"store": "steam", "id": str(appid), "title": title, "installed": True,
                             "size": int(st.get("SizeOnDisk", 0) or 0), "cover": steam_cover(root, appid)}
-    # купленные, но не установленные: обложки Steam держит для всей библиотеки
+    # купленные, но не установленные: только из библиотеки аккаунта
+    # (steam_owned), обложки — из общего кэша
+    owned = steam_owned(root)
     cache = os.path.join(root, "appcache", "librarycache")
     try:
         cached = os.listdir(cache)
@@ -289,7 +310,7 @@ def steam_library():
         if not m:
             continue
         appid = int(m.group(1))
-        if appid in games or appid not in info:
+        if appid in games or appid not in info or appid not in owned:
             continue
         title, kind = info[appid]
         if kind not in ("game",) or TOOLS.search(title):

@@ -3,6 +3,7 @@ import Quickshell
 import qs.common
 import qs.common.ui
 import qs.services
+import qs.docks
 
 // Погода: значок и температура из services/Weather (прогноз раз в 20 мин).
 // Без города или без сети — только значок, подробности в WeatherMenu.
@@ -33,7 +34,7 @@ Item {
         }
         Label {
             anchors.verticalCenter: parent.verticalCenter
-            visible: !root.vertical && root.cur !== null
+            visible: !root.vertical && root.cur !== null && DockService.opt("weatherTemp", true) !== false
             text: root.cur ? Weather.temp(root.cur.temp) : ""
             size: "small"
             color: Theme.fg

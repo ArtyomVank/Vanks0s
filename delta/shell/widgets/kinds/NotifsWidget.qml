@@ -5,7 +5,7 @@ import qs.common
 import qs.common.ui
 import qs.widgets.parts
 
-// Уведомления на экране блокировки: последние из ShellState.notifications
+// Уведомления на экране блокировки и рабочем столе: последние из ShellState.notifications
 // (их публикует notify/). Три вида (item.mode):
 //   stack — стопкой, как в iOS: видна верхняя карточка, под ней края
 //           следующих; нажатие раскладывает стопку в список и обратно;
@@ -16,7 +16,10 @@ import qs.widgets.parts
 Base {
     id: root
 
-    readonly property bool allowed: Settings.get("notifications.onLock", true)
+    // на экране блокировки — если их там разрешили показывать
+    readonly property bool allowed: !lock || Settings.get("notifications.onLock", true)
+    // цвет карточек: на стекле рабочего стола — из темы, иначе белый
+    readonly property color ink: pal.c1
     readonly property var list: allowed ? (ShellState.notifications || []) : []
     readonly property bool quiet: !!item && item.quiet === true
     // для WidgetCard: показывать нечего — карточка прячется
@@ -114,7 +117,7 @@ Base {
         width: fold.implicitWidth + height * 0.9
         height: root.rowH * 0.4
         radius: height / 2
-        color: Qt.rgba(1, 1, 1, foldTap.pressed ? 0.3 : 0.16)
+        color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, foldTap.pressed ? 0.3 : 0.16)
         WText { id: fold; anchors.centerIn: parent; text: I18n.tr("Свернуть"); px: parent.height * 0.48; font.weight: Font.DemiBold; color: root.pal.c1 }
         TapHandler { id: foldTap; onTapped: root.toggle() }
     }
@@ -147,11 +150,11 @@ Base {
                 radius: Math.min(height * 0.32, 22)
                 transformOrigin: Item.Bottom
                 gradient: Gradient {
-                    GradientStop { position: 0; color: Qt.rgba(1, 1, 1, row.inStack && row.index > 0 ? 0.16 : 0.22) }
-                    GradientStop { position: 1; color: Qt.rgba(1, 1, 1, row.inStack && row.index > 0 ? 0.10 : 0.13) }
+                    GradientStop { position: 0; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, row.inStack && row.index > 0 ? 0.16 : 0.22) }
+                    GradientStop { position: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, row.inStack && row.index > 0 ? 0.10 : 0.13) }
                 }
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.16)
+                border.color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.16)
 
                 // стопка: карточки под верхней выглядывают краем снизу
                 y: row.inStack ? row.index * root.peek : row.index * (root.rowH + root.gap)
@@ -302,9 +305,9 @@ Base {
         width: clearRow.implicitWidth + height * 1.1
         height: root.clearH
         radius: height / 2
-        color: Qt.rgba(1, 1, 1, clearTap.pressed ? 0.32 : 0.16)
+        color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, clearTap.pressed ? 0.32 : 0.16)
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.14)
+        border.color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.14)
         Row {
             id: clearRow
             anchors.centerIn: parent

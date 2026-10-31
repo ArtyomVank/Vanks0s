@@ -13,6 +13,7 @@ Rectangle {
     readonly property bool sel: Theme.style === styleId
     readonly property bool flat: styleId === "gnome"
     readonly property bool liquid: styleId === "liquid"
+    readonly property bool material: styleId === "material"
     signal clicked()
 
     implicitWidth: 200
@@ -26,9 +27,11 @@ Rectangle {
     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
     // панели сцены: цвет и прозрачность — как у стиля
+    // (Material You — сплошные, в оттенке обоев, крупно скруглённые)
     readonly property color panel: flat ? (Theme.light ? "#FAFAFB" : "#242428")
+        : material ? Theme.materialBase
         : Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, liquid ? 0.36 : 0.66)
-    readonly property real r: flat ? 5 : liquid ? 10 : 7
+    readonly property real r: flat ? 5 : liquid ? 10 : material ? 14 : 7
 
     Rectangle {
         id: scene
@@ -60,13 +63,13 @@ Rectangle {
             width: parent.width * 0.6; height: 54
             radius: root.r
             color: root.flat ? (Theme.light ? "#FFFFFF" : "#303034") : root.panel
-            border.width: 1
+            border.width: root.material ? 0 : 1
             border.color: root.liquid ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(1, 1, 1, root.flat ? 0.06 : 0.12)
             Sheen { radius: parent.radius; visible: root.liquid }
             Rectangle { x: 8; y: 9; width: parent.width * 0.45; height: 5; radius: 2.5; color: Theme.fg; opacity: 0.7 }
             Rectangle { x: 8; y: 19; width: parent.width * 0.7; height: 4; radius: 2; color: Theme.fg; opacity: 0.35 }
             Rectangle { x: 8; y: 27; width: parent.width * 0.6; height: 4; radius: 2; color: Theme.fg; opacity: 0.35 }
-            Rectangle { anchors { right: parent.right; bottom: parent.bottom; margins: 7 } width: 26; height: 10; radius: 5; color: Theme.accent }
+            Rectangle { anchors { right: parent.right; bottom: parent.bottom; margins: 7 } width: 26; height: 10; radius: 5; color: root.material ? Theme.materialAccent : Theme.accent }
         }
         // док
         Rectangle {

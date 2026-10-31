@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Widgets
 import qs.common
 import qs.common.ui
+import qs.settings.parts
 
 // Доки: край, длина, автоскрытие, увеличение, модули верхнего дока,
 // закреплённые приложения. «Настройки» — отдельный процесс, поэтому режим
@@ -15,7 +16,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Доки")
     property string icon: "dock"
-    property string keywords: "док панель край автоскрытие длина плитки компактный модули закреплённые приложения увеличение музыка"
+    property string keywords: "док панель край автоскрытие длина плитки компактный ширина прозрачность непрозрачность модули трей фоновые остров события закреплённые приложения увеличение музыка часы секунды"
     spacing: 18
 
     readonly property var edges: [{ value: "top", label: I18n.tr("Сверху") }, { value: "bottom", label: I18n.tr("Снизу") }, { value: "left", label: I18n.tr("Слева") }, { value: "right", label: I18n.tr("Справа") }]
@@ -26,6 +27,11 @@ ColumnLayout {
         return v === "smart" ? "smart" : v === true;
     }
     readonly property var lengths: [{ value: "full", label: I18n.tr("Полный") }, { value: "tiles", label: I18n.tr("Плитки") }, { value: "compact", label: I18n.tr("Компактный") }]
+
+    // своя непрозрачность дока: нет ключа — как у темы
+    function ownOpacity(which) { return Number(Settings.get("docks." + which + ".opacity", -1)) >= 0; }
+    function setOwnOpacity(which, on) { Settings.set("docks." + which + ".opacity", on ? Math.round(Theme.opacity * 100) / 100 : -1); }
+    function opt(key, def) { return Settings.get("docks.top.opts." + key, def); }
 
     // Оба дока на одном крае мешают друг другу — второй переезжает на противоположный.
     readonly property var opposite: ({ top: "bottom", bottom: "top", left: "right", right: "left" })
@@ -46,6 +52,28 @@ ColumnLayout {
             icon: "scale"; title: I18n.tr("Длина"); subtitle: I18n.tr("Во всю ширину, отдельными плитками или по размеру содержимого"); wide: true
             Chips { model: root.lengths; current: Settings.get("docks.top.length", "full"); onPicked: v => Settings.set("docks.top.length", v) }
         }
+        SliderRow {
+            visible: Settings.get("docks.top.length", "full") !== "full"
+            icon: "scale"; title: I18n.tr("Ширина")
+            subtitle: I18n.tr("Для компактного и плиточного вида: больше — просторнее")
+            from: 0.7; to: 1.6; step: 0.05
+            value: Number(Settings.get("docks.top.width", 1)) || 1
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("docks.top.width", Math.round(v * 100) / 100)
+        }
+        SettingRow {
+            icon: "eye"; title: I18n.tr("Своя прозрачность"); subtitle: I18n.tr("Иначе — как у доков и окон в «Оформлении»")
+            Toggle { checked: root.ownOpacity("top"); onToggled: v => root.setOwnOpacity("top", v) }
+        }
+        SliderRow {
+            visible: root.ownOpacity("top")
+            icon: "eye"; title: I18n.tr("Непрозрачность")
+            from: 0.1; to: 1; step: 0.01
+            value: Number(Settings.get("docks.top.opacity", 0.62))
+            live: true
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("docks.top.opacity", Math.round(v * 100) / 100)
+        }
         SettingRow {
             icon: "eye-off"; title: I18n.tr("Скрывать автоматически"); wide: true
             subtitle: I18n.tr("Спрятанный док выходит, если подвести мышь к краю. «Умное» прячет его только когда мешает окно")
@@ -64,8 +92,55 @@ ColumnLayout {
             Toggle { checked: Settings.get("docks.top.media", true) === true; onToggled: v => Settings.set("docks.top.media", v) }
         }
         SettingRow {
+            icon: "bell"; title: I18n.tr("События в острове")
+            subtitle: I18n.tr("Зарядка, Bluetooth, снимок экрана, таймер, уведомления в режиме «Не беспокоить»")
+            Toggle { checked: Settings.get("docks.top.island", true) !== false; onToggled: v => Settings.set("docks.top.island", v) }
+        }
+        SettingRow {
+            visible: Settings.get("docks.top.island", true) !== false
+            icon: "keyboard"; title: I18n.tr("Смена раскладки в острове")
+            Toggle { checked: Settings.get("docks.top.islandLayout", false) === true; onToggled: v => Settings.set("docks.top.islandLayout", v) }
+        }
+        SettingRow {
             icon: "grid"; title: I18n.tr("Модули"); subtitle: I18n.tr("Переставьте, добавьте или уберите то, что видно в доке")
             Btn { text: I18n.tr("Изменить"); kind: "accent"; onClicked: Quickshell.execDetached(["delta-shell", "ipc", "call", "docks", "edit"]) }
+        }
+    }
+
+    // что показывают модули верхнего дока
+    Card {
+        title: I18n.tr("Модули верхнего дока")
+        SettingRow {
+            icon: "calendar"; title: I18n.tr("Дата рядом с часами")
+            Toggle { checked: root.opt("calendarDate", true) !== false; onToggled: v => Settings.set("docks.top.opts.calendarDate", v) }
+        }
+        SettingRow {
+            icon: "clock"; title: I18n.tr("Секунды на часах")
+            Toggle { checked: root.opt("calendarSeconds", false) === true; onToggled: v => Settings.set("docks.top.opts.calendarSeconds", v) }
+        }
+        SettingRow {
+            icon: "cloud-sun"; title: I18n.tr("Температура у погоды")
+            Toggle { checked: root.opt("weatherTemp", true) !== false; onToggled: v => Settings.set("docks.top.opts.weatherTemp", v) }
+        }
+        SettingRow {
+            icon: "battery"; title: I18n.tr("Проценты батареи")
+            Toggle { checked: root.opt("batteryPercent", true) !== false; onToggled: v => Settings.set("docks.top.opts.batteryPercent", v) }
+        }
+        SettingRow {
+            icon: "cpu"; title: I18n.tr("Показатели ПК"); wide: true
+            Chips {
+                model: [{ value: "both", label: I18n.tr("ЦП и ОЗУ") }, { value: "cpu", label: I18n.tr("Только ЦП") }, { value: "ram", label: I18n.tr("Только ОЗУ") }]
+                current: root.opt("pcShow", "both")
+                onPicked: v => Settings.set("docks.top.opts.pcShow", v)
+            }
+        }
+        SettingRow {
+            icon: "layers"; title: I18n.tr("Фоновые приложения"); subtitle: I18n.tr("Сколько значков трея видно, остальные — за «+N»"); wide: true
+            Chips {
+                model: [3, 5, 8, 12].map(n => ({ value: n, label: String(n) }))
+                current: Number(root.opt("trayMax", 5))
+                onPicked: v => Settings.set("docks.top.opts.trayMax", v)
+            }
         }
     }
 
@@ -78,6 +153,28 @@ ColumnLayout {
         SettingRow {
             icon: "scale"; title: I18n.tr("Длина"); wide: true
             Chips { model: root.lengths; current: Settings.get("docks.apps.length", "compact"); onPicked: v => Settings.set("docks.apps.length", v) }
+        }
+        SliderRow {
+            visible: Settings.get("docks.apps.length", "compact") !== "full"
+            icon: "scale"; title: I18n.tr("Ширина")
+            subtitle: I18n.tr("Для компактного и плиточного вида: больше — просторнее")
+            from: 0.7; to: 1.6; step: 0.05
+            value: Number(Settings.get("docks.apps.width", 1)) || 1
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("docks.apps.width", Math.round(v * 100) / 100)
+        }
+        SettingRow {
+            icon: "eye"; title: I18n.tr("Своя прозрачность"); subtitle: I18n.tr("Иначе — как у доков и окон в «Оформлении»")
+            Toggle { checked: root.ownOpacity("apps"); onToggled: v => root.setOwnOpacity("apps", v) }
+        }
+        SliderRow {
+            visible: root.ownOpacity("apps")
+            icon: "eye"; title: I18n.tr("Непрозрачность")
+            from: 0.1; to: 1; step: 0.01
+            value: Number(Settings.get("docks.apps.opacity", 0.62))
+            live: true
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("docks.apps.opacity", Math.round(v * 100) / 100)
         }
         SettingRow {
             icon: "eye-off"; title: I18n.tr("Скрывать автоматически"); wide: true

@@ -93,6 +93,13 @@ ColumnLayout {
             updates = [];
             Settings.set("updates.available", 0);
             Nav.toast(needReboot ? "Обновления установлены — перезагрузите компьютер" : "Обновления установлены");
+            // Новая Delta, ядро или Hyprland заработают после перезагрузки. Кнопка
+            // в уведомлении живёт и после закрытия «Настроек»; ошибок сверху
+            // экрана нет: оболочка и Hyprland не перечитывают файлы на ходу.
+            if (needReboot && !Exec.dryRun)
+                Quickshell.execDetached(["sh", "-c", 'a=$(notify-send -a Delta -i system-reboot -u critical -A reboot="$1" "$2" "$3") && [ "$a" = reboot ] && systemctl reboot',
+                                         "sh", I18n.tr("Перезагрузить"), I18n.tr("Обновление установлено"),
+                                         I18n.tr("Перезагрузите компьютер, чтобы закончить обновление")]);
         } else if (code === 126 || code === 127) {
             stage = "";
             Nav.toast("Установка отменена");

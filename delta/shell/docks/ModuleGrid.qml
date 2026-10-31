@@ -39,6 +39,8 @@ Item {
     // а не растягиваются на пол-экрана, как в полном доке
     readonly property real tileCell: 54
     readonly property real cw: tiles ? tileCell : compact ? 46 : (fullAlong - 2 * pad) / cells
+    // ширина компактного и плиточного вида (Настройки → Доки → Ширина)
+    readonly property real wk: DockService.topWidth
 
     // естественный размер модулей вдоль края (для compact)
     property var naturals: ({})
@@ -56,14 +58,14 @@ Item {
         for (const m of modules) {
             // плитки: каждая ячейка фиксированная, ширина модуля = span × клетка;
             // компактный: по естественной ширине содержимого
-            const per = tiles ? tileCell : (naturals[m.id] ?? 36) / m.span;
+            const per = tiles ? tileCell : (naturals[m.id] ?? 36) * wk / m.span;
             for (let c = m.cell; c < m.cell + m.span; c++) out[c] = per;
         }
         // пустые ячейки по краям не нужны, между модулями — маленький зазор
         const used = out.map(v => v >= 0);
         const first = used.indexOf(true), last = used.lastIndexOf(true);
         for (let i = 0; i < cells; i++)
-            if (out[i] < 0) out[i] = first === -1 || i < first || i > last ? 0 : (tiles ? 8 : 4);
+            if (out[i] < 0) out[i] = first === -1 || i < first || i > last ? 0 : (tiles ? 8 : 4) * wk;
         return out;
     }
     readonly property var starts: {
@@ -88,8 +90,8 @@ Item {
             const small = isSmall(m);
             const touching = prev !== null && m.cell === prev.cell + prev.span;
             const together = touching && small && isSmall(prev);
-            if (prev !== null) acc += together ? 0 : touching ? tileGap : groupGap;
-            const w = small ? tileSmall : Math.max(52, (naturals[m.id] ?? 36) + 12);
+            if (prev !== null) acc += together ? 0 : (touching ? tileGap : groupGap) * wk;
+            const w = (small ? tileSmall : Math.max(52, (naturals[m.id] ?? 36) + 12)) * wk;
             for (let c = m.cell; c < m.cell + m.span; c++) {
                 start[c] = acc + (c - m.cell) * w / m.span;
                 end[c] = acc + (c - m.cell + 1) * w / m.span;
@@ -133,7 +135,7 @@ Item {
             width: grid.vertical ? across : modelData.to - modelData.from
             height: grid.vertical ? modelData.to - modelData.from : across
             radius: across / 2
-            color: Theme.glass
+            color: DockService.topGlass
             border.width: 1
             border.color: Theme.line
             // капсула вздрагивает вместе с плитками
@@ -292,7 +294,7 @@ Item {
                     anchors.fill: parent
                     radius: Math.min(width, height) / 2
                     visible: slot.tiles && !slot.grouped
-                    color: Theme.glass
+                    color: DockService.topGlass
                     border.width: 1
                     border.color: Theme.line
                 }

@@ -24,6 +24,9 @@ import qs.greeter
 ShellRoot {
     id: shell
 
+    // файлы не отслеживаем — см. shell.qml (кроме вложенной сессии)
+    settings.watchFiles: (Quickshell.env("DELTA_NESTED") || "") !== ""
+
     Backend { id: be }
 
     signal exitRequested()

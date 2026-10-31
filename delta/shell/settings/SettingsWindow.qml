@@ -91,7 +91,7 @@ FloatingWindow {
                 spacing: 12
                 Label {
                     id: headTitle
-                    text: pane.sec ? pane.sec.title : ""
+                    text: pane.sec ? pane.sec.title : Nav.current === "home" ? I18n.tr("Все настройки") : ""
                     font.pixelSize: 24
                     font.weight: Font.Bold
                     font.family: Theme.fontDisplay
@@ -112,6 +112,29 @@ FloatingWindow {
             Item {
                 id: stack
                 anchors { fill: parent; topMargin: header.y + header.height + 6 }
+
+                // главная: папки карточками
+                Flickable {
+                    id: home
+                    readonly property bool cur: Nav.current === "home"
+                    anchors.fill: parent
+                    contentWidth: width
+                    contentHeight: homeGrid.implicitHeight + 58
+                    boundsBehavior: Flickable.StopAtBounds
+                    interactive: cur
+                    enabled: cur
+                    visible: opacity > 0.01
+                    opacity: cur ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Theme.anim.normal; easing.type: Theme.anim.outCurve } }
+                    Home {
+                        id: homeGrid
+                        x: (home.width - win.contentWidth) / 2
+                        y: 10 + slide
+                        width: win.contentWidth
+                        property real slide: home.cur ? 0 : 18
+                        Behavior on slide { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
+                    }
+                }
 
                 Repeater {
                     model: Registry.sections

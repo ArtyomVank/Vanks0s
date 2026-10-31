@@ -52,6 +52,9 @@ Singleton {
         if (fresh) n.closed.connect(() => root.forget(n));
         if (!n.transient || n.urgency === NotificationUrgency.Critical) unread++;
         if (!dnd || n.urgency === NotificationUrgency.Critical) popup(n);
+        // «Не беспокоить»: карточки нет — только тихий взгляд в острове дока
+        else if (!n.transient) ShellState.island({ kind: "notify", image: iconFor(n), icon: "bell",
+                                                   title: n.appName || I18n.tr("Уведомление"), text: n.summary || "" });
         publish();
     }
 

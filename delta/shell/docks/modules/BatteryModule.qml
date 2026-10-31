@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Services.UPower
 import qs.common
 import qs.common.ui
+import qs.docks
 
 // Батарея (UPower). На компьютере без батареи модуль скрыт.
 Item {
@@ -33,7 +34,7 @@ Item {
         }
         Label {
             anchors.verticalCenter: parent.verticalCenter
-            visible: !root.vertical && root.full
+            visible: !root.vertical && root.full && DockService.opt("batteryPercent", true) !== false
             text: root.percent + "%"
             size: "caption"
             color: Theme.fg2

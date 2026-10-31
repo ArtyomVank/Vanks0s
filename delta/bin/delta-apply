@@ -98,11 +98,15 @@ lua=$(jq -r '
   "    },",
   "    decoration = {",
   "        rounding = \(.windows.rounding | int(16) | clamp(0; 40)),",
-  # «Жидкое стекло» (appearance.style): сила размытия — «Матовость»
-  # (appearance.frost, 0 — прозрачное, 1 — молочное)
+  # Сила размытия — «Матовость» (appearance.frost, 0 — прозрачное,
+  # 1 — молочное): у жидкого стекла и у Delta (по умолчанию 0.5 — прежние
+  # size 6, passes 3)
   (if .appearance.style == "liquid" then
      (.appearance.frost | num(0.5) | clamp(0; 1)) as $f
      | "        blur = { enabled = \(.windows.blur | bool(true)), size = \(3 + $f * 11 | floor), passes = \(if $f < 0.3 then 2 elif $f < 0.7 then 3 else 4 end), vibrancy = 0.3, brightness = 1.05 },"
+   elif (.appearance.style // "delta") == "delta" then
+     (.appearance.frost | num(0.5) | clamp(0; 1)) as $f
+     | "        blur = { enabled = \(.windows.blur | bool(true)), size = \(2 + $f * 8 | floor), passes = \(if $f < 0.3 then 2 elif $f < 0.75 then 3 else 4 end), vibrancy = 0.17, brightness = 1 },"
    else
      "        blur = { enabled = \(.windows.blur | bool(true)), size = 6, passes = 3, vibrancy = 0.17, brightness = 1 },"
    end),
@@ -125,8 +129,8 @@ lua=$(jq -r '
   # Стиль панелей. Более позднее правило слоя заменяет прежнее целиком —
   # поэтому здесь все свойства (размытие, ignore_alpha, no_anim), а слоям
   # без размытия (обои, «джинн», кнопки окон, желе, край) оно снова снято.
-  # GNOME: панели сплошные — размывать под ними нечего.
-  (if .appearance.style == "gnome" then
+  # GNOME и Material You: панели сплошные — размывать под ними нечего.
+  (if .appearance.style == "gnome" or .appearance.style == "material" then
      "hl.layer_rule({ name = \"delta-flat-surfaces\", match = { namespace = \"^delta-.*\" }, blur = false, no_anim = true })"
    else empty end),
   # Жидкое стекло почти прозрачное — размываем и под едва видимой подложкой

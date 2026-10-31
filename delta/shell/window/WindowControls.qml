@@ -118,8 +118,10 @@ Scope {
         parse(h ? h.lastIpcObject : null);
     }
 
+    // в покое — редко: движение и смену окна и так приносят события Hyprland,
+    // а каждый опрос — работа для композитора
     Timer {
-        interval: root.fast ? 80 : 200
+        interval: root.fast ? 80 : 500
         repeat: true
         running: root.enabled && !root.hidden && !DragState.dragging
         triggeredOnStart: true

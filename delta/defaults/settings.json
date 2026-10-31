@@ -22,6 +22,7 @@
         { "id": "workspaces", "cell": 1, "span": 3 },
         { "id": "calendar", "cell": 4, "span": 2 },
         { "id": "weather", "cell": 6, "span": 2 },
+        { "id": "tray", "cell": 8, "span": 2 },
         { "id": "notifications", "cell": 10, "span": 1 },
         { "id": "lang", "cell": 11, "span": 1 },
         { "id": "wifi", "cell": 12, "span": 1 },

@@ -138,11 +138,13 @@ Item {
         Item {
             id: body
             opacity: root.alpha
+            // фото — на всю карточку, без отступов
+            readonly property real pad: root.item.id === "photo" ? 0 : 1
             anchors {
                 fill: parent
-                topMargin: root.lock ? 12 * root.height / 100 : 7 * Math.min(root.width, root.height) / 100
+                topMargin: body.pad * (root.lock ? 12 * root.height / 100 : 7 * Math.min(root.width, root.height) / 100)
                 bottomMargin: anchors.topMargin
-                leftMargin: root.lock ? 14 * root.height / 100 : 8 * Math.min(root.width, root.height) / 100
+                leftMargin: body.pad * (root.lock ? 14 * root.height / 100 : 8 * Math.min(root.width, root.height) / 100)
                 rightMargin: anchors.leftMargin
             }
             // без подложки текст читается поверх обоев за счёт мягкой тени
@@ -175,6 +177,7 @@ Item {
                     case "net": return netC;
                     case "timer": return timerC;
                     case "sun": return sunC;
+                    case "photo": return photoC;
                     }
                     return null;
                 }
@@ -274,4 +277,5 @@ Item {
     Component { id: netC; NetWidget { card: root } }
     Component { id: timerC; TimerWidget { card: root } }
     Component { id: sunC; SunWidget { card: root } }
+    Component { id: photoC; PhotoWidget { card: root } }
 }

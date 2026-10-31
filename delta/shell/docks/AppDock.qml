@@ -38,7 +38,7 @@ PanelWindow {
     readonly property real margin: 14 + (topEdge === edge ? topReach + 8 : 0)
     // длина края — по самому окну: ShellScreen не всегда успевает за сменой масштаба
     readonly property real screenAlong: vertical ? height : width
-    readonly property real contentAlong: (vertical ? row.height : row.width) + 32
+    readonly property real contentAlong: (vertical ? row.height : row.width) + Math.round(32 * (length === "full" ? 1 : DockService.appsWidth))
     readonly property real along: length === "full" ? screenAlong - 2 * 14 : contentAlong
     readonly property real reach: margin + thick
     readonly property int zone: cfg.autohide !== true && !smart && length !== "compact" ? Math.round(margin + thick) : 0
@@ -271,13 +271,16 @@ PanelWindow {
         screenName: win.screen?.name ?? ""
         dockId: "apps"
         origin: win.origin
+        glass: DockService.appsGlass
 
         Grid {
             id: row
             anchors.centerIn: parent
             columns: win.vertical ? 1 : Math.max(1, rep.count)
-            rowSpacing: 10
-            columnSpacing: 10
+            // ширина компактного и плиточного дока — зазоры между значками
+            readonly property real gap: win.length === "full" ? 10 : Math.round(10 * DockService.appsWidth + 16 * (DockService.appsWidth - 1))
+            rowSpacing: win.vertical ? gap : 10
+            columnSpacing: win.vertical ? 10 : gap
 
             Repeater {
                 id: rep

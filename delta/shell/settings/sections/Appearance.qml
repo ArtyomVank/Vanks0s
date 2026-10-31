@@ -304,9 +304,12 @@ ColumnLayout {
         SettingRow {
             icon: "palette"
             title: I18n.tr("Цвет оформления")
-            subtitle: I18n.tr("Кнопки, выделение и рамка окна")
+            subtitle: Theme.material ? I18n.tr("В Material You цвет берётся из обоев")
+                                     : I18n.tr("Кнопки, выделение и рамка окна")
             RowLayout {
                 spacing: 8
+                enabled: !Theme.material
+                opacity: enabled ? 1 : 0.5
                 Repeater {
                     model: Theme.accents
                     delegate: Rectangle {
@@ -360,12 +363,14 @@ ColumnLayout {
             }
         }
 
-        // у жидкого стекла вместо прозрачности — матовость
+        // матовость — сила размытия под стеклом (Delta и жидкое стекло); у
+        // жидкого стекла она же задаёт подложку вместо прозрачности
         SliderRow {
-            visible: Theme.liquid
+            visible: Theme.liquid || (!Theme.flat && !Theme.material)
             icon: "eye"
             title: I18n.tr("Матовость стекла")
-            subtitle: I18n.tr("Меньше — прозрачное стекло, больше — молочное, сильнее размыто")
+            subtitle: Theme.liquid ? I18n.tr("Меньше — прозрачное стекло, больше — молочное, сильнее размыто")
+                                   : I18n.tr("Меньше — обои за панелями чёткие, больше — сильнее размыты")
             from: 0; to: 1; step: 0.01
             value: Theme.frost
             live: true
@@ -373,7 +378,7 @@ ColumnLayout {
             onCommit: v => Settings.set("appearance.frost", Math.round(v * 100) / 100)
         }
         SliderRow {
-            visible: !Theme.liquid
+            visible: !Theme.liquid && !Theme.material
             icon: "eye"
             title: I18n.tr("Непрозрачность доков и окон")
             subtitle: Theme.flat ? I18n.tr("В стиле GNOME панели всегда сплошные") : I18n.tr("Меньше — сквозь панели больше видно обои")
@@ -482,7 +487,8 @@ ColumnLayout {
                   "--cursor", a.cursorTheme || "Adwaita",
                   "--cursor-size", String(a.cursorSize ?? 24),
                   "--accent", String(Theme.accent),
-                  "--base", t.rgb.join(","),
+                  "--base", Theme.baseRgb,
+                  "--radius", String(Settings.get("windows.rounding", 16)),
                   "--font", Theme.font], {
             label: I18n.tr("оформление для GTK/Qt"),
             selfDry: true,

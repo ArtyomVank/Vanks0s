@@ -28,7 +28,8 @@ Scope {
         "--cursor", a.cursorTheme || "Adwaita",
         "--cursor-size", String(a.cursorSize ?? 24),
         "--accent", String(Theme.accent),
-        "--base", Theme.current.rgb.join(","),
+        "--base", Theme.baseRgb,
+        "--radius", String(Settings.get("windows.rounding", 16)),
         "--font", Theme.font
     ]
     readonly property string key: args.join(" ")

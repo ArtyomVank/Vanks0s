@@ -8,7 +8,8 @@ import Quickshell
 Singleton {
     id: root
 
-    property string current: "appearance"
+    // "home" — главная с папками
+    property string current: "home"
     property string query: ""
     // разделы, которые уже открывали: их Loader остаётся живым
     property var visited: ({})
@@ -29,6 +30,15 @@ Singleton {
     property string toastText: ""
     property int toastSerial: 0
     function toast(text) { toastText = text; toastSerial++; }
+
+    // раскрытые папки боковой панели: { system: true, … }
+    property var openFolders: ({})
+    function setFolder(id, on) {
+        if ((openFolders[id] === true) === on) return;
+        const f = Object.assign({}, openFolders);
+        f[id] = on;
+        openFolders = f;
+    }
 
     function open(id) {
         const v = Object.assign({}, visited);

@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import "../wallpaper/media.js" as Media
 
 // Токены оформления Delta — те же, что в концепт-макете (--glass, --fg, …).
 Singleton {
@@ -57,19 +58,23 @@ Singleton {
     // Стиль — не цвет, а сам вид панелей (appearance.style):
     //   delta  — тонированное стекло с размытием (как было);
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
-    //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen).
+    //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen);
+    //   material — Material You, как на Pixel: плотные панели, цвета из обоев.
     // preset — что ставится при выборе стиля (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
-          preset: { glass: 0.62, radius: 18, rounding: 16, blur: true, border: 2 } },
+          preset: { glass: 0.62, frost: 0.5, radius: 18, rounding: 16, blur: true, border: 2 } },
         { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
           preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0 } },
         { id: "liquid", name: "Жидкое стекло",  note: "Стекло-линза: фон у края изгибается",
-          preset: { glass: 0.4, frost: 0.5, radius: 26, rounding: 22, blur: true, border: 1 } }
+          preset: { glass: 0.4, frost: 0.5, radius: 26, rounding: 22, blur: true, border: 1 } },
+        { id: "material", name: "Material You", note: "Цвета из обоев, как на Pixel",
+          preset: { glass: 0.97, radius: 26, rounding: 20, blur: false, border: 0 } }
     ]
     readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
     readonly property bool flat: style === "gnome"
     readonly property bool liquid: style === "liquid"
+    readonly property bool material: style === "material"
     // выбрать стиль: вместе с ним — прозрачность, скругления, размытие и рамка окон
     function applyStyle(id) {
         const st = styles.find(x => x.id === id);
@@ -84,26 +89,83 @@ Singleton {
         Settings.set("windows.border", p.border);
     }
 
-    // Матовость жидкого стекла (appearance.frost, 0…1): у прозрачного подложка
-    // едва тонирована и размытие слабое, у матового — молочная дымка и
-    // густое размытие (его силу задаёт delta-apply). У Delta вместо неё —
-    // прозрачность (appearance.glass).
+    // Матовость (appearance.frost, 0…1) — сила размытия под панелями (её
+    // задаёт delta-apply). У жидкого стекла от неё же и подложка: прозрачное —
+    // едва тонировано, матовое — молочная дымка. У Delta подложку задаёт
+    // прозрачность (appearance.glass), а матовость — только размытие.
     readonly property real frost: Math.max(0, Math.min(1, Number(appearance.frost ?? 0.5)))
     readonly property real opacity: flat ? 1
+        : material ? 0.97
         : liquid ? 0.12 + 0.26 * frost
         : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
+
+    // ---- Material You: цвета из обоев ----
+    // Главный цвет обоев (ColorQuantizer, самый насыщенный из восьми) — от
+    // него поверхности (тот же оттенок, почти без насыщенности) и акцент
+    // (тон 80 в тёмной теме, 40 в светлой), как динамические цвета Android.
+    // Светлая или тёмная — по выбранной теме.
+    readonly property string wallFile: {
+        const w = Settings.s.wallpaper || {};
+        const f = w.path || "";
+        if (!f) return "";
+        return Media.isVideo(f) || w.video === true ? (w.poster || "") : f;
+    }
+    property color seed: /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
+    ColorQuantizer {
+        source: root.material && root.wallFile ? Media.fileUrl(root.wallFile) : ""
+        depth: 3
+        rescaleSize: 96
+        onColorsChanged: {
+            let best = null, score = -1;
+            for (const c of colors) {
+                // насыщенный и не слишком тёмный/светлый
+                const sc = c.hsvSaturation * (0.35 + c.hsvValue) * (c.hslLightness > 0.08 && c.hslLightness < 0.92 ? 1 : 0.2);
+                if (sc > score) { score = sc; best = c; }
+            }
+            if (best) root.seed = best;
+        }
+    }
+    readonly property real seedHue: seed.hslHue < 0 ? 0.72 : seed.hslHue
+    readonly property real seedSat: Math.max(0.35, Math.min(0.9, seed.hslSaturation))
+    readonly property color materialBase: light ? Qt.hsla(seedHue, Math.min(seedSat, 0.6) * 0.5, 0.94, 1)
+                                                : Qt.hsla(seedHue, Math.min(seedSat, 0.5) * 0.42, 0.13, 1)
+    readonly property color materialAccent: light ? Qt.hsla(seedHue, Math.max(0.5, seedSat * 0.8), 0.40, 1)
+                                                  : Qt.hsla(seedHue, Math.max(0.55, seedSat * 0.85), 0.76, 1)
+    // акцент из обоев уходит и в настройки — рамки окон Hyprland и GTK
+    // (delta-apply) берут appearance.accent; с задержкой, чтобы смена обоев
+    // не дёргала delta-apply на каждом промежуточном цвете
+    onMaterialAccentChanged: if (material) accentSync.restart()
+    onMaterialChanged: if (material) accentSync.restart()
+    Timer {
+        id: accentSync
+        interval: 1500
+        onTriggered: {
+            const hex = String(root.materialAccent).toUpperCase();
+            if (root.material && String(root.appearance.accent || "").toUpperCase() !== hex)
+                Settings.set("appearance.accent", hex);
+        }
+    }
+
+    // цвет панелей «r,g,b» для программ GTK/Qt (theme-apply): у GNOME —
+    // серый, у Material You — из обоев
+    readonly property string baseRgb: [base.r, base.g, base.b].map(v => Math.round(v * 255)).join(",")
+
     // у GNOME панели нейтрально-серые (Adwaita), цвет темы остаётся в акценте
     readonly property color base: flat ? (light ? "#FAFAFB" : "#242428")
-                                       : Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
+                                : material ? materialBase
+                                : Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
     readonly property color glass: Qt.rgba(base.r, base.g, base.b, opacity)
     readonly property color glass2: flat ? (light ? "#FFFFFF" : "#303034")
-                                         : Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
-    readonly property color accent: /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
+                                  : material ? Qt.hsla(seedHue, base.hslSaturation, light ? 0.90 : 0.17, 1)
+                                  : Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
+    readonly property color accent: material ? materialAccent
+        : /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
 
     readonly property color fg:    light ? "#17131F" : "#ECE9F7"
     readonly property color fg2:   light ? "#433E57" : "#C9C3E0"
     readonly property color fg3:   light ? "#5C576E" : "#A9A3C2"
-    readonly property color line:  light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
+    readonly property color line:  material ? "transparent"
+        : light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
     readonly property color soft:  light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
     readonly property color soft2: light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.10)
     readonly property color inv:   light ? "#FFFFFF" : "#140F26"

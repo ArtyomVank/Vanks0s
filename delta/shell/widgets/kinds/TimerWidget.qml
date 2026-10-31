@@ -51,6 +51,7 @@ Base {
                 root.rang = true;
                 flash.restart();
                 Sounds.play("alarm-clock-elapsed", 0);
+                ShellState.island({ kind: "timer", icon: "clock", title: I18n.tr("Таймер"), text: I18n.tr("Время вышло"), color: "#F09A2B", ms: 5000 });
             }
         }
     }

@@ -126,7 +126,7 @@ Item {
             anchors.fill: parent
             visible: root.tiles
             radius: 20
-            color: Theme.glass
+            color: DockService.appsGlass
             border.width: 1
             border.color: Theme.line
         }

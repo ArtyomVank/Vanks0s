@@ -45,11 +45,17 @@ Singleton {
         timer:    { name: "Таймер", short: "Таймер", icon: "clock", def: [2, 2], min: [2, 2], max: [4, 4],
                     modes: [], presets: [[2, 2], [3, 2], [3, 3]] },
         sun:      { name: "Восход и закат", short: "Солнце", icon: "sun", def: [3, 2], min: [2, 2], max: [6, 3],
-                    modes: [], presets: [[2, 2], [3, 2], [4, 2]] }
+                    modes: [], presets: [[2, 2], [3, 2], [4, 2]] },
+        notifs:   { name: "Уведомления", short: "Уведомления", icon: "bell", def: [4, 3], min: [2, 1], max: [10, 7],
+                    modes: [["stack", "Стопкой", 3, 2], ["list", "Списком", 3, 2], ["count", "Числом", 2, 1]] },
+        photo:    { name: "Фото", short: "Фото", icon: "image", def: [3, 3], min: [2, 2], max: [8, 6],
+                    modes: [["slow", "Раз в минуту", 2, 2], ["fast", "Раз в 10 с", 2, 2]], presets: [[2, 2], [3, 3], [4, 3]] }
     })
-    readonly property var desktopOrder: ["clock", "analog", "weather", "sun", "music", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
+    readonly property var desktopOrder: ["clock", "analog", "photo", "notifs", "weather", "sun", "music", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
 
-    readonly property var lock: ({
+    // Экран блокировки: свои варианты у часов, уведомлений, погоды, календаря,
+    // музыки и батареи (белые, строкой), остальные — те же, что на рабочем столе.
+    readonly property var lockOwn: ({
         clock:    { name: "Часы", icon: "clock", def: [7, 3], min: [3, 2], max: [13, 4], modes: [] },
         analog:   { name: "Часы со стрелками", icon: "clock", def: [2, 2], min: [2, 2], max: [4, 4],
                     modes: [["plain", "Циферблат", 2, 2], ["date", "С датой", 2, 2]] },
@@ -61,14 +67,11 @@ Singleton {
                     modes: [["day", "День", 2, 1], ["month", "Месяц", 3, 2]] },
         music:    { name: "Музыка", icon: "music", def: [3, 1], min: [3, 1], max: [5, 2],
                     modes: [["short", "Короткий", 3, 1], ["wide", "Широкий", 4, 2]] },
-        cpu:      { name: "Процессор", icon: "cpu", def: [2, 1], min: [2, 1], max: [4, 2],
-                    modes: [["number", "Число", 2, 1], ["ring", "Кольцо", 2, 2]] },
-        ram:      { name: "Память", icon: "memory", def: [2, 1], min: [2, 1], max: [4, 2],
-                    modes: [["number", "Число", 2, 1], ["bar", "Полоса", 2, 2]] },
         battery:  { name: "Батарея", icon: "battery", def: [2, 1], min: [2, 1], max: [4, 2],
                     modes: [["number", "Число", 2, 1], ["ring", "Кольцо", 2, 2]], needsBattery: true }
     })
-    readonly property var lockOrder: ["clock", "analog", "notifs", "weather", "calendar", "music", "cpu", "ram", "battery"]
+    readonly property var lock: Object.assign({}, desktop, lockOwn)
+    readonly property var lockOrder: ["clock", "analog", "notifs", "photo", "weather", "calendar", "music", "sun", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "battery"]
 
     readonly property var clockStyles: [
         { value: "ios", label: "iOS" }, { value: "thin", label: "Тонкие" }, { value: "mono", label: "Моно" },

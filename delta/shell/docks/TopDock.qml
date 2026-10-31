@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.docks.parts
@@ -27,13 +28,15 @@ PanelWindow {
     readonly property bool hasWindows: smart && DockService.covered(screen?.name ?? "", openRect)
     readonly property bool autohide: cfg.autohide === true || (smart && hasWindows)
     readonly property bool pill: DockService.mediaPill && !ShellState.dockEditing
-    // «остров»: короткое сообщение (без звука / звук включён) вместо модулей
+    // «остров»: короткое сообщение вместо модулей — без звука / звук включён
+    // (колокольчик) или событие системы (значок, заголовок, подпись)
     readonly property bool noticing: DockService.notice !== null && !ShellState.dockEditing && !menuHere
+    readonly property bool muteNotice: noticing && DockService.notice.kind === "mute"
 
     readonly property real margin: 10
     readonly property real barThick: length === "compact" ? 42 : 48
     readonly property real thick: noticing || pill ? 44 : barThick
-    readonly property real along: noticing ? (vertical ? 150 : notice.implicitWidth + 40)
+    readonly property real along: noticing ? (vertical ? 150 : (muteNotice ? notice.implicitWidth : info.implicitWidth) + 40)
                                 : pill ? (vertical ? 200 : 340) : grid.implicitAlong
     // длина края — по самому окну: ShellScreen не всегда успевает за сменой масштаба
     readonly property real screenAlong: vertical ? height : width
@@ -158,6 +161,7 @@ PanelWindow {
         screenName: win.screen?.name ?? ""
         dockId: "top"
         origin: win.origin
+        glass: DockService.topGlass
 
         ModuleGrid {
             id: grid
@@ -220,7 +224,7 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 10
             readonly property bool muted: DockService.notice?.muted ?? false
-            readonly property bool on: win.noticing
+            readonly property bool on: win.muteNotice
             opacity: on ? 1 : 0
             visible: opacity > 0
             // смена содержимого острова: старое быстро сжимается и тает, новое
@@ -243,7 +247,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 size: 20
                 color: notice.muted ? "#FF9F0A" : Theme.fg
-                cutColor: Theme.glass
+                cutColor: DockService.topGlass
             }
             // Колокольчик начинает с прежнего состояния и через миг переключается:
             // черта рисуется (или втягивается) уже в раскрывающемся острове.
@@ -258,10 +262,72 @@ PanelWindow {
             Connections {
                 target: DockService
                 function onNoticeChanged() {
-                    if (!DockService.notice) return;
+                    if (!DockService.notice || DockService.notice.kind !== "mute") return;
                     noticeBell.snapTo(!DockService.notice.muted);
                     noticeFlip.restart();
                 }
+            }
+        }
+
+        // событие системы: значок (или картинка программы), заголовок и подпись
+        Row {
+            id: info
+            anchors.centerIn: parent
+            spacing: 10
+            readonly property var n: DockService.notice && DockService.notice.kind !== "mute" ? DockService.notice : null
+            // пока остров сжимается, показываем прежнее событие
+            property var shown: null
+            onNChanged: if (n) shown = n
+            readonly property color tint: shown && shown.color ? shown.color : Theme.fg
+            readonly property bool on: win.noticing && !win.muteNotice
+            opacity: on ? 1 : 0
+            visible: opacity > 0
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: info.on ? 150 : 0 }
+                    NumberAnimation { duration: info.on ? 260 : 90; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: info.on ? 150 : 0 }
+                    NumberAnimation { duration: info.on ? 460 : 140; easing.type: info.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
+            Item {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 22; height: 22
+                IconImage {
+                    id: infoImg
+                    anchors.fill: parent
+                    source: info.shown?.image ?? ""
+                    visible: status === Image.Ready
+                    asynchronous: true
+                }
+                Sym {
+                    anchors.centerIn: parent
+                    visible: !infoImg.visible
+                    name: info.shown?.icon || "info"
+                    size: 20
+                    color: info.tint
+                }
+            }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: info.shown?.title ?? ""
+                font.weight: Font.DemiBold
+                color: info.tint
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, 220)
+            }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !win.vertical && text.length > 0
+                text: info.shown?.text ?? ""
+                tone: 2
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, 260)
             }
         }
     }

@@ -8,8 +8,8 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.5.8
-pkgrel=2
+pkgver=0.6
+pkgrel=1
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
 url="https://github.com/ArtyomVank/Vanks0s"
@@ -60,7 +60,7 @@ optdepends=(
     'fastfetch: сведения о системе'
     'nvidia-utils: показатели видеокарты NVIDIA в виджетах'
     'imagemagick: миниатюры обоев и уменьшенные обои для экрана входа'
-    'zenity: выбор папки с обоями'
+    'zenity: выбор папки с обоями и фото для виджета «Фото»'
     'xdg-user-dirs: папка «Изображения» для обоев'
     'wine: программы Windows (.exe) — «Открыть обычно»'
     'umu-launcher: запуск .exe через Proton CachyOS с лучшей совместимостью'

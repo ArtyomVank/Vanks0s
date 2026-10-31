@@ -2,13 +2,16 @@
 # Delta · Настройки — переносит оформление Delta на приложения GTK и Qt.
 #
 #   theme-apply --scheme dark|light --icons Papirus-Dark --cursor Adwaita \
-#               --cursor-size 24 --accent '#7C5CFF' --base 24,25,30 --font Inter
+#               --cursor-size 24 --accent '#7C5CFF' --base 24,25,30 --radius 16 --font Inter
 #
 # Что делает:
 #   GTK 3/4  gsettings org.gnome.desktop.interface: color-scheme, gtk-theme
 #            (adw-gtk3 / adw-gtk3-dark), icon-theme, cursor-theme, cursor-size,
 #            font-name, accent-color (ближайший из цветов libadwaita);
-#            ~/.config/gtk-{3,4}.0/settings.ini и блок акцента в gtk.css
+#            ~/.config/gtk-{3,4}.0/settings.ini и блок цветов в gtk.css: акцент,
+#            окно, содержимое, заголовок, боковая панель, карточки, меню — из
+#            цвета панелей Delta (--base), у GTK 4 и скругление окон (--radius):
+#            Nautilus и другие программы libadwaita выглядят как сама система
 #   Qt       ~/.config/qt6ct/qt6ct.conf и палитра colors/delta.conf (нужен
 #            QT_QPA_PLATFORMTHEME=qt6ct в окружении сессии)
 #   курсор   ~/.icons/default/index.theme (XWayland) и hyprctl setcursor
@@ -18,7 +21,7 @@
 # (вложенная сессия разработчика с отдельным HOME).
 set -u
 
-scheme=dark icons="" cursor="" csize=24 accent="#7C5CFF" base="24,25,30" font=""
+scheme=dark icons="" cursor="" csize=24 accent="#7C5CFF" base="24,25,30" radius=16 font=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --scheme) scheme=$2; shift ;;
@@ -27,6 +30,7 @@ while [ $# -gt 0 ]; do
         --cursor-size) csize=$2; shift ;;
         --accent) accent=$2; shift ;;
         --base) base=$2; shift ;;
+        --radius) radius=$2; shift ;;
         --font) font=$2; shift ;;
         *) echo "theme-apply: неизвестный параметр $1" >&2; exit 2 ;;
     esac
@@ -38,6 +42,8 @@ onacc=$(h=${accent#\#}; awk -v r=$((16#${h:0:2})) -v g=$((16#${h:2:2})) -v b=$((
     function ch(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ^ 2.4 }
     BEGIN { print (0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b) > 0.5) ? "#17131f" : "#ffffff" }')
 [[ "${csize}" =~ ^[0-9]+$ ]] || csize=24
+[[ "${radius}" =~ ^[0-9]+$ ]] || radius=16
+[[ "${base}" =~ ^[0-9]+,[0-9]+,[0-9]+$ ]] || base="24,25,30"
 IFS=, read -r br bg bb <<<"${base}"
 
 dry=0; [ "${DELTA_DRY_RUN:-0}" = 1 ] && dry=1
@@ -64,20 +70,59 @@ ini_set() {
     ' "${file}" > "${file}.tmp" && mv -f "${file}.tmp" "${file}"
 }
 
-# блок /* delta */ в gtk.css: акцент для libadwaita и adw-gtk3
+dark=1; [ "${scheme}" = light ] && dark=0
+
+# rgb(a, b, t%) — смесь двух цветов «r,g,b»
+rgbmix() {
+    local a b t; IFS=, read -r -a a <<<"$1"; IFS=, read -r -a b <<<"$2"; t=$3
+    printf 'rgb(%d,%d,%d)' $(( (a[0]*(100-t) + b[0]*t) / 100 )) $(( (a[1]*(100-t) + b[1]*t) / 100 )) $(( (a[2]*(100-t) + b[2]*t) / 100 ))
+}
+
+# блок /* delta */ в gtk.css: цвета Delta для libadwaita (GTK 4) и adw-gtk3 (GTK 3)
 css_block() {
-    local file=$1
-    [ "${home_ok}" = 1 ] || { printf 'DRY: %s: accent %s\n' "${file}" "${accent}"; return; }
+    local file=$1 ver=$2
+    [ "${home_ok}" = 1 ] || { printf 'DRY: %s: accent %s, base %s\n' "${file}" "${accent}" "${base}"; return; }
+    local fgc win view head side card pop
+    if [ "${dark}" = 1 ]; then
+        fgc="rgb(236,233,247)"
+        view=$(rgbmix "${base}" 0,0,0 10); win=$(rgbmix "${base}" 255,255,255 4); head=${win}
+        side=$(rgbmix "${base}" 255,255,255 8); card="rgba(255,255,255,0.06)"; pop=$(rgbmix "${base}" 255,255,255 10)
+    else
+        fgc="rgb(23,19,31)"
+        view=$(rgbmix "${base}" 255,255,255 70); win=$(rgbmix "${base}" 255,255,255 20); head=${win}
+        side=$(rgbmix "${base}" 0,0,0 4); card="rgba(255,255,255,0.8)"; pop=$(rgbmix "${base}" 255,255,255 80)
+    fi
     mkdir -p "$(dirname "${file}")"
     touch "${file}"
     sed -i '/\/\* delta:begin/,/\/\* delta:end \*\//d' "${file}"
-    cat >> "${file}" <<CSS
-/* delta:begin — пишет «Настройки» Delta, не редактировать */
-@define-color accent_color ${accent};
-@define-color accent_bg_color ${accent};
-@define-color accent_fg_color ${onacc};
-/* delta:end */
-CSS
+    {
+        printf '/* delta:begin — пишет «Настройки» Delta, не редактировать */\n'
+        # именованные цвета: GTK 3 (adw-gtk3) и старый libadwaita
+        for kv in "accent_color ${accent}" "accent_bg_color ${accent}" "accent_fg_color ${onacc}" \
+                  "window_bg_color ${win}" "window_fg_color ${fgc}" "view_bg_color ${view}" "view_fg_color ${fgc}" \
+                  "headerbar_bg_color ${head}" "headerbar_fg_color ${fgc}" "headerbar_backdrop_color ${win}" \
+                  "sidebar_bg_color ${side}" "sidebar_fg_color ${fgc}" "sidebar_backdrop_color ${side}" \
+                  "secondary_sidebar_bg_color ${side}" "secondary_sidebar_fg_color ${fgc}" \
+                  "card_bg_color ${card}" "card_fg_color ${fgc}" "popover_bg_color ${pop}" "popover_fg_color ${fgc}" \
+                  "dialog_bg_color ${pop}" "dialog_fg_color ${fgc}"; do
+            printf '@define-color %s %s;\n' "${kv%% *}" "${kv#* }"
+        done
+        # libadwaita 1.6+ берёт цвета из переменных CSS; там же скругление окна
+        if [ "${ver}" = 4.0 ]; then
+            printf ':root {\n'
+            for kv in "accent-color ${accent}" "accent-bg-color ${accent}" "accent-fg-color ${onacc}" \
+                      "window-bg-color ${win}" "window-fg-color ${fgc}" "view-bg-color ${view}" "view-fg-color ${fgc}" \
+                      "headerbar-bg-color ${head}" "headerbar-fg-color ${fgc}" "headerbar-backdrop-color ${win}" \
+                      "sidebar-bg-color ${side}" "sidebar-fg-color ${fgc}" "sidebar-backdrop-color ${side}" \
+                      "secondary-sidebar-bg-color ${side}" "secondary-sidebar-fg-color ${fgc}" \
+                      "card-bg-color ${card}" "card-fg-color ${fgc}" "popover-bg-color ${pop}" "popover-fg-color ${fgc}" \
+                      "dialog-bg-color ${pop}" "dialog-fg-color ${fgc}" "window-radius ${radius}px"; do
+                printf '  --%s: %s;\n' "${kv%% *}" "${kv#* }"
+            done
+            printf '}\n'
+        fi
+        printf '/* delta:end */\n'
+    } >> "${file}"
 }
 
 # ближайший к акценту цвет из набора GNOME (accent-color в GNOME 47+)
@@ -94,7 +139,6 @@ named_accent() {
     printf '%s' "${best}"
 }
 
-dark=1; [ "${scheme}" = light ] && dark=0
 gtk_theme=adw-gtk3-dark; [ "${dark}" = 0 ] && gtk_theme=adw-gtk3
 
 # --- GTK через gsettings (GTK4/libadwaita читают color-scheme через портал) ---
@@ -120,7 +164,7 @@ for v in 3.0 4.0; do
     [ -n "${cursor}" ] && ini_set "${f}" Settings gtk-cursor-theme-name "${cursor}"
     ini_set "${f}" Settings gtk-cursor-theme-size "${csize}"
     [ -n "${font}" ] && ini_set "${f}" Settings gtk-font-name "${font} 11"
-    css_block "${cfg}/gtk-${v}/gtk.css"
+    css_block "${cfg}/gtk-${v}/gtk.css" "${v}"
 done
 
 # --- Qt: qt6ct ---

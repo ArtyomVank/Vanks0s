@@ -15,34 +15,44 @@ Singleton {
 
     readonly property string dir: Quickshell.shellDir + "/settings/sections"
 
-    // id = имя файла в нижнем регистре; он же — аргумент `delta-settings <id>`
+    // id = имя файла в нижнем регистре; он же — аргумент `delta-settings <id>`;
+    // group — папка (folders ниже). "home" — главная с папками, не файл.
     readonly property var sections: [
-        { id: "display",       file: "Display",       group: "Система",          title: I18n.tr("Экран"),                    icon: "monitor",   keywords: "монитор разрешение частота масштаб поворот hdr vrr яркость ночной свет" },
-        { id: "sound",         file: "Sound",         group: "Система",          title: I18n.tr("Звук"),                     icon: "volume",    keywords: "громкость динамики наушники микрофон выход вход" },
-        { id: "network",       file: "Network",       group: "Система",          title: I18n.tr("Сеть"),                     icon: "wifi",      keywords: "wi-fi wifi интернет ethernet vpn прокси" },
-        { id: "bluetooth",     file: "Bluetooth",     group: "Система",          title: "Bluetooth",                icon: "bluetooth", keywords: "блютуз устройства наушники сопряжение" },
-        { id: "power",         file: "Power",         group: "Система",          title: I18n.tr("Питание"),                  icon: "power",     keywords: "батарея сон гибернация крышка энергия профиль" },
-        { id: "appearance",    file: "Appearance",    group: "Персонализация",   title: I18n.tr("Оформление"),               icon: "palette",   keywords: "тема цвет акцент тёмная светлая прозрачность стекло скругление шрифт значки курсор gtk qt" },
-        { id: "wallpapers",    file: "Wallpapers",    group: "Персонализация",   title: I18n.tr("Обои"),                     icon: "image",     keywords: "фон картинка видеообои папка" },
-        { id: "docks",         file: "Docks",         group: "Персонализация",   title: I18n.tr("Доки"),                     icon: "dock",      keywords: "панель автоскрытие край модули значки" },
-        { id: "widgets",       file: "Widgets",       group: "Персонализация",   title: I18n.tr("Виджеты"),                  icon: "widgets",   keywords: "часы погода календарь рабочий стол" },
-        { id: "lock",          file: "Lock",          group: "Персонализация",   title: I18n.tr("Экран блокировки"),         icon: "lock",      keywords: "блокировка вход часы виджеты" },
-        { id: "windows",       file: "Windows",       group: "Персонализация",   title: I18n.tr("Окна"),                     icon: "windows",   keywords: "отступы рамка скругление размытие анимации желе" },
-        { id: "keyboard",      file: "Keyboard",      group: "Ввод",             title: I18n.tr("Клавиатура"),               icon: "keyboard",  keywords: "раскладка язык переключение повтор сочетания горячие клавиши" },
-        { id: "mouse",         file: "Mouse",         group: "Ввод",             title: I18n.tr("Мышь и тачпад"),            icon: "mouse",     keywords: "чувствительность скорость прокрутка тап касание" },
-        { id: "profile",       file: "Profile",       group: "Учётные записи",   title: I18n.tr("Профиль"),                  icon: "user",      keywords: "имя аватар фото пароль автовход" },
-        { id: "users",         file: "Users",         group: "Учётные записи",   title: I18n.tr("Пользователи"),             icon: "users",     keywords: "учётные записи добавить удалить администратор" },
-        { id: "datetime",      file: "DateTime",      group: "Общие",            title: I18n.tr("Дата и время"),             icon: "clock",     keywords: "часовой пояс время ntp синхронизация 24 часа" },
-        { id: "language",      file: "Language",      group: "Общие",            title: I18n.tr("Язык и регион"),            icon: "globe",     keywords: "локаль язык форматы дата числа валюта регион" },
-        { id: "defaultapps",   file: "DefaultApps",   group: "Общие",            title: I18n.tr("Приложения по умолчанию"),  icon: "apps",      keywords: "браузер почта файлы терминал изображения видео музыка текст mime" },
-        { id: "autostart",     file: "Autostart",     group: "Общие",            title: I18n.tr("Автозапуск"),               icon: "rocket",    keywords: "запуск при входе программы" },
-        { id: "notifications", file: "Notifications", group: "Общие",            title: I18n.tr("Уведомления"),              icon: "bell",      keywords: "не беспокоить приложения экран блокировки" },
-        { id: "recommendations", file: "Recommendations", group: "Общие",        title: I18n.tr("Рекомендации"),             icon: "gamepad",   keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd vulkan steam игры библиотеки магазин приложения" },
-        { id: "updates",       file: "Updates",       group: "Общие",            title: I18n.tr("Обновления"),               icon: "download",  keywords: "pacman пакеты обновить система" },
-        { id: "github",        file: "GitHub",        group: "Общие",            title: "GitHub",                   icon: "github",    keywords: "репозиторий синхронизация" },
-        { id: "about",         file: "About",         group: "Общие",            title: I18n.tr("О системе"),                icon: "info",      keywords: "система версия процессор видеокарта память диск имя компьютера ядро" }
+        { id: "display",       file: "Display",       group: "system",    title: I18n.tr("Экран"),                    icon: "monitor",   keywords: "монитор разрешение частота масштаб поворот hdr vrr яркость ночной свет" },
+        { id: "sound",         file: "Sound",         group: "system",    title: I18n.tr("Звук"),                     icon: "volume",    keywords: "громкость динамики наушники микрофон выход вход" },
+        { id: "power",         file: "Power",         group: "system",    title: I18n.tr("Питание"),                  icon: "power",     keywords: "батарея сон гибернация крышка энергия профиль" },
+        { id: "updates",       file: "Updates",       group: "system",    title: I18n.tr("Обновления"),               icon: "download",  keywords: "pacman пакеты обновить система" },
+        { id: "about",         file: "About",         group: "system",    title: I18n.tr("О системе"),                icon: "info",      keywords: "система версия процессор видеокарта память диск имя компьютера ядро" },
+        { id: "network",       file: "Network",       group: "devices",   title: I18n.tr("Сеть"),                     icon: "wifi",      keywords: "wi-fi wifi интернет ethernet vpn прокси" },
+        { id: "bluetooth",     file: "Bluetooth",     group: "devices",   title: "Bluetooth",                icon: "bluetooth", keywords: "блютуз устройства наушники сопряжение" },
+        { id: "keyboard",      file: "Keyboard",      group: "devices",   title: I18n.tr("Клавиатура"),               icon: "keyboard",  keywords: "раскладка язык переключение повтор сочетания горячие клавиши" },
+        { id: "mouse",         file: "Mouse",         group: "devices",   title: I18n.tr("Мышь и тачпад"),            icon: "mouse",     keywords: "чувствительность скорость прокрутка тап касание" },
+        { id: "appearance",    file: "Appearance",    group: "look",      title: I18n.tr("Оформление"),               icon: "palette",   keywords: "тема цвет акцент тёмная светлая прозрачность стекло скругление шрифт значки курсор gtk qt" },
+        { id: "wallpapers",    file: "Wallpapers",    group: "look",      title: I18n.tr("Обои"),                     icon: "image",     keywords: "фон картинка видеообои папка" },
+        { id: "docks",         file: "Docks",         group: "look",      title: I18n.tr("Доки"),                     icon: "dock",      keywords: "панель автоскрытие край модули значки" },
+        { id: "widgets",       file: "Widgets",       group: "look",      title: I18n.tr("Виджеты"),                  icon: "widgets",   keywords: "часы погода календарь рабочий стол" },
+        { id: "lock",          file: "Lock",          group: "look",      title: I18n.tr("Экран блокировки"),         icon: "lock",      keywords: "блокировка вход часы виджеты" },
+        { id: "windows",       file: "Windows",       group: "look",      title: I18n.tr("Окна"),                     icon: "windows",   keywords: "отступы рамка скругление размытие анимации желе" },
+        { id: "defaultapps",   file: "DefaultApps",   group: "apps",      title: I18n.tr("Приложения по умолчанию"),  icon: "apps",      keywords: "браузер почта файлы терминал изображения видео музыка текст mime" },
+        { id: "autostart",     file: "Autostart",     group: "apps",      title: I18n.tr("Автозапуск"),               icon: "rocket",    keywords: "запуск при входе программы" },
+        { id: "notifications", file: "Notifications", group: "apps",      title: I18n.tr("Уведомления"),              icon: "bell",      keywords: "не беспокоить приложения экран блокировки" },
+        { id: "recommendations", file: "Recommendations", group: "apps",      title: I18n.tr("Рекомендации"),             icon: "gamepad",   keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd vulkan steam игры библиотеки магазин приложения" },
+        { id: "profile",       file: "Profile",       group: "accounts",  title: I18n.tr("Профиль"),                  icon: "user",      keywords: "имя аватар фото пароль автовход" },
+        { id: "users",         file: "Users",         group: "accounts",  title: I18n.tr("Пользователи"),             icon: "users",     keywords: "учётные записи добавить удалить администратор" },
+        { id: "github",        file: "GitHub",        group: "accounts",  title: "GitHub",                   icon: "github",    keywords: "репозиторий синхронизация" },
+        { id: "datetime",      file: "DateTime",      group: "time",      title: I18n.tr("Дата и время"),             icon: "clock",     keywords: "часовой пояс время ntp синхронизация 24 часа" },
+        { id: "language",      file: "Language",      group: "time",      title: I18n.tr("Язык и регион"),            icon: "globe",     keywords: "локаль язык форматы дата числа валюта регион" }
     ]
-    readonly property var groups: ["Система", "Персонализация", "Ввод", "Учётные записи", "Общие"]
+    // папки: в боковой панели сворачиваются, на главной — карточки
+    readonly property var folders: [
+        { id: "system",   title: I18n.tr("Система"),            icon: "settings" },
+        { id: "devices",  title: I18n.tr("Сеть и устройства"),  icon: "wifi" },
+        { id: "look",     title: I18n.tr("Персонализация"),     icon: "palette" },
+        { id: "apps",     title: I18n.tr("Приложения"),         icon: "apps" },
+        { id: "accounts", title: I18n.tr("Учётные записи"),     icon: "users" },
+        { id: "time",     title: I18n.tr("Время и язык"),       icon: "globe" }
+    ]
+    function folder(id) { return folders.find(f => f.id === id) || null; }
 
     // другие имена для ссылок вида `delta-settings look`
     readonly property var aliases: ({
@@ -66,6 +76,7 @@ Singleton {
     // имя из командной строки → id раздела (или "", если такого нет)
     function resolve(name) {
         const n = String(name || "").toLowerCase().trim();
+        if (n === "home" || n === "all") return "home";
         if (byId(n)) return n;
         if (aliases[n]) return aliases[n];
         const hit = sections.find(s => s.file.toLowerCase() === n || s.title.toLowerCase() === n);
@@ -77,7 +88,7 @@ Singleton {
     function matches(sec, query) {
         const q = norm(query).trim();
         if (q.length === 0) return true;
-        const hay = norm([sec.title, sec.group, sec.keywords, fileKeywords[sec.file] || ""].join(" "));
+        const hay = norm([sec.title, (folder(sec.group) || {}).title, sec.keywords, fileKeywords[sec.file] || ""].join(" "));
         return q.split(/\s+/).every(w => hay.indexOf(w) !== -1);
     }
     function filtered(query) { return sections.filter(s => matches(s, query)); }

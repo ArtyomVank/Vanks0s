@@ -14,7 +14,10 @@ import qs.common
 // живая копия (ScreencopyView) на сетке из шейдера shaders/jelly.vert.
 //
 // Отстают пять «колец» по расстоянию от точки захвата: у каждого своя пружина,
-// дальние мягче. Сила — «Настройки → Окна → Желе» (windows.jelly: 0…1.7).
+// дальние мягче. Место окна приходит от таймера Hyprland неровно (на 200 Гц
+// в один кадр два обновления, в другой ни одного), поэтому копия идёт не за
+// последним из них, а за сглаженной точкой (shown): каждый кадр — по скорости
+// окна чуть вперёд и плавно к ней. Без этого окно ехало ступеньками. Сила — «Настройки → Окна → Желе» (windows.jelly: 0…1.7).
 // Отпустили у края (Snap) — копия сразу уступает место окну, иначе ждёт,
 // пока покачивание уляжется.
 Scope {
@@ -32,7 +35,10 @@ Scope {
     property string addr: ""
     property var toplevel: null
     property string monitorName: ""
-    property rect target               // где окно на самом деле
+    property rect target               // где окно на самом деле (последнее от Hyprland)
+    property point shown               // где рисуем копию: сглаженное место окна
+    property point vel                 // скорость окна, px/с
+    property real sampleT: 0           // когда пришло последнее место, мс
     property point grab
     property var rings: []             // кольца 1…5: { x, y, vx, vy } в глобальных координатах
 
@@ -79,6 +85,9 @@ Scope {
             root.toplevel = h;
             root.monitorName = DragState.monitor;
             root.target = DragState.win;
+            root.shown = Qt.point(DragState.win.x, DragState.win.y);
+            root.vel = Qt.point(0, 0);
+            root.sampleT = Date.now();
             root.grab = DragState.grab;
             const r = [];
             for (let i = 0; i < 5; i++) r.push({ x: DragState.win.x, y: DragState.win.y, vx: 0, vy: 0 });
@@ -100,6 +109,14 @@ Scope {
                 root.capturing = false;
                 Qt.callLater(() => root.capturing = root.active);
             }
+            // скорость — по двум последним местам, сглаженная
+            const now = Date.now(), dt = now - root.sampleT;
+            if (dt > 0 && dt < 120) {
+                const k = 0.45;
+                root.vel = Qt.point(root.vel.x * (1 - k) + (DragState.win.x - root.target.x) / dt * 1000 * k,
+                                    root.vel.y * (1 - k) + (DragState.win.y - root.target.y) / dt * 1000 * k);
+            } else root.vel = Qt.point(0, 0);
+            root.sampleT = now;
             root.target = DragState.win;
             if (DragState.monitor && DragState.monitor !== root.monitorName) root.monitorName = DragState.monitor;
             root.tryHide();
@@ -163,7 +180,19 @@ Scope {
             const s = root.strength;
             const kf = 1.35 - 0.4 * s;
             const zeta = 0.72 - 0.17 * s;
-            const t = root.target;
+            // сглаженное место окна: последнее от Hyprland плюс немного вперёд
+            // по скорости (не дальше 25 мс), и к нему — плавно, за ~8 мс
+            const T = root.target;
+            const lead = DragState.dragging ? Math.min(Date.now() - root.sampleT, 25) / 1000 : 0;
+            const px = T.x + root.vel.x * lead, py = T.y + root.vel.y * lead;
+            const a = 1 - Math.exp(-dt / 0.008);
+            let sx = root.shown.x + (px - root.shown.x) * a, sy = root.shown.y + (py - root.shown.y) * a;
+            // отпустили — встаём ровно на место окна; большой скачок (сменился
+            // монитор, окно прилипло) — сразу, без проезда через экран
+            if (!DragState.dragging && Math.abs(T.x - sx) + Math.abs(T.y - sy) < 0.5) { sx = T.x; sy = T.y; }
+            if (Math.abs(px - sx) + Math.abs(py - sy) > 600) { sx = px; sy = py; }
+            root.shown = Qt.point(sx, sy);
+            const t = Qt.rect(sx, sy, T.width, T.height);
             const lim = 0.32 * Math.hypot(t.width, t.height);
             let calm = true;
             const out = [];
@@ -184,6 +213,7 @@ Scope {
                 const len = Math.hypot(ox, oy);
                 if (len > lim) { ox *= lim / len; oy *= lim / len; p.x = t.x + ox; p.y = t.y + oy; }
                 if (len > 0.4 || Math.abs(p.vx) + Math.abs(p.vy) > 8) calm = false;
+                if (Math.abs(T.x - sx) + Math.abs(T.y - sy) > 0.5) calm = false;
                 out.push(ox, oy);
             }
             if (root.trace) root.trace.peak = Math.max(root.trace.peak, Math.hypot(out[8], out[9]));
@@ -276,7 +306,7 @@ Scope {
             visible: cap.hasContent && root.capturing
             readonly property real sx: win.screen?.x ?? 0
             readonly property real sy: win.screen?.y ?? 0
-            property vector4d rect: Qt.vector4d(root.target.x - sx, root.target.y - sy, root.target.width, root.target.height)
+            property vector4d rect: Qt.vector4d(root.shown.x - sx, root.shown.y - sy, root.target.width, root.target.height)
             property point grab: root.grab
             property real reach: {
                 const g = root.grab, w = root.target.width, h = root.target.height;

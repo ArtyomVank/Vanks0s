@@ -6,6 +6,8 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
+import Quickshell.Bluetooth
 import qs.common
 
 // Общее для доков всех мониторов: каталог модулей верхнего дока,
@@ -27,11 +29,12 @@ Singleton {
         weather:       { name: "Погода",         span: 2, icon: "cloud-sun" },
         pc:            { name: "Показатели ПК",  span: 3, icon: "cpu" },
         notifications: { name: "Уведомления",    span: 1, icon: "bell" },
-        calendar:      { name: "Календарь",      span: 2, icon: "calendar" }
+        calendar:      { name: "Календарь",      span: 2, icon: "calendar" },
+        tray:          { name: "Фоновые приложения", span: 2, icon: "layers" }
     })
     // Музыки среди модулей нет: когда она играет, весь верхний док становится
     // пилюлей плеера (mediaPill), а её меню — menus/MediaMenu.qml.
-    readonly property var order: ["launcher", "workspaces", "calendar", "weather", "pc", "lang",
+    readonly property var order: ["launcher", "workspaces", "calendar", "weather", "pc", "tray", "lang",
                                   "bluetooth", "wifi", "sound", "battery", "notifications", "power"]
     readonly property int cells: 16
 
@@ -54,6 +57,47 @@ Singleton {
     }
 
     readonly property var modules: sanitize(Settings.get("docks.top.modules", []))
+
+    // Фоновые приложения (трей) появились в 0.6: в док, настроенный раньше,
+    // модуль добавляется один раз (docks.top.trayAdded), дальше — как решит
+    // пользователь
+    // Ждём и файл пользователя, и значения по умолчанию: они читаются
+    // по отдельности, и пока второго нет, список модулей пуст — добавленный
+    // в пустой список трей затёр бы весь док.
+    Connections {
+        target: Settings
+        function onReadyChanged() { root.addTrayOnce(); }
+        function onDefaultsChanged() { root.addTrayOnce(); }
+    }
+    Component.onCompleted: {
+        addTrayOnce();
+        lastCharging = hasBattery ? charging : null;
+    }
+    function addTrayOnce() {
+        if (!Settings.ready || Object.keys(Settings.defaults).length === 0 || modules.length === 0) return;
+        if (Settings.get("docks.top.trayAdded", false) === true) return;
+        Settings.set("docks.top.trayAdded", true);
+        if (!modules.some(m => m.id === "tray")) addModule("tray");
+    }
+
+    // --- вид доков: непрозрачность и ширина ---
+    // docks.<док>.opacity — своя непрозрачность стекла (нет — как в теме);
+    // docks.<док>.width — ширина компактного и плиточного вида (0.7…1.6)
+    function glassOf(which) {
+        const v = Number(Settings.get("docks." + which + ".opacity", -1));
+        if (!(v >= 0)) return Theme.glass;
+        return Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, Math.max(0.05, Math.min(1, v)));
+    }
+    function widthOf(which) {
+        const v = Number(Settings.get("docks." + which + ".width", 1));
+        return v > 0 ? Math.max(0.7, Math.min(1.6, v)) : 1;
+    }
+    readonly property color topGlass: glassOf("top")
+    readonly property color appsGlass: glassOf("apps")
+    readonly property real topWidth: widthOf("top")
+    readonly property real appsWidth: widthOf("apps")
+    // настройки модулей верхнего дока (Настройки → Доки → Модули)
+    function opt(key, def) { return Settings.get("docks.top.opts." + key, def); }
 
     function moduleAt(list, cell, except) {
         return list.find(m => m.id !== except && cell >= m.cell && cell < m.cell + m.span);
@@ -131,7 +175,7 @@ Singleton {
         Settings.set("docks.top.modules", [
             { id: "launcher", cell: 0, span: 1 }, { id: "workspaces", cell: 1, span: 3 },
             { id: "calendar", cell: 4, span: 2 }, { id: "weather", cell: 6, span: 2 },
-            { id: "notifications", cell: 10, span: 1 }, { id: "lang", cell: 11, span: 1 },
+            { id: "tray", cell: 8, span: 2 }, { id: "notifications", cell: 10, span: 1 }, { id: "lang", cell: 11, span: 1 },
             { id: "wifi", cell: 12, span: 1 }, { id: "sound", cell: 13, span: 1 },
             { id: "battery", cell: 14, span: 1 }, { id: "power", cell: 15, span: 1 }
         ]);
@@ -207,7 +251,7 @@ Singleton {
     readonly property bool smartUsed: Settings.get("docks.top", ({})).autohide === "smart"
                                       || Settings.get("docks.apps", ({})).autohide === "smart"
     Timer {
-        interval: 400
+        interval: 800
         repeat: true
         running: root.smartUsed
         triggeredOnStart: true
@@ -240,7 +284,11 @@ Singleton {
     }
     Connections {
         target: KbLayout
-        function onSwitched() { ShellState.pokeDock("top", 0.45); }
+        function onSwitched() {
+            ShellState.pokeDock("top", 0.45);
+            if (Settings.get("docks.top.islandLayout", false) === true)
+                root.showIsland({ kind: "layout", icon: "keyboard", title: KbLayout.short.toUpperCase(), text: KbLayout.title, ms: 1400 });
+        }
     }
 
     // есть ли на видимом столе монитора окно, задевающее прямоугольник r
@@ -263,16 +311,92 @@ Singleton {
     }
 
     // --- «остров»: короткое сообщение в верхнем доке ---
-    // { kind: "mute", muted } — режим без звука (колокольчик, как в iOS).
-    // Док выглядывает, даже если спрятан, и через пару секунд всё как было.
+    // { kind: "mute", muted } — режим без звука (колокольчик, как в iOS);
+    // остальные — события системы (ShellState.island): { kind, icon | image,
+    // title, text, color }. Док выглядывает, даже если спрятан, и через пару
+    // секунд всё как было. Выключается в Настройки → Доки (docks.top.island).
     property var notice: null
     function showNotice(kind, muted) {
         notice = { kind: kind, muted: muted === true, at: Date.now() };
+        noticeTimer.interval = 2000;
         noticeTimer.restart();
         // звук включили — короткий сигнал (выключение тихое: звука уже нет)
         if (kind === "mute" && muted !== true) Sounds.play("audio-volume-change");
     }
     Timer { id: noticeTimer; interval: 2000; onTriggered: root.notice = null }
+
+    readonly property bool islandEvents: Settings.get("docks.top.island", true) !== false
+    function showIsland(spec) {
+        if (!islandEvents || !spec || ShellState.locked) return;
+        notice = Object.assign({ kind: "info", title: "", text: "" }, spec, { at: Date.now() });
+        noticeTimer.interval = Math.max(1200, Math.min(8000, Number(spec.ms) || 2600));
+        noticeTimer.restart();
+    }
+    Connections {
+        target: ShellState
+        function onIslandRequested(spec) { root.showIsland(spec); }
+    }
+
+    // зарядку подключили или отключили, батарея садится (20 % и 10 %)
+    readonly property var battery: UPower.displayDevice
+    readonly property bool hasBattery: battery !== null && battery.isLaptopBattery && battery.isPresent
+    readonly property int batteryPercent: hasBattery ? Math.round(battery.percentage > 1 ? battery.percentage : battery.percentage * 100) : 0
+    readonly property bool charging: hasBattery && (battery.state === UPowerDeviceState.Charging || battery.state === UPowerDeviceState.FullyCharged
+                                                    || battery.state === UPowerDeviceState.PendingCharge)
+    property var lastCharging: null
+    property int lowShown: 100
+    onChargingChanged: {
+        if (!hasBattery) return;
+        if (lastCharging !== null && lastCharging !== charging)
+            showIsland({ kind: "charge", icon: charging ? "battery-charging" : "battery",
+                         title: charging ? I18n.tr("Заряжается") : I18n.tr("От батареи"), text: batteryPercent + " %",
+                         color: charging ? "#3FB37A" : "" });
+        lastCharging = charging;
+        if (charging) lowShown = 100;
+    }
+    onBatteryPercentChanged: {
+        if (!hasBattery || charging) return;
+        const level = batteryPercent <= 10 ? 10 : batteryPercent <= 20 ? 20 : 100;
+        if (level < lowShown) {
+            lowShown = level;
+            showIsland({ kind: "battery-low", icon: "battery", title: I18n.tr("Батарея садится"), text: batteryPercent + " %",
+                         color: "#FF6B6B", ms: 5000 });
+        }
+    }
+
+    // Bluetooth: устройство подключилось или отключилось
+    readonly property var btDevices: Bluetooth.defaultAdapter?.devices?.values ?? []
+    property var btConnected: ({})
+    onBtDevicesChanged: btWatch.restart()
+    // список устройств меняется и без подключений; состояние читаем с задержкой
+    Timer { id: btWatch; interval: 300; onTriggered: root.checkBluetooth() }
+    Instantiator {
+        model: root.btDevices
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onConnectedChanged() { btWatch.restart(); }
+        }
+    }
+    property bool btPrimed: false
+    function checkBluetooth() {
+        const now = {};
+        for (const d of btDevices) if (d.connected) now[d.address] = d;
+        if (btPrimed) {
+            for (const a in now)
+                if (!btConnected[a]) {
+                    const d = now[a];
+                    showIsland({ kind: "bluetooth", icon: "bluetooth", title: d.name || d.deviceName || "Bluetooth",
+                                 text: d.batteryAvailable ? I18n.tr("Подключено") + " · " + Math.round(d.battery * 100) + " %" : I18n.tr("Подключено") });
+                }
+            for (const a in btConnected)
+                if (!now[a]) showIsland({ kind: "bluetooth", icon: "bluetooth", title: btConnected[a].name || "Bluetooth", text: I18n.tr("Отключено"), color: "" });
+        }
+        const keep = {};
+        for (const a in now) keep[a] = { name: now[a].name || now[a].deviceName || "" };
+        btConnected = keep;
+        btPrimed = true;
+    }
     // во вложенной сессии звук по-настоящему не выключается: здесь — каким он стал бы
     property var previewMuted: null
 
