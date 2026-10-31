@@ -52,7 +52,6 @@ ShellRoot {
     Notifications { id: notifications }
     Osd { id: osd }
     Lock { id: lock }          // показывает и окно питания (overlay "power")
-    Welcome {}             // «Добро пожаловать, подождите» после экрана входа, пока грузится стол
     Launcher {}
     Wallpapers {}
     DesktopMenu {}         // правый щелчок по рабочему столу: виджеты, обои, настройки

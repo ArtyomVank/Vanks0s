@@ -29,6 +29,9 @@ ShellRoot {
     signal exitRequested()
     signal resetRequested()
     property bool leaving: false
+    // при запуске — «Добро пожаловать», потом экран входа своей анимацией
+    property bool starting: true
+    Timer { interval: 1600; running: true; onTriggered: shell.starting = false }
 
     Connections {
         target: be
@@ -102,6 +105,18 @@ ShellRoot {
                     target: shell
                     function onExitRequested() { surface.playExit(); }
                     function onResetRequested() { surface.reset(); surface.playEnter(); }
+                }
+            }
+
+            // заставка запуска: тает, экран входа въезжает своей анимацией
+            WelcomeCard {
+                anchors.fill: parent
+                visible: opacity > 0
+                opacity: shell.starting ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
+                Connections {
+                    target: shell
+                    function onStartingChanged() { if (!shell.starting) surface.playEnter(); }
                 }
             }
 

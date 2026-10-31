@@ -7,6 +7,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Pam
 import qs.common
+import qs.lock.parts
 
 // Блокировка экрана Delta — один экземпляр на оболочку.
 //
@@ -35,6 +36,18 @@ Scope {
 
     // сигналы для поверхностей на всех мониторах
     signal exitRequested()
+
+    // Запуск сессии начинается с «Добро пожаловать, подождите», пока грузится
+    // рабочий стол. Дальше — экран блокировки (блокировка при запуске, автовход:
+    // заставка лежит поверх него и тает) или сразу рабочий стол (вошли паролем
+    // на экране входа — Welcome.qml).
+    property bool welcome: false
+    Timer {
+        interval: 1600
+        running: root.welcome && Settings.ready
+        onTriggered: root.welcome = false
+    }
+    Welcome { id: welcomeOverlay }
 
     function lock(quick) {
         if (persist.locked) return;
@@ -241,6 +254,19 @@ Scope {
                     root.devConfirmRequested.connect(a => it.confirm = a);
                 }
             }
+
+            // заставка запуска: тает, и экран блокировки появляется своей анимацией
+            WelcomeCard {
+                anchors.fill: parent
+                name: Account.name
+                visible: opacity > 0
+                opacity: root.welcome ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
+            }
+            Connections {
+                target: root
+                function onWelcomeChanged() { if (!root.welcome && content.item) content.item.playEnter(); }
+            }
         }
     }
 
@@ -274,8 +300,8 @@ Scope {
     // (своя у каждого запуска Hyprland) живёт до выхода из сессии, поэтому перезапуск
     // оболочки не блокирует экран ещё раз. DELTA_LOCK_ON_START=1 — то же без
     // настройки (tools/delta-dev.sh fresh: «первый запуск» во вложенной сессии).
-    // Вошли паролем на экране входа (DELTA_LOGIN=greeter) — второй раз не блокируем:
-    // вместо этого Welcome.qml показывает «Подождите», пока грузится рабочий стол.
+    // Первый запуск — сначала «Добро пожаловать» (см. welcome выше). Вошли паролем на
+    // экране входа (DELTA_LOGIN=greeter) — второй раз не блокируем.
     // Там же — восстановление после падения оболочки: logind помнит LockedHint.
     Process {
         id: startCheck
@@ -288,9 +314,17 @@ Scope {
                 const l = text.trim().split("\n");
                 const first = l[0] === "1";
                 const wasLocked = !root.dryRun && (l[1] || "").trim() === "b true";
-                if (wasLocked) { console.info("[delta] сессия была заблокирована — восстанавливаем блокировку"); root.lock(true); }
-                else if (first && Quickshell.env("DELTA_LOGIN") !== "greeter"
-                         && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) root.lock(true);
+                if (wasLocked) {
+                    console.info("[delta] сессия была заблокирована — восстанавливаем блокировку");
+                    root.lock(true);
+                    welcomeOverlay.dismiss();
+                } else if (first && Quickshell.env("DELTA_LOGIN") !== "greeter"
+                         && (Settings.get("lock.onStart", false) || Quickshell.env("DELTA_LOCK_ON_START") === "1")) {
+                    root.welcome = true;
+                    root.lock(true);
+                    welcomeOverlay.dismiss();
+                } else if (first) welcomeOverlay.release();
+                else welcomeOverlay.dismiss();
             }
         }
     }
