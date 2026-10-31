@@ -58,7 +58,7 @@ ShellRoot {
     Notifications { id: notifications }
     Osd { id: osd }
     Lock { id: lock }          // показывает и окно питания (overlay "power")
-    Launcher {}
+    Launcher { id: appLauncher }
     Wallpapers {}
     DesktopMenu {}         // правый щелчок по рабочему столу: виджеты, обои, настройки
     Minimize {}            // слой «джинна» на каждом мониторе
@@ -105,6 +105,9 @@ ShellRoot {
         function set(key: string, json: string): void { Settings.set(key, JSON.parse(json)); }
         // окно приложений, обоев, питания: delta-shell ipc call shell overlay launcher
         function overlay(name: string): void { ShellState.toggleOverlay(name); }
+        // окно приложений с запросом и меню первой строки: launcher steam, launcherMenu
+        function launcher(query: string): void { appLauncher.show(query); }
+        function launcherMenu(): void { appLauncher.showMenu(); }
         function center(): void { notifications.toggleCenter(); }
         function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
     }

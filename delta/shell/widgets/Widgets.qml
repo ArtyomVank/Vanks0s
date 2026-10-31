@@ -102,5 +102,11 @@ Scope {
         function select(id: string): void { if (root.editingHere) grid.select(id); }
         // ярлык приложения на рабочий стол: widgets app org.gnome.Nautilus.desktop
         function app(id: string): void { ShellState.addAppWidget(id); }
+        // меню виджета (как правый щелчок) и запуск ярлыка (как щелчок): menu app:kitty
+        function menu(id: string): void { if (root.focusedHere()) grid.menuAt(id); }
+        function launch(id: string): void {
+            const c = root.focusedHere() ? grid.cardFor(id) : null;
+            if (c && c.isApp) c.launch();
+        }
     }
 }

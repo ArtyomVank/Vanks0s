@@ -12,6 +12,7 @@ cancel — threading.Event: выставили — загрузка прерыв
 
 import hashlib
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -132,8 +133,11 @@ def sha256_files(paths, progress=None, cancel=None, total=None):
 
 
 def get_image(image, progress=None, cancel=None, folder=None):
-    """Скачать и проверить образ; вернуть пути кусков по порядку."""
-    folder = folder or cache_dir()
+    """Скачать и проверить образ; вернуть пути кусков по порядку. В кэше —
+    своя папка на релиз: у 0.1 и 0.3 образы с одним именем, но разные."""
+    if not folder:
+        folder = os.path.join(cache_dir(), re.sub(r"[^\w.-]", "_", image.tag or "image"))
+        os.makedirs(folder, exist_ok=True)
     paths = [os.path.join(folder, p.name) for p in image.parts]
     ok = os.path.join(folder, image.name + ".ok")
     want = expected_sha(image.sha256)

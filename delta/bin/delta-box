@@ -11,6 +11,7 @@
 #   delta-box --file <exe>        запустить любой файл внутри Box
 #   delta-box --install <файл>    установщик — в Box, ярлыки его программ в меню
 #   delta-box --remove <имя>      удалить копию программы из Box (оригинал цел)
+#   delta-box ipc call box reload|quit   команда окну
 #
 # Box — обычный префикс лаунчера «delta-box» (~/.local/share/delta/prefixes):
 # раннер (Авто — самый свежий Proton CachyOS, или Wine), настройки Wine и
@@ -164,6 +165,7 @@ runner() { head -n1 "${BOX}/.delta-runner" 2>/dev/null || echo auto; }
 case "${1:-}" in
     -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     "")        mkdir -p "${BOX}"; exec qs -p "${ENTRY}" -d ;;
+    ipc)       shift; exec qs -p "${ENTRY}" ipc "$@" ;;
     --list)    list_json ;;
     --import)  [ -n "${2:-}" ] || exit 2; import_dir "$2" ;;
     --exes)    check_name "${2:-}"; exes_json "$(programs)/$2" ;;

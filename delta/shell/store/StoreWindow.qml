@@ -763,6 +763,22 @@ FloatingWindow {
         }
     }
 
+    // delta-store ipc call store … — демо и проверки: go section games ·
+    // go home "" · find krita · open org.kde.krita · scroll 600 · quit
+    IpcHandler {
+        target: "store"
+        function go(p: string, sec: string): void { search.text = ""; win.go(p, sec); }
+        function find(text: string): void { search.text = text; }
+        function open(id: string): void {
+            for (const s of Featured.sections)
+                for (const e of s.items)
+                    if (e.pkg === id || e.fp === id) { win.openApp(e); return; }
+        }
+        function scroll(y: real): void { scroller.to = y; scroller.restart(); }
+        function quit(): void { Qt.quit(); }
+    }
+    NumberAnimation { id: scroller; target: content; property: "contentY"; duration: 900 * Theme.anim.k; easing.type: Easing.InOutCubic }
+
     Shortcut { sequence: "Escape"; onActivated: { if (win.page === "app") win.go(win.backTo, win.sectionId); else if (search.text) search.text = ""; else Qt.quit(); } }
     Shortcut { sequence: "Ctrl+F"; onActivated: search.focusInput() }
 }

@@ -31,6 +31,9 @@ Scope {
         ShellState.overlay = "launcher";
     }
     function hide() { if (open) ShellState.closeOverlay(); }
+    // IPC (демо, проверки): меню первой строки, как правый щелчок по ней
+    property bool menuPending: false
+    function showMenu() { menuPending = true; }
 
     // --- частота запусков: часто используемые выше ---
     property var usage: ({})
@@ -195,6 +198,18 @@ Scope {
                 hint.play(140);
                 counter.play(220);
                 rowsIn.restart();
+            }
+            Timer {
+                running: root.menuPending && root.open
+                interval: 500
+                onTriggered: {
+                    root.menuPending = false;
+                    const it = list.itemAtIndex(0);
+                    if (!it) return;
+                    list.currentIndex = 0;
+                    const p = it.mapToItem(panel, it.width * 0.62, it.height * 0.75);
+                    win.ctx = { entry: it.modelData, x: p.x, y: p.y };
+                }
             }
             Typewriter { id: hint; full: I18n.tr("Поиск приложений") }
             Typewriter {

@@ -2,7 +2,8 @@
 
 В релизе бывают:
   • пакет оболочки delta-<версия>-<сборка>-any.pkg.tar.zst (+ .sha256) —
-    он есть в каждом релизе, это и есть «версия» в списке;
+    выбранная оболочка ставится поверх образа (в 0.1 пакета нет — только
+    образ, оболочка в нём своя);
   • образ системы кусками <имя>.iso.part0, .part1, … (GitHub не берёт
     файлы больше 2 ГБ, куски по 1900 МиБ режет tools/iso-release.sh)
     и <имя>.iso.sha256 — сумма всего образа.
@@ -16,6 +17,11 @@
 страниц сайта, у которых такого лимита нет: лента releases.atom, файлы
 релиза (expanded_assets) и размеры из заголовков ответов. И только если не
 ответил и сайт — последний сохранённый список (fetch.source == "cache").
+
+В списке — только большие версии (major): тег из двух чисел — v0.6, v0.7,
+v1.0 (или v0.5.0) — и исключения из EXTRA. Промежуточные (0.5.1, 0.6.2)
+приходят в систему обновлением Delta (delta-update), а в Vanks Setup их нет.
+Показываются версии без «.0» и без номера сборки пакета: 0.5, а не 0.5.0-1.
 
 Для проверок без сети: VANKS_SETUP_API — другой адрес API (свой сервер
 с /repos/<репозиторий>/releases), VANKS_SETUP_WEB — другой адрес сайта,
@@ -43,6 +49,11 @@ USER_AGENT = "vanks-setup/" + VERSION
 
 SHELL_RE = re.compile(r"^delta-(\d[\w.]*)-(\d+)-any\.pkg\.tar\.zst$")
 PART_RE = re.compile(r"^(.+\.iso)\.part(\d+)$")
+
+# Большие версии сверх правила «два числа»: 0.5.6 — первая с играми Steam и
+# Epic в лаунчере. 0.4 из списка убрана — её заменила 0.5.
+EXTRA = {"0.5.6"}
+HIDDEN = {"0.4"}
 
 
 @dataclass
@@ -79,9 +90,22 @@ class Release:
 
     @property
     def version(self):
-        """0.4.0 из тега v0.4.0 (или из имени пакета)."""
+        """0.4 из тега v0.4.0, 0.5.6 из v0.5.6 (или из имени пакета)."""
         m = SHELL_RE.match(self.shell.name) if self.shell else None
-        return self.tag.lstrip("vV") or (m.group(1) if m else "?")
+        return short(self.tag) or (m.group(1) if m else "?")
+
+    @property
+    def major(self):
+        v = self.version
+        return v not in HIDDEN and (v in EXTRA or len(v.split(".")) <= 2)
+
+
+def short(text):
+    """Версия для людей: v0.5.0 → 0.5, 0.6 → 0.6, 0.5.6 → 0.5.6."""
+    v = text.strip().lstrip("vV")
+    while v.count(".") > 1 and v.endswith(".0"):
+        v = v[:-2]
+    return v
 
 
 def version_key(text):
@@ -230,8 +254,15 @@ def stale_note():
 
 
 def shell_versions(releases, prereleases=False):
-    """Версии для выбора — релизы с пакетом оболочки; первая — самая новая."""
-    return [r for r in releases if r.shell and (prereleases or not r.prerelease)]
+    """Версии для выбора — большие релизы с оболочкой или своим образом;
+    первая — самая новая. Тег встречается дважды (черновик пропущен, но
+    бывает повтор) — берём первый."""
+    out, seen = [], set()
+    for r in releases:
+        if (r.shell or r.image) and r.major and (prereleases or not r.prerelease) and r.version not in seen:
+            seen.add(r.version)
+            out.append(r)
+    return out
 
 
 def image_for(releases, chosen):

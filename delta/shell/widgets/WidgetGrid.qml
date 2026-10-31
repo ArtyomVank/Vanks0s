@@ -233,6 +233,12 @@ Item {
         menuClose.stop();
     }
     function closeMenu() { menu = null; }
+    // меню как правый щелчок по середине виджета (IPC: демо, проверки); ещё раз — закрыть
+    function menuAt(id) {
+        if (menu && menu.id === id) { closeMenu(); return; }
+        const c = cardFor(id);
+        if (c) openMenu(id, c.x + c.width * 0.6, c.y + c.height * 0.5);
+    }
     // меню закрывается само, если курсор ушёл с него (вне редактора у окна
     // нет клавиатуры, а щелчок мимо уходит другому окну)
     Timer { id: menuClose; interval: 1800; onTriggered: root.closeMenu() }

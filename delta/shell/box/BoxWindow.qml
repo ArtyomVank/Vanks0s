@@ -470,6 +470,13 @@ FloatingWindow {
         }
     }
 
+    // delta-box ipc call box reload|quit — демо и проверки
+    IpcHandler {
+        target: "box"
+        function reload(): void { win.reload(); }
+        function quit(): void { Qt.quit(); }
+    }
+
     Shortcut { sequence: "Escape"; onActivated: { if (win.picking) win.picking = null; else Qt.quit(); } }
     Shortcut { sequence: "F5"; onActivated: win.reload() }
 }

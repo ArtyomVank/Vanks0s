@@ -6,7 +6,7 @@
     vanks-setup --usb /dev/sdb          на флешку
     vanks-setup --disk /dev/sdc --allow-disks
                                         на другой диск (не системный)
-    --version 0.4.0   версия оболочки (по умолчанию самая новая)
+    --version 0.6     версия оболочки (по умолчанию самая новая)
     --yes             не спрашивать подтверждение (вместе с --usb/--disk)
     --prerelease      показывать и предварительные версии
 
@@ -135,7 +135,7 @@ def main(argv=None):
 
     # ---- версия ----
     if a.ver:
-        chosen = next((r for r in versions if r.version == a.ver.lstrip("vV")), None)
+        chosen = next((r for r in versions if r.version == releases.short(a.ver)), None)
         if not chosen:
             fail(f"версии {a.ver} нет. Есть: " + ", ".join(r.version for r in versions))
     elif interactive:

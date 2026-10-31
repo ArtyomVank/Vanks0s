@@ -13,6 +13,7 @@
 #                                     pacman или flatpak; код — успех или нет
 #   delta-store connect               поставить Flatpak, подключить Flathub, скачать каталог
 #   delta-store index                 пересобрать индекс Flathub
+#   delta-store ipc call store …     команда окну (см. IpcHandler в StoreWindow.qml)
 #
 # Поиск Flathub — не через «flatpak search» (секунды на запрос, а то и
 # обновление каталога из сети), а по своему индексу из appstream.xml Flathub:
@@ -332,6 +333,7 @@ cmd_connect() {
 case "${1:-}" in
     -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     "")        exec qs -p "${ENTRY}" -d ;;
+    ipc)       shift; exec qs -p "${ENTRY}" ipc "$@" ;;
     index)     build_index && wc -l <"${INDEX}" ;;
     search)    shift; cmd_search "$@" ;;
     status)    cmd_status ;;
