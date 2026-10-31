@@ -72,7 +72,7 @@ ColumnLayout {
             }
             Label {
                 Layout.alignment: Qt.AlignHCenter
-                text: root.now.toLocaleDateString(Qt.locale("ru_RU"), "dddd, d MMMM yyyy") + (root.td.Timezone ? " · " + root.zoneLabel(root.td.Timezone) : "")
+                text: root.now.toLocaleDateString(Qt.locale(I18n.locale), "dddd, d MMMM yyyy") + (root.td.Timezone ? " · " + root.zoneLabel(root.td.Timezone) : "")
                 tone: 2
             }
         }

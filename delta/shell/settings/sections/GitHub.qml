@@ -33,7 +33,7 @@ ColumnLayout {
     }
 
     function day(iso) {
-        return iso ? new Date(iso).toLocaleDateString(Qt.locale("ru_RU"), "d MMMM yyyy") : "";
+        return iso ? new Date(iso).toLocaleDateString(Qt.locale(I18n.locale), "d MMMM yyyy") : "";
     }
 
     function refresh() {

@@ -56,13 +56,13 @@ FloatingWindow {
     function titleOf(e) {
         const m = e.fp ? meta[e.fp] : null;
         if (e.title) return I18n.tr(e.title);
-        if (m) return (!I18n.en && m.nameRu) ? m.nameRu : m.name;
+        if (m) return (I18n.ruText && m.nameRu) ? m.nameRu : m.name;
         return e.pkg || e.fp || "";
     }
     function textOf(e) {
         if (e.text) return I18n.tr(e.text);
         const m = e.fp ? meta[e.fp] : null;
-        if (m) return (!I18n.en && m.summaryRu) ? m.summaryRu : m.summary;
+        if (m) return (I18n.ruText && m.summaryRu) ? m.summaryRu : m.summary;
         return "";
     }
     function iconOf(e) {
@@ -87,7 +87,7 @@ FloatingWindow {
     }
     // результат поиска или строка «Установленных» → приложение
     function fromRow(r) {
-        return { title: (!I18n.en && r.nameRu) ? r.nameRu : r.name, text: (!I18n.en && r.summaryRu) ? r.summaryRu : (r.summary ?? ""),
+        return { title: (I18n.ruText && r.nameRu) ? r.nameRu : r.name, text: (I18n.ruText && r.summaryRu) ? r.summaryRu : (r.summary ?? ""),
                  pkg: r.source === "pacman" ? r.id : "", fp: r.source === "flatpak" ? r.id : (r.fp ?? ""), icon: r.icon ?? "", desktop: r.desktop ?? "" };
     }
 
@@ -661,7 +661,7 @@ FloatingWindow {
 
                             Label {
                                 visible: text !== ""
-                                text: win.info ? ((!I18n.en && win.info.descriptionRu) ? win.info.descriptionRu : (win.info.description ?? "")) : ""
+                                text: win.info ? ((I18n.ruText && win.info.descriptionRu) ? win.info.descriptionRu : (win.info.description ?? "")) : ""
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                                 lineHeight: 1.25

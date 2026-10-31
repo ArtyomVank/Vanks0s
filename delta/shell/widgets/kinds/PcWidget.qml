@@ -18,15 +18,15 @@ Base {
     readonly property bool list: mode === "list"
     // [подпись, короткая подпись, значение 0–100 или -1, текст, цвет, значок]
     readonly property var rows: [
-        ["Процессор", "ЦП", SystemStats.cpu, pct(SystemStats.cpu), Theme.accent, "cpu"],
-        ["Видеокарта", "ГП", SystemStats.gpu, pct(SystemStats.gpu), Theme.accent, "gpu"],
-        ["ОЗУ", "ОЗУ", SystemStats.ram, pct(SystemStats.ram), Theme.accent, "memory"],
+        [I18n.tr("Процессор"), I18n.tr("ЦП"), SystemStats.cpu, pct(SystemStats.cpu), Theme.accent, "cpu"],
+        [I18n.tr("Видеокарта"), I18n.tr("ГП"), SystemStats.gpu, pct(SystemStats.gpu), Theme.accent, "gpu"],
+        [I18n.tr("ОЗУ"), I18n.tr("ОЗУ"), SystemStats.ram, pct(SystemStats.ram), Theme.accent, "memory"],
         SystemStats.hasGpuTemp || !SystemStats.hasCpuTemp
-            ? ["Темп. ГП", "Темп.", SystemStats.gpuTemp, deg(SystemStats.gpuTemp), hot, "thermometer"]
-            : ["Темп. ЦП", "Темп.", SystemStats.cpuTemp, deg(SystemStats.cpuTemp), hot, "thermometer"]
+            ? [I18n.tr("Темп. ГП"), I18n.tr("Темп."), SystemStats.gpuTemp, deg(SystemStats.gpuTemp), hot, "thermometer"]
+            : [I18n.tr("Темп. ЦП"), I18n.tr("Темп."), SystemStats.cpuTemp, deg(SystemStats.cpuTemp), hot, "thermometer"]
     ]
 
-    WCaption { id: cap; cm: root.cm; text: "Показатели ПК"; color: root.pal.c2 }
+    WCaption { id: cap; cm: root.cm; text: I18n.tr("Показатели ПК"); color: root.pal.c2 }
 
     // ---- список ----
     Column {

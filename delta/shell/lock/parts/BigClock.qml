@@ -34,7 +34,7 @@ Item {
     readonly property string hh: Qt.formatTime(now, "HH")
     readonly property string mm: Qt.formatTime(now, "mm")
     readonly property string dateText: {
-        const s = Qt.locale("ru_RU").toString(now, "dddd, d MMMM");
+        const s = Qt.locale(I18n.locale).toString(now, "dddd, d MMMM");
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 

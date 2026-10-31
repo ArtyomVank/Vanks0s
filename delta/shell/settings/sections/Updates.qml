@@ -45,7 +45,7 @@ ColumnLayout {
         if (!iso) return "ещё не проверялось";
         const d = new Date(iso), now = new Date();
         const same = d.toDateString() === now.toDateString();
-        return (same ? "сегодня в " : d.toLocaleDateString(Qt.locale("ru_RU"), "d MMMM") + " в ") + Qt.formatTime(d, "HH:mm");
+        return (same ? "сегодня в " : d.toLocaleDateString(Qt.locale(I18n.locale), "d MMMM") + " в ") + Qt.formatTime(d, "HH:mm");
     }
 
     function check() {

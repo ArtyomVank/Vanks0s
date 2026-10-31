@@ -13,7 +13,7 @@ Page {
     title: I18n.tr("Добро пожаловать в Vanks OS")
     subtitle: I18n.tr("Несколько шагов — и система будет вашей. Для начала выберите язык.")
 
-    readonly property var hellos: ["Привет", "Hello", "Bonjour", "Hola", "Hallo", "Ciao", "Olá", "Merhaba", "Cześć", "こんにちは", "你好", "안녕하세요"]
+    readonly property var hellos: ["Привет", "Hello", "Привіт", "Прывітанне", "Сәлем", "Hallo", "Bonjour", "Hola", "Ciao", "Olá", "こんにちは", "你好"]
     property int hello: 0
     Timer { interval: 1700; running: root.shown; repeat: true; onTriggered: root.hello = (root.hello + 1) % root.hellos.length }
 
@@ -32,9 +32,10 @@ Page {
     }
     function pickLang(lang) {
         Settings.set("language.ui", lang);
-        // с русским языком нужна и русская раскладка
+        // вместе с языком нужна и его раскладка
         const l = current.slice();
-        if (lang === "ru" && l.indexOf("ru") < 0) l.push("ru");
+        const want = I18n.info(lang).layout;
+        if (l.indexOf(want) < 0) l.push(want);
         Settings.set("input.layouts", l);
     }
 
@@ -66,23 +67,26 @@ Page {
             }
         }
 
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
-            spacing: 16
+            columns: 4
+            rowSpacing: 12
+            columnSpacing: 12
             Repeater {
-                model: [{ id: "ru", name: "Русский", hint: "Интерфейс на русском" }, { id: "en", name: "English", hint: "Interface in English" }]
+                model: I18n.languages
                 delegate: Choice {
                     id: lc
                     required property var modelData
                     Layout.fillWidth: true
-                    implicitHeight: 96
+                    Layout.preferredWidth: 1
+                    implicitHeight: 76
                     selected: I18n.lang === modelData.id
                     onPicked: root.pickLang(modelData.id)
                     Column {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 24 }
-                        spacing: 4
-                        Label { text: lc.modelData.name; size: "title"; font.pixelSize: 22 }
-                        Label { text: lc.modelData.hint; tone: 3; size: "small" }
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 12 }
+                        spacing: 3
+                        Label { text: lc.modelData.name; size: "title"; font.pixelSize: 19; width: parent.width; elide: Text.ElideRight }
+                        Label { text: lc.modelData.hint; tone: 3; size: "small"; width: parent.width; elide: Text.ElideRight }
                     }
                 }
             }

@@ -258,7 +258,7 @@ Item {
             anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
             spacing: 10
             Sym { name: "music"; size: 20; color: Theme.fg3 }
-            Label { text: "Ничего не играет"; tone: 3; Layout.fillWidth: true }
+            Label { text: I18n.tr("Ничего не играет"); tone: 3; Layout.fillWidth: true }
         }
     }
 }

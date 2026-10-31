@@ -63,6 +63,14 @@ Singleton {
         if (c === 96 || c === 99) return "Гроза с градом";
         return "Нет данных";
     }
+    // день прогноза на языке интерфейса: «Сегодня», «Пн»… или «Mon»…
+    function dayLabel(d) {
+        if (I18n.ru || !d.day) return d.name;
+        if (d.name === "Сегодня") return I18n.tr("Сегодня");
+        const p = d.day.split("-").map(Number);
+        const s = Qt.locale(I18n.locale).toString(new Date(p[0], p[1] - 1, p[2]), "ddd");
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
     function icon(code, day) {
         const c = Number(code);
         if (c <= 1) return day === false ? "moon" : "sun";
@@ -179,7 +187,7 @@ Singleton {
         for (let i = 0; i < (dl.time || []).length; i++) {
             const parts = dl.time[i].split("-").map(Number);
             const date = new Date(parts[0], parts[1] - 1, parts[2]);
-            days.push({ name: i === 0 ? "Сегодня" : dayNames[date.getDay()],
+            days.push({ name: i === 0 ? "Сегодня" : dayNames[date.getDay()], day: dl.time[i],
                         date: parts[2] + " " + monthNames[parts[1] - 1],
                         max: dl.temperature_2m_max[i], min: dl.temperature_2m_min[i], code: dl.weather_code[i],
                         icon: icon(dl.weather_code[i], true), text: describe(dl.weather_code[i]),

@@ -15,12 +15,12 @@ Base {
 
     readonly property bool noCity: Weather.city.length === 0
     readonly property var cur: Weather.hasData ? Weather.current : null
-    readonly property string place: Weather.place && Weather.hasData ? Weather.place.name : (noCity ? "Погода" : Weather.city)
+    readonly property string place: Weather.place && Weather.hasData ? Weather.place.name : (noCity ? I18n.tr("Погода") : Weather.city)
     readonly property string iconName: cur ? cur.icon : noCity ? "globe" : "cloud"
     readonly property string tempText: cur ? Weather.temp(cur.temp) : "—"
-    readonly property string stateText: cur ? cur.text
-        : noCity ? (editing ? "Укажите город ниже" : "Город не указан")
-        : Weather.loading ? "Загрузка…" : Weather.error.length ? Weather.error : "нет данных"
+    readonly property string stateText: cur ? I18n.tr(cur.text)
+        : noCity ? I18n.tr(editing ? "Укажите город ниже" : "Город не указан")
+        : Weather.loading ? I18n.tr("Загрузка…") : Weather.error.length ? Weather.error : I18n.tr("нет данных")
 
     // ---- рабочий стол, «Компакт» ----
     Item {
@@ -60,7 +60,7 @@ Base {
             WText { text: root.tempText; px: Math.min(30 * root.ch, 14 * root.cw); display: true; color: root.pal.c1 }
             WText {
                 width: parent.width
-                text: root.cur ? root.cur.text + " · ощущается как " + Weather.temp(root.cur.feels) : root.stateText
+                text: root.cur ? I18n.tr(root.cur.text) + " · " + I18n.tr("ощущается как") + " " + Weather.temp(root.cur.feels) : root.stateText
                 px: Math.min(8.5 * root.ch, 4 * root.cw)
                 color: root.pal.c3
             }
@@ -166,7 +166,7 @@ Base {
                 }
                 WText {
                     width: parent.width
-                    text: root.cur ? root.place + " · " + root.cur.text
+                    text: root.cur ? root.place + " · " + I18n.tr(root.cur.text)
                         : root.noCity ? I18n.tr("Укажите город") : root.stateText
                     px: Math.min(14 * root.ch, 5.6 * root.cw)
                     color: root.pal.c1

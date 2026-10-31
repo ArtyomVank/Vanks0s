@@ -12,7 +12,8 @@ Base {
     SystemClock { id: clock; precision: SystemClock.Hours }
 
     readonly property var now: clock.date
-    readonly property var loc: Qt.locale("ru_RU")
+    readonly property var loc: Qt.locale(I18n.locale)
+    readonly property var weekNames: [1, 2, 3, 4, 5, 6, 0].map(d => { const n = loc.dayName(d, Locale.ShortFormat); return n.charAt(0).toUpperCase() + n.slice(1, 3); })
     function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
     readonly property string weekday: cap(loc.toString(now, "dddd"))
     readonly property string monthYear: cap(loc.standaloneMonthName(now.getMonth(), Locale.LongFormat)) + " " + now.getFullYear()
@@ -51,7 +52,7 @@ Base {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             columns: 7
             Repeater {
-                model: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+                model: root.weekNames
                 delegate: Item {
                     required property string modelData
                     width: month.cellW; height: month.cellH
@@ -126,7 +127,7 @@ Base {
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                 columns: 7
                 Repeater {
-                    model: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+                    model: root.weekNames
                     delegate: Item {
                         required property string modelData
                         width: lockMonth.cellW; height: lockMonth.cellH

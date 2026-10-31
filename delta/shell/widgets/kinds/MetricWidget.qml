@@ -27,7 +27,7 @@ Base {
         : ""
 
     readonly property string icon: kind === "gpu" ? "gpu" : kind === "ram" ? "memory" : kind === "disk" ? "disk" : "cpu"
-    readonly property string gaugeLabel: kind === "gpu" ? "ГП" : kind === "ram" ? "ОЗУ" : kind === "disk" ? "Диск" : "ЦП"
+    readonly property string gaugeLabel: I18n.tr(kind === "gpu" ? "ГП" : kind === "ram" ? "ОЗУ" : kind === "disk" ? "Диск" : "ЦП")
     // память — сколько занято, остальное — проценты
     readonly property string gaugeText: !ok ? "—"
         : kind === "ram" && SystemStats.ramUsed > 0 ? SystemStats.bytes(SystemStats.ramUsed).replace(" ГБ", "G").replace(" МБ", "M")

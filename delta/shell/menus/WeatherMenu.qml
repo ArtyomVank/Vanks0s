@@ -46,7 +46,7 @@ Item {
             Layout.fillWidth: true
             spacing: 8
             visible: root.editCity || Weather.city.length === 0
-            Label { text: Weather.city.length ? "Другой город" : "Город не указан"; size: "title" }
+            Label { text: I18n.tr(Weather.city.length ? "Другой город" : "Город не указан"); size: "title" }
             Label { text: I18n.tr("Прогноз Open-Meteo для вашего города"); size: "small"; tone: 3; visible: Weather.city.length === 0 }
             RowLayout {
                 Layout.fillWidth: true
@@ -66,7 +66,7 @@ Item {
         Label {
             visible: Weather.city.length > 0 && !root.cur
             Layout.fillWidth: true
-            text: Weather.loading ? "Загрузка…" : Weather.error.length ? Weather.error : "нет данных"
+            text: Weather.loading ? I18n.tr("Загрузка…") : Weather.error.length ? I18n.tr(Weather.error) : I18n.tr("нет данных")
             tone: 3
             wrapMode: Text.WordWrap
         }
@@ -85,14 +85,14 @@ Item {
                 spacing: 0
                 Layout.fillWidth: true
                 Label { text: root.cur ? Weather.temp(root.cur.temp) : ""; size: "display" }
-                Label { text: root.cur ? root.cur.text : ""; tone: 2 }
+                Label { text: root.cur ? I18n.tr(root.cur.text) : ""; tone: 2 }
             }
             ColumnLayout {
                 spacing: 2
                 Layout.alignment: Qt.AlignRight
-                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? "Ощущается " + Weather.temp(root.cur.feels) : ""; size: "small"; tone: 2 }
-                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? "Влажность " + Math.round(root.cur.humidity) + "%" : ""; size: "small"; tone: 3 }
-                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? "Ветер " + Math.round(root.cur.wind) + " " + Weather.windUnit : ""; size: "small"; tone: 3 }
+                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? I18n.tr("Ощущается") + " " + Weather.temp(root.cur.feels) : ""; size: "small"; tone: 2 }
+                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? I18n.tr("Влажность") + " " + Math.round(root.cur.humidity) + "%" : ""; size: "small"; tone: 3 }
+                Label { Layout.alignment: Qt.AlignRight; text: root.cur ? I18n.tr("Ветер") + " " + Math.round(root.cur.wind) + " " + I18n.tr(Weather.windUnit) : ""; size: "small"; tone: 3 }
             }
         }
 
@@ -117,7 +117,7 @@ Item {
                         required property int index
                         width: hours.width / 7
                         spacing: 6
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: hc.index === 0 ? "Сейчас" : hc.modelData.hour; size: "caption"; tone: 3 }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: hc.index === 0 ? I18n.tr("Сейчас") : hc.modelData.hour; size: "caption"; tone: 3 }
                         Sym { anchors.horizontalCenter: parent.horizontalCenter; name: hc.modelData.icon; size: 20; color: Weather.iconColor(name, Theme.fg) }
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: Weather.temp(hc.modelData.temp); size: "small"; font.weight: Font.DemiBold }
                     }
@@ -141,7 +141,7 @@ Item {
                     required property var modelData
                     Layout.fillWidth: true
                     spacing: 10
-                    Label { text: dr.modelData.name; Layout.preferredWidth: 72 }
+                    Label { text: Weather.dayLabel(dr.modelData); Layout.preferredWidth: 72 }
                     Sym { name: dr.modelData.icon; size: 20; color: Weather.iconColor(name, Theme.fg) }
                     Label { text: Weather.temp(dr.modelData.min); tone: 3; size: "small"; horizontalAlignment: Text.AlignRight; Layout.preferredWidth: 38 }
                     // полоса диапазона температур дня на общей шкале пяти дней

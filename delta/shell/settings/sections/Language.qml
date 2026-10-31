@@ -7,7 +7,7 @@ import qs.common.ui
 import qs.settings
 import qs.settings.parts
 
-// Язык и регион: язык интерфейса Delta (language.ui — русский или английский,
+// Язык и регион: язык интерфейса Delta (language.ui — один из I18n.languages,
 // меняется сразу), язык системы (LANG) и форматы (LC_TIME, LC_NUMERIC,
 // LC_MONETARY, LC_MEASUREMENT, LC_PAPER) через localectl — localed спросит
 // пароль через polkit; в проверках только журнал. Применяется после
@@ -17,14 +17,14 @@ ColumnLayout {
 
     property string title: I18n.tr("Язык и регион")
     property string icon: "globe"
-    property string keywords: "язык локаль регион форматы дата числа валюта единицы english английский интерфейс"
+    property string keywords: "язык локаль регион форматы дата числа валюта единицы english английский украинский белорусский казахский немецкий французский испанский deutsch français español интерфейс"
     spacing: 18
 
     property var status: ({})       // { LANG: "ru_RU.UTF-8", LC_TIME: … }
     property var locales: []
     property bool changed: false
     property var installed: []
-    readonly property var common: ["en_US.UTF-8", "ru_RU.UTF-8"]
+    readonly property var common: I18n.languages.map(l => l.locale + ".UTF-8")
 
     readonly property string lang: status.LANG || "C.UTF-8"
     readonly property string formats: status.LC_TIME || lang
@@ -54,7 +54,7 @@ ColumnLayout {
         Exec.read(["localectl", "list-locales"], (code, out) => {
             const have = out.split("\n").filter(l => l.length);
             root.installed = have;
-            // английский и русский есть в списке всегда: нет в системе — сгенерируем
+            // языки интерфейса есть в списке всегда: нет в системе — сгенерируем
             const all = have.concat(root.common.filter(l => have.indexOf(l) < 0));
             root.locales = all.map(l => ({ value: l, label: root.nameOf(l), sub: have.indexOf(l) >= 0 ? l : l + " · " + I18n.tr("будет установлен") }));
         });
@@ -104,18 +104,17 @@ ColumnLayout {
                 icon: "globe"
                 title: I18n.tr("Язык интерфейса")
                 subtitle: I18n.tr("Доки, меню, «Настройки» и экран блокировки — меняется сразу")
-                Chips {
-                    model: [{ value: "ru", label: "Русский" }, { value: "en", label: "English" }]
-                    current: I18n.lang
-                    onPicked: v => Settings.set("language.ui", v)
-                }
+                Select { text: I18n.current.name; onClicked: uiPicker.openWith() }
             }
             SettingRow {
-                visible: I18n.en && !root.lang.startsWith("en_")
+                id: sameRow
+                // язык интерфейса не русский, а программы говорят на другом
+                readonly property string want: I18n.locale + ".UTF-8"
+                visible: !I18n.ru && !root.lang.startsWith(I18n.locale)
                 icon: "info"
                 title: I18n.tr("Программы тоже на английском?")
                 subtitle: I18n.tr("Сменит язык системы на английский — после повторного входа")
-                Btn { text: "English (US)"; onClicked: root.apply("en_US.UTF-8", root.formats === root.lang ? "en_US.UTF-8" : root.formats) }
+                Btn { text: root.nameOf(sameRow.want); onClicked: root.apply(sameRow.want, root.formats === root.lang ? sameRow.want : root.formats) }
             }
             SettingRow {
                 icon: "globe"
@@ -145,11 +144,11 @@ ColumnLayout {
         SettingRow { icon: "palette"; title: I18n.tr("Валюта"); Label { text: Number(1990).toLocaleCurrencyString(root.fmtLocale); tone: 2 } }
         SettingRow {
             icon: "scale"; title: I18n.tr("Единицы")
-            Label { text: root.fmtLocale.measurementSystem === Locale.MetricSystem ? "метрические (км, кг, °C)" : "имперские (мили, фунты, °F)"; tone: 2 }
+            Label { text: I18n.tr(root.fmtLocale.measurementSystem === Locale.MetricSystem ? "метрические (км, кг, °C)" : "имперские (мили, фунты, °F)"); tone: 2 }
         }
         SettingRow {
             icon: "calendar"; title: I18n.tr("Первый день недели")
-            Label { text: Qt.locale("ru_RU").dayName(root.fmtLocale.firstDayOfWeek % 7, Locale.LongFormat); tone: 2 }
+            Label { text: Qt.locale(I18n.locale).dayName(root.fmtLocale.firstDayOfWeek % 7, Locale.LongFormat); tone: 2 }
         }
     }
 
@@ -161,6 +160,14 @@ ColumnLayout {
         }
     }
 
+    Picker {
+        id: uiPicker
+        title: I18n.tr("Язык интерфейса")
+        searchHint: "Русский, English, Українська, Deutsch…"
+        model: I18n.languages.map(l => ({ value: l.id, label: l.name, sub: l.hint }))
+        current: I18n.lang
+        onPicked: v => Settings.set("language.ui", v)
+    }
     Picker {
         id: langPicker
         title: I18n.tr("Язык системы")

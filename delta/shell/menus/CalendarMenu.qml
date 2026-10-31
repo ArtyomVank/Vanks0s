@@ -28,6 +28,10 @@ Item {
     }
 
     readonly property var months: ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]
+    function monthName(m) {
+        const n = I18n.ru ? months[m] : Qt.locale(I18n.locale).standaloneMonthName(m, Locale.LongFormat);
+        return n.charAt(0).toUpperCase() + n.slice(1);
+    }
     readonly property var monthsGen: ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
     readonly property var weekdays: ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"]
 
@@ -58,7 +62,7 @@ Item {
         // сегодняшняя дата крупно
         ColumnLayout {
             spacing: 0
-            Label { text: root.now.getDate() + " " + root.monthsGen[root.now.getMonth()]; size: "h1"; font.weight: Font.Bold }
+            Label { text: I18n.ru ? root.now.getDate() + " " + root.monthsGen[root.now.getMonth()] : Qt.locale(I18n.locale).toString(root.now, "d MMMM"); size: "h1"; font.weight: Font.Bold }
             Label {
                 text: root.weekdays[root.now.getDay()].charAt(0).toUpperCase() + root.weekdays[root.now.getDay()].slice(1) + ", " + root.now.getFullYear()
                 size: "small"; tone: 3
@@ -69,7 +73,7 @@ Item {
             Layout.fillWidth: true
             spacing: 4
             Label {
-                text: root.months[root.month].charAt(0).toUpperCase() + root.months[root.month].slice(1) + (root.year !== root.now.getFullYear() ? " " + root.year : "")
+                text: root.monthName(root.month) + (root.year !== root.now.getFullYear() ? " " + root.year : "")
                 font.weight: Font.Bold
                 Layout.fillWidth: true
             }
@@ -87,7 +91,7 @@ Item {
             readonly property real cell: Math.floor((col.width - 6 * columnSpacing) / 7)
 
             Repeater {
-                model: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+                model: [1, 2, 3, 4, 5, 6, 0].map(d => { const n = Qt.locale(I18n.locale).dayName(d, Locale.ShortFormat); return n.charAt(0).toUpperCase() + n.slice(1, 3); })
                 delegate: Label {
                     required property string modelData
                     required property int index

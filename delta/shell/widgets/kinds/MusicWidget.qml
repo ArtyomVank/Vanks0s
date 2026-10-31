@@ -15,8 +15,8 @@ Base {
     readonly property var players: Mpris.players.values
     readonly property MprisPlayer player: players.find(p => p.isPlaying) || players[0] || null
     readonly property bool playing: player !== null && player.isPlaying
-    readonly property string title: player ? (player.trackTitle || player.identity || "Без названия") : "Ничего не играет"
-    readonly property string artist: player ? (player.trackArtist || player.identity || "") : "Включите музыку"
+    readonly property string title: player ? (player.trackTitle || player.identity || I18n.tr("Без названия")) : I18n.tr("Ничего не играет")
+    readonly property string artist: player ? (player.trackArtist || player.identity || "") : I18n.tr("Включите музыку")
     readonly property string art: player ? (player.trackArtUrl || "") : ""
 
     // позиция у MPRIS не обновляется сама — просим раз в секунду, пока видно прогресс

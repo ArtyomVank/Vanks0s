@@ -22,7 +22,8 @@ Item {
     readonly property var months: ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
     readonly property date now: clock.date
     readonly property string time: Qt.formatTime(now, seconds ? "HH:mm:ss" : "HH:mm")
-    readonly property string day: days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()]
+    readonly property string day: I18n.ru ? days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()]
+        : Qt.locale(I18n.locale).toString(now, "ddd, d MMM").replace(/\.(?=,|$)/g, "")
 
     implicitWidth: vertical ? col.implicitWidth : row.implicitWidth
     implicitHeight: vertical ? col.implicitHeight : 20
