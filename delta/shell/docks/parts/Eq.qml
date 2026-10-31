@@ -28,7 +28,7 @@ Row {
             SequentialAnimation {
                 running: root.playing && root.visible
                 loops: Animation.Infinite
-                PauseAnimation { duration: bar.index * 150 }
+                PauseAnimation { duration: (bar.index * 150) * Theme.anim.k }
                 SequentialAnimation {
                     loops: Animation.Infinite
                     NumberAnimation { target: sc; property: "yScale"; to: 1; duration: 450; easing.type: Easing.InOutSine }

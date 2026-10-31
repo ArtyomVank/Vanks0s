@@ -85,8 +85,8 @@ Base {
             running: root.paused
             loops: Animation.Infinite
             onRunningChanged: if (!running) ring.opacity = 1
-            NumberAnimation { to: 0.45; duration: 600; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1; duration: 600; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.45; duration: 600 * Theme.anim.k; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1; duration: 600 * Theme.anim.k; easing.type: Easing.InOutSine }
         }
         // вспышка, когда время вышло
         Rectangle {
@@ -126,7 +126,7 @@ Base {
             radius: height / 2
             color: strong ? Theme.accent : root.pal.track
             scale: tap.pressed ? 0.9 : 1
-            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+            Behavior on scale { NumberAnimation { duration: 120 * Theme.anim.k; easing.type: Easing.OutBack } }
             WText {
                 id: lbl
                 anchors.centerIn: parent

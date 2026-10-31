@@ -44,7 +44,7 @@ Page {
             Component.onCompleted: pop.start()
             SequentialAnimation {
                 id: pop
-                PauseAnimation { duration: Math.min(12, cell.index) * 35 }
+                PauseAnimation { duration: (Math.min(12, cell.index) * 35) * Theme.anim.k }
                 ParallelAnimation {
                     NumberAnimation { target: cell; property: "opacity"; to: 1; duration: 300 }
                     NumberAnimation { target: cell; property: "scale"; to: 1; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.8 }

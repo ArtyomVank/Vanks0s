@@ -81,7 +81,7 @@ Item {
                 color: hov.hovered ? Theme.soft2 : Theme.soft
                 border.width: critical ? 1 : 0
                 border.color: "#ff6b6b"
-                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on color { ColorAnimation { duration: 120 * Theme.anim.k } }
 
                 HoverHandler { id: hov }
 

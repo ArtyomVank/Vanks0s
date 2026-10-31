@@ -26,9 +26,9 @@ Row {
             SequentialAnimation on scale {
                 running: root.playing && root.visible
                 loops: Animation.Infinite
-                PauseAnimation { duration: bar.index * 150 }
-                NumberAnimation { to: 1; duration: 450; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 0.3; duration: 450; easing.type: Easing.InOutSine }
+                PauseAnimation { duration: (bar.index * 150) * Theme.anim.k }
+                NumberAnimation { to: 1; duration: 450 * Theme.anim.k; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.3; duration: 450 * Theme.anim.k; easing.type: Easing.InOutSine }
             }
         }
     }

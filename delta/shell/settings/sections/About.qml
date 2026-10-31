@@ -82,7 +82,7 @@ ColumnLayout {
                 scale: logoTap.pressed ? 0.88 : 1
                 Behavior on scale { NumberAnimation { duration: Theme.anim.normal; easing.type: Easing.OutBack; easing.overshoot: 3 } }
                 Timer { id: tapReset; interval: 1200; onTriggered: logo.taps = 0 }
-                RotationAnimation { id: spin; target: logo; from: 0; to: 360; duration: 900; easing.type: Easing.OutBack }
+                RotationAnimation { id: spin; target: logo; from: 0; to: 360; duration: 900 * Theme.anim.k; easing.type: Easing.OutBack }
                 MouseArea {
                     id: logoTap
                     anchors.fill: parent

@@ -93,7 +93,7 @@ PopupLayer {
         implicitHeight: 38
         radius: 10
         color: hov.hovered ? Theme.soft2 : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: 120 * Theme.anim.k } }
         RowLayout {
             anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
             spacing: 10

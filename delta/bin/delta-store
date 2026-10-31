@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+# Delta — магазин приложений: пакеты Arch (pacman) и Flathub в одном окне.
+#
+#   delta-store                       окно магазина
+#   delta-store search <запрос>       поиск в обоих (JSON, лучшие совпадения первыми)
+#   delta-store status                что уже стоит: пакеты и flatpak (JSON)
+#   delta-store info pacman|flatpak <имя>   подробности (JSON)
+#   delta-store installed             поставленные приложения со значком в меню (JSON)
+#   delta-store lookup <id flatpak>…  значки и описания из Flathub (JSON, для подборки)
+#   delta-store install pacman|flatpak <имя>
+#   delta-store remove pacman|flatpak <имя>
+#                                     печатают для окна «::step:: <текст>», остальное — вывод
+#                                     pacman или flatpak; код — успех или нет
+#   delta-store connect               поставить Flatpak, подключить Flathub, скачать каталог
+#   delta-store index                 пересобрать индекс Flathub
+#
+# Поиск Flathub — не через «flatpak search» (секунды на запрос, а то и
+# обновление каталога из сети), а по своему индексу из appstream.xml Flathub:
+# строка на приложение, ~/.cache/delta/flathub.tsv, пересобирается, когда
+# каталог обновился. Пакеты Arch ставит delta-setup (очередь, ключи, pacman
+# -Syu — без частичных обновлений), удаляет он же; flatpak — системно.
+#
+# Пробный режим (DELTA_DRY_RUN=1 или вложенная сессия DELTA_NESTED): install
+# и remove ничего не меняют — только печатают, что сделали бы.
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_STORE_ENTRY:-${SHELL_DIR}/store-app.qml}
+CACHE=${XDG_CACHE_HOME:-${HOME}/.cache}/delta
+INDEX=${CACHE}/flathub.tsv
+APPSTREAM=${DELTA_FLATHUB_APPSTREAM:-}
+ICONDIR=""
+LIMIT=40
+
+dry() { [ "${DELTA_DRY_RUN:-}" = 1 ] || [ -n "${DELTA_NESTED:-}" ]; }
+step() { printf '::step:: %s\n' "$*"; }
+
+# каталог Flathub: системный, иначе пользовательский
+find_appstream() {
+    local d
+    [ -n "${APPSTREAM}" ] && [ -f "${APPSTREAM}" ] && { ICONDIR=$(dirname -- "${APPSTREAM}")/icons; return 0; }
+    for d in /var/lib/flatpak/appstream/flathub/x86_64/active "${HOME}/.local/share/flatpak/appstream/flathub/x86_64/active"; do
+        if [ -f "${d}/appstream.xml" ] || [ -f "${d}/appstream.xml.gz" ]; then
+            APPSTREAM=${d}/appstream.xml
+            [ -f "${APPSTREAM}" ] || APPSTREAM=${d}/appstream.xml.gz
+            ICONDIR=${d}/icons
+            return 0
+        fi
+    done
+    return 1
+}
+
+# appstream.xml → TSV: id, имя, имя по-русски, описание, по-русски, категории,
+# ярлык, сайт, снимок экрана, разработчик, лицензия, абзац о программе (и по-русски)
+build_index() {
+    find_appstream || return 1
+    mkdir -p "${CACHE}"
+    { case "${APPSTREAM}" in *.gz) zcat -- "${APPSTREAM}" ;; *) cat -- "${APPSTREAM}" ;; esac; } |
+    LC_ALL=C awk '
+    function unent(s) { gsub(/&lt;/, "<", s); gsub(/&gt;/, ">", s); gsub(/&quot;/, "\"", s); gsub(/&apos;/, "\047", s); gsub(/&#39;/, "\047", s); gsub(/&amp;/, "\\&", s); gsub(/[\t\r]/, " ", s); return s }
+    function inner(s) { sub(/^[^>]*>/, "", s); sub(/<\/[a-z_]+>[ \t]*$/, "", s); return unent(s) }
+    function strip(s) { gsub(/<[^>]*>/, "", s); gsub(/^[ \t]+|[ \t]+$/, "", s); gsub(/[ \t]+/, " ", s); return unent(s) }
+    function flush() {
+        # настоящий id flatpak — в <bundle> (в <id> бывает старое «….desktop»)
+        # значок в кэше назван по <id>
+        oid = id
+        if (fid != "") id = fid; else sub(/\.desktop$/, "", id)
+        if (id != "" && name != "" && app)
+            print id, name, nameru, summary, summaryru, cats, desk, home, shot, dev, lic, substr(desc, 1, 700), substr(descru, 1, 700), oid
+        id = fid = name = nameru = summary = summaryru = cats = desk = home = shot = dev = lic = desc = descru = ""
+        indev = indesc = inp = 0; app = 0
+    }
+    BEGIN { OFS = "\t" }
+    /<component[ >]/ {
+        flush()
+        app = ($0 ~ /<component type="desktop(-application)?"/)
+        sub(/.*<component[^>]*>/, "")
+    }
+    !app { next }
+    /<developer[ >]/ { indev = 1 }
+    /<\/developer>/ { indev = 0; next }
+    indesc {
+        if (/<\/description>/) { indesc = 0; next }
+        if (inp) { buf = buf " " $0; if (/<\/p>/) { inp = 0; t = strip(buf); if (plang == "" && desc == "") desc = t; if (plang == "ru" && descru == "") descru = t } ; next }
+        if (/<p[ >]/) {
+            plang = dlang; if (/xml:lang="ru"/) plang = "ru"; else if (/xml:lang=/) plang = "x"
+            buf = $0
+            if (/<\/p>/) { t = strip(buf); if (plang == "" && desc == "") desc = t; if (plang == "ru" && descru == "") descru = t }
+            else inp = 1
+        }
+        next
+    }
+    /<description[ >]/ {
+        # язык бывает у всего описания, а бывает у каждого абзаца
+        dlang = ""; if (/xml:lang="ru"/) dlang = "ru"; else if (/xml:lang=/) dlang = "x"
+        if (!/\/>/) indesc = 1
+        next
+    }
+    /^[ \t]*<id>/ && id == "" { id = inner($0); next }
+    /^[ \t]*<name>/ && !indev && name == "" { name = inner($0); next }
+    /^[ \t]*<name xml:lang="ru">/ && !indev && nameru == "" { nameru = inner($0); next }
+    /^[ \t]*<name>/ && indev && dev == "" { dev = inner($0); next }
+    /^[ \t]*<developer_name>/ && dev == "" { dev = inner($0); next }
+    /^[ \t]*<summary>/ && summary == "" { summary = inner($0); next }
+    /^[ \t]*<summary xml:lang="ru">/ && summaryru == "" { summaryru = inner($0); next }
+    /^[ \t]*<category>/ { cats = cats (cats == "" ? "" : ";") inner($0); next }
+    /<launchable type="desktop-id">/ && desk == "" { desk = inner($0); next }
+    /<url type="homepage">/ && home == "" { home = inner($0); next }
+    /<project_license>/ && lic == "" { lic = inner($0); next }
+    /<image [^>]*type="thumbnail"/ && shot == "" { shot = inner($0); next }
+    /<bundle type="flatpak"/ && fid == "" { b = inner($0); if (b ~ /^app\//) { split(b, bp, "/"); fid = bp[2] } ; next }
+    END { flush() }
+    ' >"${INDEX}.new" && mv -- "${INDEX}.new" "${INDEX}"
+}
+# индекс старше каталога — пересобрать
+ensure_index() {
+    find_appstream || return 1
+    [ -s "${INDEX}" ] && [ "${INDEX}" -nt "${APPSTREAM}" ] && return 0
+    build_index
+}
+
+# что стоит: имена пакетов и id flatpak — для меток «Установлено»
+flatpak_ids() { command -v flatpak >/dev/null && flatpak list --app --columns=application 2>/dev/null; }
+
+search_flatpak() {  # запрос строчными
+    ensure_index || { echo '[]'; return; }
+    LC_ALL=C.UTF-8 awk -F'\t' -v q="$1" -v icons="${ICONDIR}" -v lim="${LIMIT}" -v inst="$(flatpak_ids | tr '\n' ' ')" '
+    BEGIN { n = split(inst, a, " "); for (i = 1; i <= n; i++) have[a[i]] = 1 }
+    {
+        nm = tolower($2); nr = tolower($3); idl = tolower($1)
+        s = -1
+        if (nm == q || nr == q) s = 0
+        else if (index(nm, q) == 1 || index(nr, q) == 1) s = 1
+        else if (index(nm, q) || index(nr, q)) s = 2
+        else if (index(idl, q)) s = 3
+        else if (index(tolower($4), q) || index(tolower($5), q)) s = 4
+        if (s < 0) next
+        printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", s, $1, $2, $3, $4, $5, icons "/128x128/" $14 ".png", ($1 in have)
+    }' "${INDEX}" | sort -t$'\t' -k1,1n -s | head -n "${LIMIT}" |
+    jq -R 'split("\t") | { score: (.[0] | tonumber), source: "flatpak", id: .[1], name: .[2], nameRu: .[3],
+        summary: .[4], summaryRu: .[5], icon: .[6], installed: (.[7] == "1"), version: "" }' | jq -s .
+}
+
+# pacman -Ss: «repo/имя версия [installed]» и строка описания; служебные
+# пакеты (lib32-, -debug, -docs, библиотеки python и perl) — в конец, если не просили их
+search_pacman() {
+    LC_ALL=C pacman -Ss -- "$1" 2>/dev/null |
+    LC_ALL=C.UTF-8 awk -v q="$1" '
+    /^[^ ]/ {
+        split($1, rn, "/"); repo = rn[1]; name = rn[2]; ver = $2; inst = ($0 ~ /\[installed/) ? 1 : 0
+        next
+    }
+    {
+        d = $0; sub(/^[ \t]+/, "", d)
+        nm = tolower(name)
+        s = 4
+        if (nm == q) s = 0
+        else if (index(nm, q) == 1) s = 1
+        else if (index(nm, q)) s = 2
+        if (nm ~ /^(lib32-|python-|perl-|ruby-|haskell-|r-|node-|rust-|go-|ocaml-)|-(debug|docs?|headers)$|-(help|i18n|l10n|lang|langpack)(-|$)/ && nm != q) s += 5
+        gsub(/\t/, " ", d)
+        printf "%d\t%s\t%s\t%s\t%s\t%d\n", s, name, ver, d, repo, inst
+    }' | sort -t$'\t' -k1,1n -s | head -n "${LIMIT}" |
+    jq -R 'split("\t") | { score: (.[0] | tonumber), source: "pacman", id: .[1], name: .[1], nameRu: "",
+        version: .[2], summary: .[3], summaryRu: "", repo: .[4], icon: "", installed: (.[5] == "1") }' | jq -s .
+}
+
+cmd_search() {
+    local q p
+    # shellcheck disable=SC2046
+    q=$(printf '%s' "$*" | LC_ALL=C.UTF-8 awk '{ print tolower($0) }' | sed 's/^ *//; s/ *$//')
+    [ -n "${q}" ] || { echo '[]'; return; }
+    # pacman -Ss понимает запрос как регулярное выражение — только латиница, цифры
+    # и . _ + - (описания пакетов Arch — по-английски: кириллицу там не ищем)
+    p=$(printf '%s' "${q}" | LC_ALL=C tr -cd 'a-z0-9 ._+-' | sed 's/^ *//; s/ *$//')
+    local pj fj
+    pj=$([ -n "${p}" ] && search_pacman "${p}" || echo '[]')
+    fj=$(search_flatpak "${q}")
+    # пакет Arch и то же приложение на Flathub — одна строка с двумя источниками:
+    # значок и описание (по-русски) из Flathub
+    jq -n --argjson p "${pj}" --argjson f "${fj}" --argjson m "$(match_flathub $(jq -r '.[].id' <<<"${pj}"))" '
+        ($p | map(. as $r | ($m[$r.id] // null) as $x | if $x then . + { fp: $x.id, name: $x.name, nameRu: $x.nameRu,
+            summary: (if $x.summary != "" then $x.summary else .summary end), summaryRu: $x.summaryRu, icon: $x.icon,
+            fpInstalled: (($f | map(select(.id == $x.id)) | first | .installed) // false) } else . end)) as $pm
+        | ($pm | map(.fp // empty)) as $taken
+        | ($pm + ($f | map(select(.id as $i | $taken | index($i) | not)))) | sort_by(.score)'
+}
+# пакеты Arch → приложение Flathub с тем же именем (org.gimp.GIMP ↔ gimp,
+# «Telegram» ↔ telegram-desktop): JSON { пакет: { id, name, …, icon } }
+match_flathub() {
+    [ "$#" -gt 0 ] && ensure_index || { echo '{}'; return; }
+    LC_ALL=C.UTF-8 awk -F'\t' -v want="$*" -v icons="${ICONDIR}" '
+        BEGIN { n = split(want, a, " "); for (i = 1; i <= n; i++) { k = a[i]; sub(/-(desktop|bin)$/, "", k); w[k] = a[i] } }
+        {
+            m = split($1, parts, "."); k1 = tolower(parts[m]); k2 = tolower($2); gsub(/ /, "-", k2)
+            p = (k1 in w) ? w[k1] : (k2 in w) ? w[k2] : ""
+            if (p != "" && !(p in done)) { done[p] = 1; print p "\t" $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" icons "/128x128/" $14 ".png" }
+        }' "${INDEX}" |
+    jq -R 'split("\t") | { (.[0]): { id: .[1], name: .[2], nameRu: .[3], summary: .[4], summaryRu: .[5], icon: .[6] } }' | jq -s 'add // {}'
+}
+
+cmd_status() {
+    jq -n --argjson pacman "$(pacman -Qq 2>/dev/null | jq -R . | jq -s 'map({ (.): true }) | add // {}')" \
+        --argjson flatpak "$(flatpak_ids | jq -R . | jq -s 'map({ (.): true }) | add // {}')" \
+        --argjson flathub "$(find_appstream && echo true || echo false)" \
+        --argjson hasFlatpak "$(command -v flatpak >/dev/null && echo true || echo false)" \
+        '{ pacman: $pacman, flatpak: $flatpak, flathub: $flathub, hasFlatpak: $hasFlatpak }'
+}
+
+cmd_info() {
+    local src=$1 id=$2
+    case "${src}" in
+        pacman)
+            LC_ALL=C pacman -Si -- "${id}" 2>/dev/null | awk -F' *: ' '
+                /^[A-Za-z]/ { k = $1; v = substr($0, index($0, ":") + 2); f[k] = v; next }
+                { f[k] = f[k] " " $0 }
+                END { printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", f["Version"], f["Description"], f["URL"], f["Licenses"], f["Download Size"], f["Installed Size"], f["Repository"] }' |
+            jq -R --arg id "${id}" --argjson inst "$(pacman -Q -- "${id}" >/dev/null 2>&1 && echo true || echo false)" \
+                --arg desktop "$(pacman -Qlq -- "${id}" 2>/dev/null | grep -m1 '^/usr/share/applications/.*\.desktop$' || true)" '
+                split("\t") | { source: "pacman", id: $id, name: $id, version: .[0], summary: .[1], homepage: .[2],
+                  license: .[3], download: .[4], size: .[5], repo: .[6], installed: $inst,
+                  desktop: ($desktop | split("/") | last | sub("\\.desktop$"; "")) }'
+            ;;
+        flatpak)
+            ensure_index
+            awk -F'\t' -v id="${id}" '$1 == id { print; exit }' "${INDEX}" 2>/dev/null |
+            jq -R --arg icons "${ICONDIR}/128x128/" \
+                --argjson inst "$(flatpak_ids | grep -qxF -- "${id}" && echo true || echo false)" '
+                split("\t") | { source: "flatpak", id: .[0], name: .[1], nameRu: .[2], summary: .[3], summaryRu: .[4],
+                  categories: (.[5] | split(";")), desktop: (.[6] | sub("\\.desktop$"; "")), homepage: .[7], screenshot: .[8],
+                  developer: .[9], license: .[10], description: .[11], descriptionRu: .[12], icon: ($icons + .[13] + ".png"), installed: $inst }'
+            ;;
+        *) exit 2 ;;
+    esac
+}
+
+# сведения о приложениях Flathub для подборки на главной: id → значок и описания
+cmd_lookup() {
+    ensure_index || { echo '{}'; return; }
+    awk -F'\t' -v want="$*" -v icons="${ICONDIR}" '
+        BEGIN { n = split(want, a, " "); for (i = 1; i <= n; i++) w[a[i]] = 1 }
+        ($1 in w) { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" icons "/128x128/" $14 ".png" }' "${INDEX}" |
+    jq -R 'split("\t") | { (.[0]): { name: .[1], nameRu: .[2], summary: .[3], summaryRu: .[4], icon: .[5] } }' | jq -s 'add // {}'
+}
+
+# поставленные приложения со значком в меню: ярлык → пакет-владелец; flatpak — свои
+cmd_installed() {
+    local files pac fp
+    files=$(ls /usr/share/applications/*.desktop 2>/dev/null)
+    pac=$(printf '%s\n' "${files}" | grep . | while IFS= read -r f; do
+            grep -qE '^NoDisplay=true' "${f}" && continue
+            printf '%s\n' "${f}"
+        done | xargs -r -d '\n' env LC_ALL=C pacman -Qo -- 2>/dev/null |
+        awk '{ f = $1; n = $(NF - 1); v = $NF; print f "\t" n "\t" v }' |
+        while IFS=$'\t' read -r f n v; do
+            jq -n --arg f "${f}" --arg n "${n}" --arg v "${v}" --arg name "$(sed -n 's/^Name\[ru\]=//p' "${f}" | head -n1)" --arg en "$(sed -n 's/^Name=//p' "${f}" | head -n1)" \
+                --arg icon "$(sed -n 's/^Icon=//p' "${f}" | head -n1)" \
+                '{ source: "pacman", id: $n, name: $en, nameRu: $name, version: $v, icon: $icon, desktop: ($f | split("/") | last | sub("\\.desktop$"; "")), installed: true }'
+        done | jq -s 'unique_by(.id) | sort_by(.name | ascii_downcase)')
+    fp=$(command -v flatpak >/dev/null && flatpak list --app --columns=application,name,version 2>/dev/null |
+        jq -R 'split("\t") | { source: "flatpak", id: .[0], name: .[1], version: (.[2] // ""), icon: "", desktop: .[0], installed: true }' | jq -s .)
+    # значки flatpak — по индексу (файл назван по <id> из каталога)
+    ensure_index
+    jq -n --argjson p "${pac:-[]}" --argjson f "${fp:-[]}" --arg icons "${ICONDIR}" \
+        --argjson names "$(awk -F'\t' -v want="$(flatpak_ids | tr '\n' ' ')" '
+            BEGIN { n = split(want, a, " "); for (i = 1; i <= n; i++) w[a[i]] = 1 }
+            ($1 in w) { print $1 "\t" $14 }' "${INDEX}" 2>/dev/null | jq -R 'split("\t") | { (.[0]): .[1] }' | jq -s 'add // {}')" \
+        '$p + ($f | map(.icon = ($icons + "/128x128/" + ($names[.id] // .id) + ".png"))) | sort_by(.name | ascii_downcase)'
+}
+
+check_id() {
+    case "$1" in
+        pacman)  [[ $2 =~ ^[a-z0-9][a-z0-9@._+-]*$ ]] ;;
+        flatpak) [[ $2 =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$ ]] ;;
+        *) false ;;
+    esac || { echo "delta-store: странное имя: $2" >&2; exit 2; }
+}
+
+cmd_install() {
+    local src=$1 id=$2
+    check_id "${src}" "${id}"
+    case "${src}" in
+        pacman)
+            if dry; then step "Проверка: pkexec delta-setup install ${id}"; sleep 2; step "Готово"; return 0; fi
+            pkexec delta-setup install "${id}"
+            ;;
+        flatpak)
+            if dry; then step "Проверка: flatpak install --system flathub ${id}"; sleep 2; step "Готово"; return 0; fi
+            # flatpak ещё нет — сначала он сам и Flathub (это делает delta-setup)
+            if ! command -v flatpak >/dev/null || ! flatpak remotes --system --columns=name 2>/dev/null | grep -qx flathub; then
+                step "Ставлю Flatpak и подключаю Flathub"
+                pkexec delta-setup install flatpak || return 1
+            fi
+            step "Скачиваю и устанавливаю ${id}"
+            flatpak install --system -y --noninteractive flathub "${id}" 2>&1 || return 1
+            step "Готово"
+            ;;
+    esac
+}
+
+cmd_remove() {
+    local src=$1 id=$2
+    check_id "${src}" "${id}"
+    case "${src}" in
+        pacman)
+            if dry; then step "Проверка: pkexec delta-setup remove ${id}"; sleep 2; step "Готово"; return 0; fi
+            pkexec delta-setup remove "${id}"
+            ;;
+        flatpak)
+            if dry; then step "Проверка: flatpak uninstall ${id}"; sleep 2; step "Готово"; return 0; fi
+            step "Удаляю ${id}"
+            flatpak uninstall -y --noninteractive "${id}" 2>&1 || return 1
+            step "Готово"
+            ;;
+    esac
+}
+
+# Flathub: flatpak и remote (delta-setup), затем каталог приложений
+cmd_connect() {
+    if dry; then step "Проверка: pkexec delta-setup install flatpak; flatpak update --appstream"; sleep 2; step "Готово"; return 0; fi
+    if ! command -v flatpak >/dev/null || ! flatpak remotes --system --columns=name 2>/dev/null | grep -qx flathub; then
+        step "Ставлю Flatpak и подключаю Flathub"
+        pkexec delta-setup install flatpak || return 1
+    fi
+    step "Скачиваю каталог Flathub"
+    flatpak update --appstream --system flathub 2>&1 || return 1
+    build_index >/dev/null
+    step "Готово"
+}
+
+case "${1:-}" in
+    -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    "")        exec qs -p "${ENTRY}" -d ;;
+    index)     build_index && wc -l <"${INDEX}" ;;
+    search)    shift; cmd_search "$@" ;;
+    status)    cmd_status ;;
+    info)      [ -n "${3:-}" ] || exit 2; cmd_info "$2" "$3" ;;
+    installed) cmd_installed ;;
+    lookup)    shift; cmd_lookup "$@" ;;
+    connect)   cmd_connect ;;
+    install)   [ -n "${3:-}" ] || exit 2; cmd_install "$2" "$3" ;;
+    remove)    [ -n "${3:-}" ] || exit 2; cmd_remove "$2" "$3" ;;
+    *) echo "delta-store: неизвестная команда $1 (см. --help)" >&2; exit 2 ;;
+esac

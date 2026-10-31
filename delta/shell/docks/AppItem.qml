@@ -75,7 +75,7 @@ Item {
         y: (root.height - height) / 2 - root.ey * (4.5 + root.bounceOff)
         scale: root.zoom
         transformOrigin: root.edge === "top" ? Item.Top : root.edge === "left" ? Item.Left : root.edge === "right" ? Item.Right : Item.Bottom
-        Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 2 } }
+        Behavior on scale { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
 
         // Из плитки вытекает капля (окно приложений, «Добавить», меню значка):
         // плитка тянется за ней от края дока и пружинит, когда капля оторвалась.
@@ -192,7 +192,7 @@ Item {
         id: tip
         visible: opacity > 0
         opacity: area.containsMouse && !root.sep && DockService.appMenu === null ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Behavior on opacity { NumberAnimation { duration: 150 * Theme.anim.k } }
         width: tipText.implicitWidth + 20
         height: 26
         radius: 8

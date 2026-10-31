@@ -140,8 +140,8 @@ PanelWindow {
         SequentialAnimation on scale {
             running: hint.visible
             loops: Animation.Infinite
-            NumberAnimation { to: 0.72; duration: 1200; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.72; duration: 1200 * Theme.anim.k; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1.0; duration: 1200 * Theme.anim.k; easing.type: Easing.InOutSine }
         }
         MouseArea { id: hintArea; anchors.fill: parent; anchors.margins: -8; hoverEnabled: true }
         readonly property alias containsMouse: hintArea.containsMouse
@@ -181,14 +181,14 @@ PanelWindow {
             scale: on ? 1 : 0.84
             Behavior on opacity {
                 SequentialAnimation {
-                    PauseAnimation { duration: grid.on ? 150 : 0 }
-                    NumberAnimation { duration: grid.on ? 260 : 90; easing.type: Easing.OutCubic }
+                    PauseAnimation { duration: (grid.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (grid.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
                 }
             }
             Behavior on scale {
                 SequentialAnimation {
-                    PauseAnimation { duration: grid.on ? 150 : 0 }
-                    NumberAnimation { duration: grid.on ? 460 : 140; easing.type: grid.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                    PauseAnimation { duration: (grid.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (grid.on ? 460 : 140) * Theme.anim.k; easing.type: grid.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
                 }
             }
             onActivated: id => win.activate(id)
@@ -206,14 +206,14 @@ PanelWindow {
             scale: on ? 1 : 0.84
             Behavior on opacity {
                 SequentialAnimation {
-                    PauseAnimation { duration: pillContent.on ? 150 : 0 }
-                    NumberAnimation { duration: pillContent.on ? 260 : 90; easing.type: Easing.OutCubic }
+                    PauseAnimation { duration: (pillContent.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (pillContent.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
                 }
             }
             Behavior on scale {
                 SequentialAnimation {
-                    PauseAnimation { duration: pillContent.on ? 150 : 0 }
-                    NumberAnimation { duration: pillContent.on ? 460 : 140; easing.type: pillContent.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                    PauseAnimation { duration: (pillContent.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (pillContent.on ? 460 : 140) * Theme.anim.k; easing.type: pillContent.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
                 }
             }
         }
@@ -232,14 +232,14 @@ PanelWindow {
             scale: on ? 1 : 0.84
             Behavior on opacity {
                 SequentialAnimation {
-                    PauseAnimation { duration: notice.on ? 150 : 0 }
-                    NumberAnimation { duration: notice.on ? 260 : 90; easing.type: Easing.OutCubic }
+                    PauseAnimation { duration: (notice.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (notice.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
                 }
             }
             Behavior on scale {
                 SequentialAnimation {
-                    PauseAnimation { duration: notice.on ? 150 : 0 }
-                    NumberAnimation { duration: notice.on ? 460 : 140; easing.type: notice.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                    PauseAnimation { duration: (notice.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (notice.on ? 460 : 140) * Theme.anim.k; easing.type: notice.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
                 }
             }
             MuteBell {
@@ -285,14 +285,14 @@ PanelWindow {
             scale: on ? 1 : 0.84
             Behavior on opacity {
                 SequentialAnimation {
-                    PauseAnimation { duration: info.on ? 150 : 0 }
-                    NumberAnimation { duration: info.on ? 260 : 90; easing.type: Easing.OutCubic }
+                    PauseAnimation { duration: (info.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (info.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
                 }
             }
             Behavior on scale {
                 SequentialAnimation {
-                    PauseAnimation { duration: info.on ? 150 : 0 }
-                    NumberAnimation { duration: info.on ? 460 : 140; easing.type: info.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                    PauseAnimation { duration: (info.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (info.on ? 460 : 140) * Theme.anim.k; easing.type: info.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
                 }
             }
             Item {

@@ -21,7 +21,7 @@ Rectangle {
     SequentialAnimation {
         running: root.done
         NumberAnimation { target: col; property: "opacity"; to: 0; duration: 400; easing.type: Easing.InOutQuad }
-        PauseAnimation { duration: 500 }
+        PauseAnimation { duration: 500 * Theme.anim.k }
         ScriptAction { script: root.reveal() }
         NumberAnimation { target: root; property: "opacity"; to: 0; duration: 500; easing.type: Easing.InOutQuad }
     }

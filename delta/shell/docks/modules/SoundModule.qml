@@ -55,8 +55,8 @@ Item {
                 color: root.sink ? Theme.fg2 : Theme.fg3
                 opacity: root.bell ? 0 : 1
                 scale: root.bell ? 0.6 : 1
-                Behavior on opacity { NumberAnimation { duration: 180 } }
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+                Behavior on opacity { NumberAnimation { duration: 180 * Theme.anim.k } }
+                Behavior on scale { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack } }
             }
             MuteBell {
                 anchors.fill: parent
@@ -66,8 +66,8 @@ Item {
                 cutColor: Theme.glass2
                 opacity: root.bell ? 1 : 0
                 scale: root.bell ? 1 : 0.6
-                Behavior on opacity { NumberAnimation { duration: 180 } }
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+                Behavior on opacity { NumberAnimation { duration: 180 * Theme.anim.k } }
+                Behavior on scale { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack } }
             }
         }
         Eq {

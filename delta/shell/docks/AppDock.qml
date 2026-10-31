@@ -251,8 +251,8 @@ PanelWindow {
         SequentialAnimation on scale {
             running: hint.visible
             loops: Animation.Infinite
-            NumberAnimation { to: 0.72; duration: 1200; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.72; duration: 1200 * Theme.anim.k; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1.0; duration: 1200 * Theme.anim.k; easing.type: Easing.InOutSine }
         }
         MouseArea { id: hintArea; anchors.fill: parent; anchors.margins: -8; hoverEnabled: true }
         readonly property alias containsMouse: hintArea.containsMouse

@@ -60,8 +60,8 @@ Page {
                     opacity: on ? 1 : 0
                     scale: on ? 1 : 0.86
                     transform: Translate { y: on ? 0 : 18 }
-                    Behavior on opacity { NumberAnimation { duration: 520; easing.type: Easing.InOutCubic } }
-                    Behavior on scale { NumberAnimation { duration: 700; easing.type: Easing.OutBack } }
+                    Behavior on opacity { NumberAnimation { duration: 520 * Theme.anim.k; easing.type: Easing.InOutCubic } }
+                    Behavior on scale { NumberAnimation { duration: 700 * Theme.anim.k; easing.type: Easing.OutBack } }
                 }
             }
         }

@@ -160,7 +160,7 @@ Scope {
             property int cur: 0
             property real pos: cur
             property bool snapping: false
-            Behavior on pos { enabled: !win.snapping; NumberAnimation { duration: 460; easing.type: Easing.OutCubic } }
+            Behavior on pos { enabled: !win.snapping; NumberAnimation { duration: 460 * Theme.anim.k; easing.type: Easing.OutCubic } }
             function go(i) {
                 const n = root.results.length;
                 if (n === 0) return;
@@ -176,12 +176,12 @@ Scope {
             NumberAnimation {
                 id: enterAnim
                 target: win; property: "enter"
-                to: 1; duration: 700; easing.type: Easing.OutCubic
+                to: 1; duration: 700 * Theme.anim.k; easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 id: leaveAnim
                 target: win; property: "enter"
-                to: 0; duration: 280; easing.type: Easing.InCubic
+                to: 0; duration: 280 * Theme.anim.k; easing.type: Easing.InCubic
                 onFinished: if (!root.open) win.shown = false
             }
 
@@ -270,7 +270,7 @@ Scope {
                 color: Theme.glass2
                 border.width: 1
                 border.color: Theme.line
-                Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutCubic } }
                 // нажатия по панели не закрывают выбор
                 MouseArea { anchors.fill: parent }
 

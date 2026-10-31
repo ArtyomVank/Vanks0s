@@ -113,7 +113,7 @@ Scope {
                 }
                 // новая карточка встаёт у дока, старые плавно отъезжают
                 displaced: Transition {
-                    NumberAnimation { properties: "y"; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                    NumberAnimation { properties: "y"; duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
                 }
             }
         }

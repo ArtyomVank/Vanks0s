@@ -141,7 +141,7 @@ Scope {
     NumberAnimation { id: gatherAnim; target: root; property: "gather"; from: 0; to: 1; duration: 2300; easing.type: Easing.OutCubic }
     SequentialAnimation {
         id: exitAnim
-        PauseAnimation { duration: 650 }
+        PauseAnimation { duration: 650 * Theme.anim.k }
         NumberAnimation { target: root; property: "hole"; from: 0; to: 1; duration: 1500; easing.type: Easing.InOutCubic }
         ScriptAction {
             script: {
@@ -269,7 +269,7 @@ Scope {
                                 height: 8
                                 radius: 4
                                 color: on ? Theme.accent : index < root.page ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Theme.soft2
-                                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2 } }
+                                Behavior on width { NumberAnimation { duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
                                 Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
                                 MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: root.go(dotItem.index) }
                             }
@@ -331,8 +331,8 @@ Scope {
         opacity: Math.max(0, 1 - Math.abs(off) * 1.6)
         scale: 1 - Math.min(1, Math.abs(off)) * 0.08
         visible: opacity > 0.01
-        Behavior on x { NumberAnimation { duration: 640; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
-        Behavior on opacity { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 520; easing.type: Easing.OutCubic } }
+        Behavior on x { NumberAnimation { duration: 640 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
+        Behavior on opacity { NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 520 * Theme.anim.k; easing.type: Easing.OutCubic } }
     }
 }

@@ -292,6 +292,20 @@ hl.window_rule({
     center = true,
 })
 hl.window_rule({
+    name  = "delta-box",
+    match = { class = "^delta-box$" },
+    float = true,
+    size  = "960 680",
+    center = true,
+})
+hl.window_rule({
+    name  = "delta-store",
+    match = { class = "^delta-store$" },
+    float = true,
+    size  = "1120 760",
+    center = true,
+})
+hl.window_rule({
     name  = "calamares",
     match = { class = "^(calamares|io.calamares.calamares)$" },
     float = true,

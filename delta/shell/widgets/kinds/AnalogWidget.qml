@@ -97,7 +97,7 @@ Base {
                 anim.restart();
             }
             Component.onCompleted: angle = target
-            NumberAnimation on angle { id: anim; running: false; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
+            NumberAnimation on angle { id: anim; running: false; duration: 260 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
         }
         Rectangle {
             width: face.r * 0.11; height: width; radius: width / 2

@@ -148,7 +148,7 @@ ColumnLayout {
                         name: root.checking || root.installing ? "refresh" : root.error ? "warning" : root.updates.length ? "download" : "check"
                         size: 24
                         color: parent.c
-                        RotationAnimation on rotation { running: root.checking || root.installing; from: 0; to: 360; duration: 1200; loops: Animation.Infinite; alwaysRunToEnd: true }
+                        RotationAnimation on rotation { running: root.checking || root.installing; from: 0; to: 360; duration: 1200 * Theme.anim.k; loops: Animation.Infinite; alwaysRunToEnd: true }
                         rotation: 0
                     }
                 }
@@ -194,7 +194,7 @@ ColumnLayout {
                     NumberAnimation on x {
                         running: root.installing
                         from: -parent.width * 0.3; to: parent.width
-                        duration: 1400; loops: Animation.Infinite
+                        duration: 1400 * Theme.anim.k; loops: Animation.Infinite
                         easing.type: Easing.InOutSine
                     }
                 }

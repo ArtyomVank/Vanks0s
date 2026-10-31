@@ -149,8 +149,6 @@ Singleton {
           pkgs: ["resources"] }
     ]
 
-    readonly property var store: ({ id: "store", pkgs: ["gnome-software", "flatpak"] })
-
     readonly property var tabs: [
         { id: "libs", title: I18n.tr("Библиотеки"), icon: "layers", items: libs },
         { id: "drivers", title: I18n.tr("Драйверы"), icon: "gpu", items: drivers },
@@ -200,7 +198,7 @@ Singleton {
         detect.running = true;
     }
     function checkInstalled() {
-        const all = libs.concat(drivers, apps, [store]).reduce((a, it) => a.concat(names(it)), []);
+        const all = libs.concat(drivers, apps).reduce((a, it) => a.concat(names(it)), []);
         query.command = ["sh", "-c", "pacman -Qq \"$@\" 2>/dev/null; exit 0", "sh"].concat(all.concat(vulkanForGames));
         query.running = true;
     }

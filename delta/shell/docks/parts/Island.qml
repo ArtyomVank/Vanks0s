@@ -81,8 +81,8 @@ Item {
     property bool morph: false
     property real aOpen: along
     property real cOpen: thick
-    Behavior on aOpen { enabled: root.rest; NumberAnimation { duration: 680; easing.type: Easing.OutBack; easing.overshoot: root.osMorph } }
-    Behavior on cOpen { enabled: root.rest; NumberAnimation { duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+    Behavior on aOpen { enabled: root.rest; NumberAnimation { duration: 680 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: root.osMorph } }
+    Behavior on cOpen { enabled: root.rest; NumberAnimation { duration: 520 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
     onAlongChanged: if (rest) {
         osMorph = overshootFor(aOpen - along);
         morph = true;
@@ -91,7 +91,7 @@ Item {
         const d = (along - aOpen) / Math.max(1, aOpen);
         jC.kick(-Math.max(-1.6, Math.min(1.6, d * 2.4)));
     }
-    Timer { id: morphTimer; interval: 720; onTriggered: root.morph = false }
+    Timer { id: morphTimer; interval: 720 * Theme.anim.k; onTriggered: root.morph = false }
 
     // Пружина с перелётом не больше ~20 px, чтобы длинная панель не вылезала за экран.
     // Пик перелёта OutBack: 4s³ / 27(s+1)² от расстояния.
@@ -268,7 +268,7 @@ Item {
         color: Qt.rgba(0, 0, 0, root.tiles ? 0 : 0.30)
         opacity: root.rest ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 220 } }
+        Behavior on opacity { NumberAnimation { duration: 220 * Theme.anim.k } }
     }
 
     // Панель всегда рисует жидкость: при выезде — капля и тело по t, в покое —
@@ -332,7 +332,7 @@ Item {
                 xScale: 1 + 0.5 * (root.vertical ? jC.value : jA.value)
                 yScale: 1 + 0.5 * (root.vertical ? jA.value : jC.value)
             }
-            Behavior on opacity { NumberAnimation { duration: holder.opacity < 0.5 ? 280 : 120; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: (holder.opacity < 0.5 ? 280 : 120) * Theme.anim.k; easing.type: Easing.OutCubic } }
         }
     }
 }

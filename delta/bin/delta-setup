@@ -10,6 +10,8 @@
 #                                поставить (root; помощник зовёт через pkexec,
 #                                пароль спрашивает окно polkit оболочки)
 #
+#   delta-setup remove <пакеты>  удалить (root; зовёт магазин Delta через pkexec)
+#
 # --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
 # рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
 #
@@ -222,12 +224,34 @@ cmd_install() {
     step "Готово"
 }
 
+# удаление из магазина Delta (delta-store): пакет с зависимостями, которые
+# больше никому не нужны (-Rns). То, без чего не работает система или Delta,
+# не трогаем; нужное другим пакетам pacman не удалит сам.
+PROTECTED=(delta base linux linux-zen linux-lts linux-firmware systemd pacman sudo grub efibootmgr
+    hyprland quickshell greetd mesa networkmanager pipewire wireplumber polkit flatpak)
+cmd_remove() {
+    [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup remove …"
+    local p q
+    for p in "$@"; do
+        [[ ${p} =~ ^[a-z0-9][a-z0-9@._+-]*$ ]] || die "странное имя пакета: ${p}"
+        for q in "${PROTECTED[@]}"; do [ "${p}" = "${q}" ] && die "${p} нужен системе — его удалять нельзя"; done
+    done
+    [ "$#" -gt 0 ] || die "не выбрано, что удалять"
+    trap '' HUP PIPE
+    : >"${LOG}" 2>/dev/null
+    wait_turn
+    step "Удаляю ${*}"
+    run pacman -Rns --noconfirm "$@" || die "Удалить не получилось"
+    step "Готово"
+}
+
 case "${1:-}" in
     detect) cmd_detect ;;
     install) shift; cmd_install "$@" ;;
+    remove) shift; cmd_remove "$@" ;;
     -h|--help|"")
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
-    *) die "неизвестная команда: $1 (detect | install)" ;;
+    *) die "неизвестная команда: $1 (detect | install | remove)" ;;
 esac

@@ -31,7 +31,7 @@ Rectangle {
     Component.onCompleted: appear.start()
     SequentialAnimation {
         id: appear
-        PauseAnimation { duration: 30 * root.index }
+        PauseAnimation { duration: (30 * root.index) * Theme.anim.k }
         ParallelAnimation {
             NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.anim.normal; easing.type: Easing.OutCubic }
             NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.anim.slow; easing.type: Easing.OutBack; easing.overshoot: 1.6 }

@@ -58,8 +58,8 @@ Rectangle {
             SequentialAnimation on opacity {
                 loops: Animation.Infinite
                 running: input.activeFocus
-                NumberAnimation { to: 0; duration: 500; easing.type: Easing.InQuad }
-                NumberAnimation { to: 1; duration: 500; easing.type: Easing.OutQuad }
+                NumberAnimation { to: 0; duration: 500 * Theme.anim.k; easing.type: Easing.InQuad }
+                NumberAnimation { to: 1; duration: 500 * Theme.anim.k; easing.type: Easing.OutQuad }
             }
         }
         onAccepted: if (!root.busy && text.length) root.submitted(text)
@@ -115,7 +115,7 @@ Rectangle {
             QtObject {
                 id: spin
                 property real a: 0
-                NumberAnimation on a { from: 0; to: Math.PI * 2; duration: 900; loops: Animation.Infinite; running: root.busy }
+                NumberAnimation on a { from: 0; to: Math.PI * 2; duration: 900 * Theme.anim.k; loops: Animation.Infinite; running: root.busy }
             }
         }
         HoverHandler { cursorShape: Qt.PointingHandCursor }

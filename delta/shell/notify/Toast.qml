@@ -243,7 +243,7 @@ Item {
             color: Theme.soft2
             opacity: hover.hovered ? 1 : 0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 150 * Theme.anim.k } }
             Sym { anchors.centerIn: parent; name: "close"; size: 12; color: Theme.fg2 }
             MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: { NotifyStore.dismiss(root.n); root.leave(); } }
         }

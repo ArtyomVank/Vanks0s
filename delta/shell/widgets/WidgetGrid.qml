@@ -330,10 +330,10 @@ Item {
         border.width: 2
         border.color: c
         readonly property color c: root.plan && !root.plan.ok ? Theme.accents[5] : Theme.accent
-        Behavior on x { NumberAnimation { duration: 120 } }
-        Behavior on y { NumberAnimation { duration: 120 } }
-        Behavior on width { NumberAnimation { duration: 120 } }
-        Behavior on height { NumberAnimation { duration: 120 } }
+        Behavior on x { NumberAnimation { duration: 120 * Theme.anim.k } }
+        Behavior on y { NumberAnimation { duration: 120 * Theme.anim.k } }
+        Behavior on width { NumberAnimation { duration: 120 * Theme.anim.k } }
+        Behavior on height { NumberAnimation { duration: 120 * Theme.anim.k } }
     }
 
     Repeater {

@@ -69,12 +69,12 @@ Scope {
                 opacity: win.here ? 1 : 0
                 scale: win.here ? 1 : 0.94
 
-                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 180 } }
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+                Behavior on x { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                Behavior on y { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                Behavior on height { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: 180 * Theme.anim.k } }
+                Behavior on scale { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack } }
 
                 // стеклянный блик сверху и мягкое свечение по краю
                 Rectangle {
@@ -96,8 +96,8 @@ Scope {
                     SequentialAnimation on opacity {
                         running: win.here
                         loops: Animation.Infinite
-                        NumberAnimation { from: 0.4; to: 1; duration: 700; easing.type: Easing.InOutSine }
-                        NumberAnimation { from: 1; to: 0.4; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 0.4; to: 1; duration: 700 * Theme.anim.k; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 1; to: 0.4; duration: 700 * Theme.anim.k; easing.type: Easing.InOutSine }
                     }
                 }
             }

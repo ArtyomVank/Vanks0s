@@ -60,17 +60,17 @@ Item {
 
     SequentialAnimation {
         id: appear
-        PauseAnimation { duration: 90 }
+        PauseAnimation { duration: 90 * Theme.anim.k }
         ParallelAnimation {
             SequentialAnimation {
-                PauseAnimation { duration: 120 }
+                PauseAnimation { duration: 120 * Theme.anim.k }
                 ScriptAction { script: { spark.burst(); Sounds.play("sparkle", 0); } }
                 NumberAnimation { target: badge; property: "scale"; to: 1; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 2.6 }
             }
             NumberAnimation { target: head; property: "y"; to: 0; duration: 620; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
             NumberAnimation { target: head; property: "opacity"; to: 1; duration: 380; easing.type: Easing.OutCubic }
             SequentialAnimation {
-                PauseAnimation { duration: 110 }
+                PauseAnimation { duration: 110 * Theme.anim.k }
                 ParallelAnimation {
                     NumberAnimation { target: bodyShift; property: "y"; to: 0; duration: 680; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
                     NumberAnimation { target: body; property: "opacity"; to: 1; duration: 420; easing.type: Easing.OutCubic }

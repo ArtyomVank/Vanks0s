@@ -22,7 +22,7 @@ Item {
     // у полукруга концы с круглыми колпачками должны влезть снизу
     readonly property real r: half ? Math.min(width / 2, height - stroke / 2) - stroke / 2 : (d - stroke) / 2
     property real shown: Math.max(0, Math.min(100, value))
-    Behavior on shown { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on shown { NumberAnimation { duration: 800 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
     Shape {
         anchors.fill: parent

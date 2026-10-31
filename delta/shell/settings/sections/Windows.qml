@@ -10,7 +10,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Окна")
     property string icon: "windows"
-    property string keywords: "отступы рамка скругление размытие анимации желе сворачивание кнопки заголовок"
+    property string keywords: "скорость анимаций быстрее медленнее отступы рамка скругление размытие анимации желе сворачивание кнопки заголовок"
     spacing: 18
 
     readonly property var w: Settings.s.windows || ({})
@@ -87,6 +87,17 @@ ColumnLayout {
             title: I18n.tr("Анимации окон")
             subtitle: I18n.tr("Окна и столы двигаются плавно")
             Toggle { checked: root.w.animations ?? true; onToggled: v => Settings.set("windows.animations", v) }
+        }
+        // множитель длительности: меньше — быстрее (Theme.anim.k, delta-apply)
+        SliderRow {
+            readonly property var speeds: [0.3, 0.5, 1, 2, 4]
+            icon: "gauge"
+            title: I18n.tr("Скорость анимаций")
+            subtitle: I18n.tr("Длительность анимаций окон и оболочки: меньше — быстрее")
+            from: 0; to: 4; step: 1
+            value: Math.max(0, speeds.indexOf(Number(Settings.get("windows.animSpeed", 1))))
+            format: v => String(speeds[Math.round(v)]).replace(".", ",") + "x"
+            onCommit: v => Settings.set("windows.animSpeed", speeds[Math.round(v)])
         }
         SettingRow {
             icon: "windows"

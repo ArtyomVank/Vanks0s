@@ -45,10 +45,10 @@ Item {
     z: dragging || resizing ? 10 : selected ? 2 : 1
 
     // перенос и смена размера — с пружинкой, как в концепте; за пальцем — без анимации
-    Behavior on x { enabled: !root.dragging; NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on y { enabled: !root.dragging; NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on width { NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on height { NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on x { enabled: !root.dragging; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on y { enabled: !root.dragging; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on width { NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on height { NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
 
     // цвета содержимого: на стекле — тема, без подложки и на блокировке — белые с тенью
     readonly property QtObject pal: QtObject {
@@ -86,8 +86,8 @@ Item {
         SequentialAnimation on rotation {
             running: root.editing && !root.dragging && !root.resizing
             loops: Animation.Infinite
-            NumberAnimation { from: -1.4; to: 1.4; duration: 340; easing.type: Easing.InOutSine }
-            NumberAnimation { from: 1.4; to: -1.4; duration: 340; easing.type: Easing.InOutSine }
+            NumberAnimation { from: -1.4; to: 1.4; duration: 340 * Theme.anim.k; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 1.4; to: -1.4; duration: 340 * Theme.anim.k; easing.type: Easing.InOutSine }
             onRunningChanged: if (!running) frame.rotation = 0
         }
 

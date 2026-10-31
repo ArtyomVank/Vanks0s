@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Delta Box
+Comment=One Windows system for all your programs: add a folder and pick what starts it
+Comment[ru]=Одна система Windows для всех программ: добавьте папку и выберите, что её запускает
+Exec=delta-box
+Icon=wine
+Terminal=false
+Categories=Utility;Wine;
+Keywords=wine;proton;exe;windows;prefix;box;префикс;
+StartupWMClass=delta-box

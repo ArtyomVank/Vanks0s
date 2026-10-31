@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.common
 import qs.common.ui
 import qs.settings
@@ -17,7 +18,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Рекомендации")
     property string icon: "gamepad"
-    property string keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер"
+    property string keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс"
     spacing: 18
 
     // .exe: запомненные «всегда обычно» и «всегда через лаунчер»
@@ -78,6 +79,61 @@ ColumnLayout {
                 }
             }
             Btn { text: I18n.tr("Открыть"); kind: "accent"; icon: "arrow-right"; onClicked: root.openWelcome("") }
+        }
+    }
+
+    // --- магазины и Delta Box ---
+    // второй магазин — Bazaar с Flathub (быстрый магазин Flatpak); стоит ли он — flatpak info
+    readonly property string flatpakStore: "io.github.kolunmi.Bazaar"
+    property bool flatpakStoreInstalled: false
+    property string flatpakStoreStep: ""
+    Process {
+        id: fpCheck
+        running: true
+        command: ["flatpak", "info", root.flatpakStore]
+        onExited: code => root.flatpakStoreInstalled = code === 0
+    }
+    Process {
+        id: fpInstall
+        command: ["delta-store", "install", "flatpak", root.flatpakStore]
+        stdout: SplitParser { onRead: line => { if (line.startsWith("::step:: ")) root.flatpakStoreStep = line.slice(9); } }
+        onExited: code => {
+            root.flatpakStoreStep = code === 0 ? "" : I18n.tr("Не получилось — попробуйте ещё раз");
+            if (code === 0) Nav.toast(I18n.tr("Flatpak магазин установлен"));
+            fpCheck.running = true;
+        }
+    }
+
+    Card {
+        title: I18n.tr("Магазины и программы Windows")
+        Rows {
+            SettingRow {
+                icon: "store"
+                title: I18n.tr("Магазин")
+                subtitle: I18n.tr("Магазин Delta: пакеты Arch и приложения Flathub в одном окне — быстрый поиск и установка в один щелчок")
+                Btn { text: I18n.tr("Открыть"); kind: "accent"; icon: "arrow-right"; onClicked: { Quickshell.execDetached(["delta-store"]); Nav.closeRequested(); } }
+            }
+            SettingRow {
+                icon: "apps"
+                title: I18n.tr("Flatpak магазин")
+                subtitle: root.flatpakStoreStep !== "" ? root.flatpakStoreStep
+                    : I18n.tr("Bazaar — магазин только для Flathub: подборки, обновления и права приложений Flatpak")
+                Btn {
+                    text: root.flatpakStoreInstalled ? I18n.tr("Открыть") : fpInstall.running ? I18n.tr("Ставится…") : I18n.tr("Установить")
+                    icon: root.flatpakStoreInstalled ? "arrow-right" : "download"
+                    enabled: !fpInstall.running
+                    onClicked: {
+                        if (root.flatpakStoreInstalled) { Quickshell.execDetached(["flatpak", "run", root.flatpakStore]); Nav.closeRequested(); }
+                        else { root.flatpakStoreStep = I18n.tr("Готовлю установку"); fpInstall.running = true; }
+                    }
+                }
+            }
+            SettingRow {
+                icon: "windows"
+                title: "Delta Box"
+                subtitle: I18n.tr("Одна система Windows для всех программ: добавьте папку с программой или игрой, выберите файл запуска — и она в меню")
+                Btn { text: I18n.tr("Открыть"); icon: "arrow-right"; onClicked: { Quickshell.execDetached(["delta-box"]); Nav.closeRequested(); } }
+            }
         }
     }
 

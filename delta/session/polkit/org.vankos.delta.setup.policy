@@ -5,10 +5,10 @@
 <policyconfig>
   <vendor>Vanks OS</vendor>
   <action id="org.vankos.delta.setup">
-    <description>Install recommended software</description>
-    <description xml:lang="ru">Установить рекомендованные программы и драйверы</description>
-    <message>Authentication is required to install software and drivers</message>
-    <message xml:lang="ru">Чтобы установить программы и драйверы, нужен пароль администратора.</message>
+    <description>Install or remove software</description>
+    <description xml:lang="ru">Установить или удалить программы и драйверы</description>
+    <message>Authentication is required to install or remove software and drivers</message>
+    <message xml:lang="ru">Чтобы установить или удалить программы и драйверы, нужен пароль администратора.</message>
     <icon_name>system-software-install</icon_name>
     <defaults>
       <allow_any>no</allow_any>

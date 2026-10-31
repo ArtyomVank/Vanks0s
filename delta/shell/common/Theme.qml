@@ -196,14 +196,21 @@ Singleton {
     readonly property string fontMono: pickFont(["JetBrains Mono", "Adwaita Mono", "Noto Sans Mono", "monospace"])
 
     // Анимации: длительности в мс и кривые, общие для всех модулей.
+    // k — «Скорость анимаций» (windows.animSpeed: 0.3, 0.5, 1, 2, 4; меньше —
+    // быстрее): множитель всех длительностей оболочки (duration: N * Theme.anim.k)
+    // и анимаций Hyprland (delta-apply).
     readonly property QtObject anim: QtObject {
-        readonly property int fast: 160
-        readonly property int normal: 280
-        readonly property int slow: 460
+        readonly property real k: {
+            const v = Number(Settings.get("windows.animSpeed", 1));
+            return [0.3, 0.5, 1, 2, 4].indexOf(v) !== -1 ? v : 1;
+        }
+        readonly property int fast: Math.round(160 * k)
+        readonly property int normal: Math.round(280 * k)
+        readonly property int slow: Math.round(460 * k)
         // круг появляется у края
-        readonly property int drop: 220
+        readonly property int drop: Math.round(220 * k)
         // круг растягивается в панель
-        readonly property int stretch: 420
+        readonly property int stretch: Math.round(420 * k)
         readonly property int outCurve: Easing.OutCubic
         readonly property int inOutCurve: Easing.InOutCubic
         readonly property int springCurve: Easing.OutBack

@@ -21,7 +21,7 @@ Item {
 
     // 0 — черты нет, 1 — перечёркнут
     property real slash: muted ? 1 : 0
-    Behavior on slash { enabled: !root.instant; NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+    Behavior on slash { enabled: !root.instant; NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
     // звон — при каждой смене (и туда, и обратно)
     onMutedChanged: if (!instant) ring.restart()

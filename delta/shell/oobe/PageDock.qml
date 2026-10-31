@@ -63,10 +63,10 @@ Page {
                                     SequentialAnimation on y {
                                         running: style.selected
                                         loops: Animation.Infinite
-                                        PauseAnimation { duration: 80 * tileBar.index }
-                                        NumberAnimation { to: -2; duration: 420; easing.type: Easing.InOutSine }
-                                        NumberAnimation { to: 0; duration: 420; easing.type: Easing.InOutSine }
-                                        PauseAnimation { duration: 900 }
+                                        PauseAnimation { duration: (80 * tileBar.index) * Theme.anim.k }
+                                        NumberAnimation { to: -2; duration: 420 * Theme.anim.k; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 0; duration: 420 * Theme.anim.k; easing.type: Easing.InOutSine }
+                                        PauseAnimation { duration: 900 * Theme.anim.k }
                                     }
                                 }
                             }

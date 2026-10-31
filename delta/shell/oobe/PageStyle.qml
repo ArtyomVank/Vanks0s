@@ -46,7 +46,7 @@ Page {
                     }
                     SequentialAnimation {
                         id: enter
-                        PauseAnimation { duration: 260 + card.index * 110 }
+                        PauseAnimation { duration: (260 + card.index * 110) * Theme.anim.k }
                         ParallelAnimation {
                             NumberAnimation { target: card; property: "opacity"; to: 1; duration: 360; easing.type: Easing.OutCubic }
                             NumberAnimation { target: shift; property: "y"; to: 0; duration: 620; easing.type: Easing.OutBack; easing.overshoot: 1.6 }

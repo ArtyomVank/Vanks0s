@@ -23,8 +23,8 @@ Glass {
     opacity: !shown ? 0 : grid.drag ? 0.25 : 1
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Theme.anim.normal } }
-    Behavior on y { NumberAnimation { duration: 450; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
-    Behavior on implicitHeight { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+    Behavior on y { NumberAnimation { duration: 450 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
+    Behavior on implicitHeight { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
     readonly property string place: grid.place
     readonly property var it: grid.sel ? grid.find(grid.sel) : null
@@ -89,9 +89,9 @@ Glass {
                      : tap.containsMouse ? Theme.soft2 : Theme.soft
                 border.width: current ? 1.5 : 1
                 border.color: current ? Theme.accent : Theme.line
-                Behavior on color { ColorAnimation { duration: 160 } }
+                Behavior on color { ColorAnimation { duration: 160 * Theme.anim.k } }
                 scale: tap.pressed ? 0.94 : 1
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 2 } }
+                Behavior on scale { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
 
                 Column {
                     anchors.centerIn: parent

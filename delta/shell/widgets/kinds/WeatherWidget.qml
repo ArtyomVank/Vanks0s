@@ -147,8 +147,8 @@ Base {
                     SequentialAnimation on rotation {
                         running: root.visible && root.lock
                         loops: Animation.Infinite
-                        NumberAnimation { from: -4; to: 4; duration: 2600; easing.type: Easing.InOutSine }
-                        NumberAnimation { from: 4; to: -4; duration: 2600; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: -4; to: 4; duration: 2600 * Theme.anim.k; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 4; to: -4; duration: 2600 * Theme.anim.k; easing.type: Easing.InOutSine }
                     }
                 }
             }

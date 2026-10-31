@@ -108,9 +108,9 @@ Scope {
     }
 
     // концепт: 820 мс, кольцо доигрывает чуть дольше уже на рабочем столе
-    Timer { id: finishTimer; interval: 840; onTriggered: root.finishUnlock() }
+    Timer { id: finishTimer; interval: 840 * Theme.anim.k; onTriggered: root.finishUnlock() }
     // фон блокировки начинает таять на 420 мс — рабочий стол проступает чуть раньше
-    Timer { id: revealTimer; interval: 360; onTriggered: if (root.unlocking) ShellState.desktopShown = true }
+    Timer { id: revealTimer; interval: 360 * Theme.anim.k; onTriggered: if (root.unlocking) ShellState.desktopShown = true }
     Timer { id: xrayOff; interval: 900; onTriggered: if (!root.unlocking) root.setXray(false) }
 
     function setXray(on) {

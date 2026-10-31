@@ -33,7 +33,7 @@ Item {
     readonly property int waves: Math.max(8, Math.round(2 * Math.PI * r / (stroke * 5)))
 
     property real shown: Math.max(0, Math.min(100, value))
-    Behavior on shown { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on shown { NumberAnimation { duration: 800 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
     property real phase: 0
     NumberAnimation on phase {

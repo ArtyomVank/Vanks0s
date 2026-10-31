@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Store
+Name[ru]=Магазин
+Comment=Arch packages and Flathub apps in one place
+Comment[ru]=Пакеты Arch и приложения Flathub в одном месте
+Exec=delta-store
+Icon=system-software-install
+Terminal=false
+Categories=System;PackageManager;
+Keywords=store;apps;install;flatpak;flathub;pacman;магазин;приложения;
+StartupWMClass=delta-store

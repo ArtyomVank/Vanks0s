@@ -81,8 +81,8 @@ PanelWindow {
             : win.anchorRect.y + win.anchorRect.h / 2 - y
         onClosed: win.finished()
         // переход между меню соседних модулей — карточка переезжает пружиной
-        Behavior on x { enabled: blob.stage === 3; NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
-        Behavior on y { enabled: blob.stage === 3; NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+        Behavior on x { enabled: blob.stage === 3; NumberAnimation { duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+        Behavior on y { enabled: blob.stage === 3; NumberAnimation { duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
     }
 
     HyprlandFocusGrab {

@@ -62,8 +62,8 @@ Base {
             readonly property real cy: arc.y + arc.height - arc.stroke / 2 - Math.sin(a) * r * (root.day ? 1 : 0.55)
             width: Math.max(14, arc.width * 0.14); height: width
             x: cx - width / 2; y: cy - height / 2
-            Behavior on x { NumberAnimation { duration: 900; easing.type: Easing.OutCubic } }
-            Behavior on y { NumberAnimation { duration: 900; easing.type: Easing.OutCubic } }
+            Behavior on x { NumberAnimation { duration: 900 * Theme.anim.k; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: 900 * Theme.anim.k; easing.type: Easing.OutCubic } }
 
             // мягкое свечение, дышит
             Rectangle {
@@ -75,8 +75,8 @@ Base {
                 SequentialAnimation on scale {
                     loops: Animation.Infinite
                     running: root.visible
-                    NumberAnimation { from: 0.85; to: 1.1; duration: 1800; easing.type: Easing.InOutSine }
-                    NumberAnimation { from: 1.1; to: 0.85; duration: 1800; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 0.85; to: 1.1; duration: 1800 * Theme.anim.k; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 1.1; to: 0.85; duration: 1800 * Theme.anim.k; easing.type: Easing.InOutSine }
                 }
             }
             Sym {

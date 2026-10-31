@@ -100,7 +100,7 @@ Scope {
                             radius: 2
                             color: Theme.accent
                             width: parent.width * Math.max(0, Displays.countdown) / Displays.timeout
-                            Behavior on width { NumberAnimation { duration: 1000; easing.type: Easing.Linear } }
+                            Behavior on width { NumberAnimation { duration: 1000 * Theme.anim.k; easing.type: Easing.Linear } }
                         }
                     }
 

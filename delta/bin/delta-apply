@@ -51,6 +51,8 @@ lua=$(jq -r '
   def num($d): if type == "number" then . elif type == "string" then (tonumber? // $d) else $d end;
   def int($d): num($d) | floor;
   def bool($d): if type == "boolean" then . else $d end;
+  # «Скорость анимаций» (windows.animSpeed): множитель длительности, меньше — быстрее
+  def sp($v): ($v * (.windows.animSpeed | num(1) | if IN(0.3, 0.5, 1, 2, 4) then . else 1 end) * 100 | round / 100);
   def clamp($lo; $hi): if . < $lo then $lo elif . > $hi then $hi else . end;
   def kv($k; $v): "\($k) = \($v)";
 
@@ -152,16 +154,26 @@ lua=$(jq -r '
   # Кривые повторены здесь, чтобы файл проходил проверку и сам по себе.
   "hl.curve(\"deltaSoft\",  { type = \"spring\", mass = 1, stiffness = 180, dampening = 20 })",
   "hl.curve(\"deltaInOut\", { type = \"bezier\", points = { {0.65, 0.05}, {0.36, 1} } })",
-  ((.windows.openAnim // "popin") as $a
+  "hl.curve(\"deltaOut\",   { type = \"bezier\", points = { {0.22, 1}, {0.36, 1} } })",
+  "hl.curve(\"deltaSpring\",{ type = \"spring\", mass = 1, stiffness = 260, dampening = 22 })",
+  # остальные анимации — как в hyprland.lua, со скоростью из настроек
+  "hl.animation({ leaf = \"global\",     enabled = true, speed = \(sp(8)), bezier = \"deltaOut\" })",
+  "hl.animation({ leaf = \"border\",     enabled = true, speed = \(sp(5)), bezier = \"deltaOut\" })",
+  "hl.animation({ leaf = \"windows\",    enabled = true, speed = \(sp(5)), spring = \"deltaSpring\" })",
+  "hl.animation({ leaf = \"fadeIn\",     enabled = true, speed = \(sp(1.8)), bezier = \"deltaOut\" })",
+  "hl.animation({ leaf = \"fadeOut\",    enabled = true, speed = \(sp(1.5)), bezier = \"deltaOut\" })",
+  "hl.animation({ leaf = \"workspaces\", enabled = true, speed = \(sp(3)), spring = \"deltaSpring\", style = \"slide\" })",
+  "hl.animation({ leaf = \"layers\",     enabled = true, speed = \(sp(3)), bezier = \"deltaOut\", style = \"fade\" })",
+  . as $cfg | ((.windows.openAnim // "popin") as $a
    | { popin: ["popin 80%", "popin 85%"], slide: ["slide", "slide"], fade: ["popin 100%", "popin 100%"] }[$a]
      // ["popin 80%", "popin 85%"]
-   | "hl.animation({ leaf = \"windowsIn\",  enabled = true, speed = 4.2, spring = \"deltaSoft\",  style = \(.[0] | @json) })",
-     "hl.animation({ leaf = \"windowsOut\", enabled = true, speed = 1.6, bezier = \"deltaInOut\", style = \(.[1] | @json) })"),
+   | "hl.animation({ leaf = \"windowsIn\",  enabled = true, speed = \($cfg | sp(4.2)), spring = \"deltaSoft\",  style = \(.[0] | @json) })",
+     "hl.animation({ leaf = \"windowsOut\", enabled = true, speed = \($cfg | sp(1.6)), bezier = \"deltaInOut\", style = \(.[1] | @json) })"),
   "",
   # «Желе» рисует оболочка (window/Jelly.qml): окно идёт за курсором без
   # задержки, а копия поверх гнётся. Перемещение окна — плавная кривая без
   # пружины, она же при прилипании к краю и разворачивании.
-  "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = 4.5, bezier = \"deltaInOut\" })",
+  "hl.animation({ leaf = \"windowsMove\", enabled = true, speed = \(sp(4.5)), bezier = \"deltaInOut\" })",
   "hl.config({ misc = { animate_mouse_windowdragging = false, animate_manual_resizes = false } })",
   # прилипание к краям и отступы для него — hyprland.lua, «ПЕРЕТАСКИВАНИЕ»
   "delta_drag = delta_drag or {}",

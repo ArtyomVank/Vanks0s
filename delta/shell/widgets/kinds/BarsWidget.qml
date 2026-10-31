@@ -36,7 +36,7 @@ Base {
             y: root.height - height
             color: root.pal.c1
             opacity: 0.32 + 0.68 * Math.min(1, v * 1.4)
-            Behavior on height { NumberAnimation { duration: 70 } }
+            Behavior on height { NumberAnimation { duration: 70 * Theme.anim.k } }
         }
     }
 

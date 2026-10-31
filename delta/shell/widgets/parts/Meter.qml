@@ -18,6 +18,6 @@ Rectangle {
         radius: parent.radius
         width: Math.max(parent.value > 0 ? height : 0, parent.width * Math.max(0, Math.min(100, root.value)) / 100)
         color: root.fill
-        Behavior on width { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: 800 * Theme.anim.k; easing.type: Easing.OutCubic } }
     }
 }

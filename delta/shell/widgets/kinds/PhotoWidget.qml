@@ -58,7 +58,7 @@ Base {
             sourceSize: back.sourceSize
             source: root.url(root.current)
             onStatusChanged: if (status === Image.Ready) fade.restart()
-            NumberAnimation on opacity { id: fade; from: 0; to: 1; duration: 900; easing.type: Easing.InOutQuad; running: false
+            NumberAnimation on opacity { id: fade; from: 0; to: 1; duration: 900 * Theme.anim.k; easing.type: Easing.InOutQuad; running: false
                 onFinished: back.source = front.source }
         }
 

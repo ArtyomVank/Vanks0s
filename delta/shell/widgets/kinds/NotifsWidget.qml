@@ -160,9 +160,9 @@ Base {
                 y: row.inStack ? row.index * root.peek : row.index * (root.rowH + root.gap)
                 scale: row.inStack ? 1 - row.index * 0.06 : 1
                 opacity: (row.live ? (row.inStack ? 1 - row.index * 0.22 : 1) : 0) * row.enter
-                Behavior on y { NumberAnimation { duration: 420 + row.index * 45; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-                Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 260 } }
+                Behavior on y { NumberAnimation { duration: (420 + row.index * 45) * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                Behavior on scale { NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: 260 * Theme.anim.k } }
 
                 // въезжают по очереди
                 property real enter: 0
@@ -172,7 +172,7 @@ Base {
                     id: rowIn
                     NumberAnimation { target: row; property: "enter"; to: 1; duration: 380; easing.type: Easing.OutCubic }
                     SequentialAnimation {
-                        PauseAnimation { duration: 60 * row.index }
+                        PauseAnimation { duration: (60 * row.index) * Theme.anim.k }
                         NumberAnimation { target: rowShift; property: "x"; to: 0; duration: 560; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
                     }
                 }
@@ -181,7 +181,7 @@ Base {
                     anchors.fill: parent
                     // у нижних карточек стопки видна только кромка
                     opacity: row.inStack && row.index > 0 ? 0 : 1
-                    Behavior on opacity { NumberAnimation { duration: 220 } }
+                    Behavior on opacity { NumberAnimation { duration: 220 * Theme.anim.k } }
 
                     // значок приложения: первая буква на своём цвете
                     Rectangle {

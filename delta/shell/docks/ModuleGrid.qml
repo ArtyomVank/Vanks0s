@@ -146,8 +146,8 @@ Item {
                 target: ShellState
                 function onDockPoked(dockId, strength) { if (dockId === "top") cj.kick(0.9 * strength); }
             }
-            Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on x { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on width { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
         }
     }
 
@@ -224,10 +224,10 @@ Item {
             width: grid.vertical ? grid.thick : size
             height: grid.vertical ? size : grid.thick
             z: dragging || resizing ? 5 : 1
-            Behavior on x { enabled: !slot.dragging; NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
-            Behavior on y { enabled: !slot.dragging; NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
-            Behavior on width { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-            Behavior on height { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on x { enabled: !slot.dragging; NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+            Behavior on y { enabled: !slot.dragging; NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+            Behavior on width { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on height { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
 
             readonly property bool tiles: grid.length === "tiles"
             readonly property real btnAcross: tiles ? (grid.compact ? 32 : 40) : (grid.thick < 46 ? 30 : 36)
@@ -304,7 +304,7 @@ Item {
                     radius: Math.min(width, height) / 2
                     color: Theme.soft2
                     opacity: slot.menuOpen || (area.containsMouse && !grid.editing) ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                    Behavior on opacity { NumberAnimation { duration: 200 * Theme.anim.k } }
                 }
 
                 Loader {
@@ -324,12 +324,12 @@ Item {
                 SequentialAnimation on rotation {
                     running: grid.editing && !slot.dragging
                     loops: Animation.Infinite
-                    PauseAnimation { duration: Math.max(0, (slot.index * 70) % 300) }
+                    PauseAnimation { duration: (Math.max(0, (slot.index * 70) % 300)) * Theme.anim.k }
                     SequentialAnimation {
                         loops: Animation.Infinite
-                        NumberAnimation { to: -1.4; duration: 160; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 1.4; duration: 320; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 0; duration: 160; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: -1.4; duration: 160 * Theme.anim.k; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.4; duration: 320 * Theme.anim.k; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 0; duration: 160 * Theme.anim.k; easing.type: Easing.InOutSine }
                     }
                     onRunningChanged: if (!running) btn.rotation = 0
                 }

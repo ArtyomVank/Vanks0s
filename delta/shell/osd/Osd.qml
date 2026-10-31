@@ -160,7 +160,7 @@ Scope {
                             height: parent.height
                             radius: 4
                             color: root.muted ? Theme.fg3 : Theme.accent
-                            Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                            Behavior on width { NumberAnimation { duration: 250 * Theme.anim.k; easing.type: Easing.OutCubic } }
                         }
                     }
                     Label {

@@ -70,14 +70,14 @@ Scope {
             visible: opacity > 0
             Behavior on opacity {
                 SequentialAnimation {
-                    PauseAnimation { duration: ShellState.desktopShown ? 90 : 0 }
-                    NumberAnimation { duration: ShellState.desktopShown ? 520 : 260; easing.type: Easing.OutCubic }
+                    PauseAnimation { duration: (ShellState.desktopShown ? 90 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (ShellState.desktopShown ? 520 : 260) * Theme.anim.k; easing.type: Easing.OutCubic }
                 }
             }
             Behavior on scale {
                 SequentialAnimation {
-                    PauseAnimation { duration: ShellState.desktopShown ? 90 : 0 }
-                    NumberAnimation { duration: ShellState.desktopShown ? 760 : 260; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
+                    PauseAnimation { duration: (ShellState.desktopShown ? 90 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (ShellState.desktopShown ? 760 : 260) * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
                 }
             }
         }

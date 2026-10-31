@@ -209,7 +209,7 @@ Item {
         color: Qt.rgba(0, 0, 0, 0.38)
         opacity: root.rest ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on opacity { NumberAnimation { duration: 200 * Theme.anim.k } }
     }
 
     // жидкость рисуется в рамке, охватывающей и карточку, и источник
@@ -268,7 +268,7 @@ Item {
             opacity: root.open && root.t > 0.86 ? 1 : 0
             // открытое окно должно уметь взять фокус ещё до конца анимации
             visible: opacity > 0 || root.open
-            Behavior on opacity { NumberAnimation { duration: inner.opacity < 0.5 ? 260 : 90; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: (inner.opacity < 0.5 ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic } }
         }
     }
 }

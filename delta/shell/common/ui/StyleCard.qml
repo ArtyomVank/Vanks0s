@@ -24,7 +24,7 @@ Rectangle {
     border.color: sel ? Theme.accent : Theme.line
     Behavior on border.color { ColorAnimation { duration: Theme.anim.fast } }
     scale: tap.pressed ? 0.97 : 1
-    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+    Behavior on scale { NumberAnimation { duration: 140 * Theme.anim.k; easing.type: Easing.OutBack } }
 
     // панели сцены: цвет и прозрачность — как у стиля
     // (Material You — сплошные, в оттенке обоев, крупно скруглённые)

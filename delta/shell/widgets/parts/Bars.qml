@@ -39,7 +39,7 @@ Item {
                     radius: Math.min(width / 2, 3 * width / 8)
                     color: root.color
                     opacity: 0.85
-                    Behavior on height { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
+                    Behavior on height { NumberAnimation { duration: 800 * Theme.anim.k; easing.type: Easing.OutCubic } }
                 }
             }
         }

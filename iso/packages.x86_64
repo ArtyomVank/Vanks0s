@@ -70,6 +70,8 @@ greetd-agreety
 kitty
 nautilus
 zenity
+# магазин Delta: приложения Flathub (сам Flathub подключается из магазина)
+flatpak
 gnome-disk-utility
 gvfs
 gvfs-mtp

@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Delta Box — одна система Windows (общий префикс) для программ из папок.
+#
+#   delta-box                     окно: все программы Box, добавить папку
+#   delta-box --list              то же для окна (JSON)
+#   delta-box --import <папка>    скопировать папку в C:\Program Files\<имя>
+#                                 (JSON: имя и найденные .exe)
+#   delta-box --exes <имя>        .exe программы, самые большие первыми (JSON)
+#   delta-box --set <имя> <exe>   чем её запускать (и ярлык в меню приложений)
+#   delta-box --run <имя>         запустить программу
+#   delta-box --file <exe>        запустить любой файл внутри Box
+#   delta-box --install <файл>    установщик — в Box, ярлыки его программ в меню
+#   delta-box --remove <имя>      удалить копию программы из Box (оригинал цел)
+#
+# Box — обычный префикс лаунчера «delta-box» (~/.local/share/delta/prefixes):
+# раннер (Авто — самый свежий Proton CachyOS, или Wine), настройки Wine и
+# запуск — те же, что у delta-exe. Программы лежат в его C:\Program Files и
+# видят друг друга, общие библиотеки и настройки. Список — в .delta-box.json
+# префикса: имя папки → exe. Система Windows создаётся при первом запуске.
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_BOX_ENTRY:-${SHELL_DIR}/box-app.qml}
+DATA=${XDG_DATA_HOME:-${HOME}/.local/share}/delta
+APPS=${XDG_DATA_HOME:-${HOME}/.local/share}/applications
+NAME=delta-box
+BOX=${DATA}/prefixes/${NAME}
+DB=${BOX}/.delta-box.json
+EXE=${DELTA_EXE:-delta-exe}
+
+say() { notify-send -a "Delta Box" -i applications-games "$@" 2>/dev/null || printf '%s\n' "$*" >&2; }
+fail() { jq -n --arg e "$1" '{ error: $e }'; exit 1; }
+
+# C: — у Proton напрямую внутри pfx, у umu и Wine — сам префикс. До первого
+# запуска системы ещё нет: папка drive_c в корне — и все раннеры кладут
+# систему туда же (Proton видит её через ссылку pfx → .)
+drive_c() { if [ -d "${BOX}/pfx/drive_c" ]; then echo "${BOX}/pfx/drive_c"; else echo "${BOX}/drive_c"; fi; }
+programs() { printf '%s/Program Files\n' "$(drive_c)"; }
+
+db() { [ -s "${DB}" ] && cat -- "${DB}" || echo '{"apps":{}}'; }
+db_write() {  # фильтр jq и его аргументы
+    local f=$1; shift
+    db | jq "$@" "${f}" >"${DB}.new" && mv -- "${DB}.new" "${DB}"
+}
+# только имена папок Box: без «/», не «.» и «..», есть в списке
+check_name() {
+    case "$1" in ""|.|..|*/*) echo "delta-box: неверное имя" >&2; exit 2 ;; esac
+    db | jq -e --arg n "$1" '.apps | has($n)' >/dev/null || { echo "delta-box: нет программы «$1»" >&2; exit 1; }
+}
+# ярлыки delta-exe этого префикса: «файл<TAB>exe»
+desktops() {
+    local d
+    for d in "${APPS}"/delta-exe-"${NAME}"-*.desktop; do
+        [ -f "${d}" ] && grep -qx "X-Delta-Prefix=${NAME}" "${d}" || continue
+        printf '%s\t%s\n' "${d}" "$(sed -n 's/^X-Delta-Exe=//p' "${d}" | head -n1)"
+    done
+}
+desktop_value() { sed -n "s/^$2=//p" "$1" | head -n1; }
+
+list_json() {
+    local pf apps others d exe
+    mkdir -p "${BOX}"
+    pf=$(programs)
+    apps=$(db | jq -c '.apps | to_entries[]' | while IFS= read -r e; do
+        local n x icon="" desk=""
+        n=$(jq -r .key <<<"${e}")
+        x=$(jq -r '.value.exe // ""' <<<"${e}")
+        [ -d "${pf}/${n}" ] || continue
+        if [ -n "${x}" ]; then
+            while IFS=$'\t' read -r d exe; do
+                [ "${exe}" = "${x}" ] && { desk=${d}; icon=$(desktop_value "${d}" Icon); break; }
+            done < <(desktops)
+        fi
+        jq -n --arg name "${n}" --arg dir "${pf}/${n}" --arg exe "${x}" --arg icon "${icon}" \
+            --arg desktop "${desk}" --argjson added "$(jq '.value.added // 0' <<<"${e}")" \
+            '{ name: $name, title: $name, dir: $dir, exe: $exe, icon: $icon, desktop: $desktop, added: $added }'
+    done | jq -s 'sort_by(.title | ascii_downcase)')
+    # поставленные установщиком прямо в Box: их ярлыки, кроме импортированных
+    others=$(desktops | while IFS=$'\t' read -r d exe; do
+        jq -e --arg x "${exe}" 'any(.[]; .exe == $x)' <<<"${apps}" >/dev/null && continue
+        jq -n --arg title "$(desktop_value "${d}" Name)" --arg exe "${exe}" \
+            --arg icon "$(desktop_value "${d}" Icon)" --arg desktop "${d}" \
+            '{ name: "", title: $title, dir: "", exe: $exe, icon: $icon, desktop: $desktop, added: 0 }'
+    done | jq -s 'sort_by(.title | ascii_downcase)')
+    jq -n --argjson apps "${apps}" --argjson others "${others}" \
+        --argjson runners "$("${EXE}" --runners 2>/dev/null || echo '{"protons":[],"wine":false,"umu":false}')" \
+        --arg runner "$(head -n1 "${BOX}/.delta-runner" 2>/dev/null || echo auto)" \
+        --arg size "$(du -sh -- "${BOX}" 2>/dev/null | cut -f1)" \
+        --arg path "${BOX}" --arg drive "$(drive_c)" \
+        --argjson ready "$([ -f "${BOX}/system.reg" ] || [ -f "${BOX}/pfx/system.reg" ] && echo true || echo false)" \
+        '{ apps: $apps, others: $others, runners: $runners, runner: $runner, size: $size,
+           path: $path, drive: $drive, ready: $ready }'
+}
+
+# .exe программы: путь, путь внутри папки, размер; служебные — в конце
+exes_json() {
+    local dir=$1
+    find "${dir}" -type f -iname '*.exe' -printf '%s\t%P\n' 2>/dev/null | sort -t$'\t' -k1,1 -n -r | head -n 200 |
+        jq -R --arg dir "${dir}" 'split("\t") | (.[1] | ascii_downcase) as $l
+            | { path: ($dir + "/" + .[1]), rel: .[1], size: (.[0] | tonumber),
+                junk: ($l | test("(^|/)(unins|setup|install|update|crash|report|vc_?redist|dxsetup|dotnet|directx|ue4prereq|unitycrash|easyanticheat_setup)[^/]*\\.exe$|(^|/)(_commonredist|redist|redistributables?|directx|support)/")) }' |
+        jq -s 'sort_by(.junk)'
+}
+
+import_dir() {
+    local src base name dest n=2 need avail exes main
+    src=$(realpath -- "$1" 2>/dev/null) || fail "Папка не найдена"
+    [ -d "${src}" ] || fail "Это не папка"
+    mkdir -p "${BOX}"
+    case "${src}/" in "${BOX}/"*) fail "Эта папка уже внутри Delta Box" ;; esac
+    case "${BOX}/" in "${src}/"*) fail "Нельзя добавить папку, внутри которой лежит сам Delta Box" ;; esac
+    [ "${src}" != / ] && [ "${src}" != "${HOME}" ] || fail "Выберите папку программы, а не всю домашнюю папку"
+    base=$(basename -- "${src}")
+    name=${base}
+    while [ -e "$(programs)/${name}" ]; do name="${base} (${n})"; n=$((n + 1)); done
+    dest="$(programs)/${name}"
+    need=$(du -sk -- "${src}" 2>/dev/null | cut -f1)
+    mkdir -p "$(programs)"
+    avail=$(df -Pk -- "$(programs)" | awk 'NR == 2 { print $4 }')
+    [ -z "${need}" ] || [ -z "${avail}" ] || [ "${need}" -lt "${avail}" ] ||
+        fail "Не хватает места: нужно $((need / 1024)) МБ, свободно $((avail / 1024)) МБ"
+    # тот же диск с btrfs/xfs — мгновенная копия (reflink), иначе обычная
+    if ! cp -a --reflink=auto -- "${src}" "${dest}.part" 2>/dev/null; then
+        rm -rf -- "${dest}.part"
+        fail "Не удалось скопировать папку — нет прав на чтение или место кончилось"
+    fi
+    mv -- "${dest}.part" "${dest}"
+    db_write '.apps[$n] = { exe: "", added: $t }' --arg n "${name}" --argjson t "$(date +%s)"
+    exes=$(exes_json "${dest}")
+    # единственный «настоящий» exe — сразу им и запускать
+    main=$(jq -r '[.[] | select(.junk | not)] | if length == 1 then .[0].path else "" end' <<<"${exes}")
+    [ -n "${main}" ] && set_exe "${name}" "${main}"
+    jq -n --arg name "${name}" --arg exe "${main}" --argjson exes "${exes}" '{ name: $name, exe: $exe, exes: $exes }'
+}
+
+set_exe() {
+    local name=$1 exe dir d x
+    dir="$(programs)/${name}"
+    exe=$(realpath -- "$2" 2>/dev/null) || { echo "delta-box: нет файла" >&2; exit 1; }
+    case "${exe}" in "$(realpath -- "${dir}")"/*) ;; *) echo "delta-box: файл не из папки программы" >&2; exit 2 ;; esac
+    # старый ярлык этой программы — долой
+    while IFS=$'\t' read -r d x; do
+        case "${x}" in "${dir}"/*) rm -f -- "${d}" ;; esac
+    done < <(desktops)
+    db_write '.apps[$n].exe = $x' --arg n "${name}" --arg x "${exe}"
+    "${EXE}" --add-app "${NAME}" "${exe}" "${name}"
+}
+
+remove_app() {
+    local name=$1 dir d x
+    dir="$(programs)/${name}"
+    while IFS=$'\t' read -r d x; do
+        case "${x}" in "${dir}"/*) rm -f -- "${d}" ;; esac
+    done < <(desktops)
+    [ -d "${dir}" ] && rm -rf -- "${dir}"
+    db_write 'del(.apps[$n])' --arg n "${name}"
+    command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
+    return 0
+}
+
+runner() { head -n1 "${BOX}/.delta-runner" 2>/dev/null || echo auto; }
+
+case "${1:-}" in
+    -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    "")        mkdir -p "${BOX}"; exec qs -p "${ENTRY}" -d ;;
+    --list)    list_json ;;
+    --import)  [ -n "${2:-}" ] || exit 2; import_dir "$2" ;;
+    --exes)    check_name "${2:-}"; exes_json "$(programs)/$2" ;;
+    --set)     check_name "${2:-}"; [ -f "${3:-}" ] || exit 2; set_exe "$2" "$3" ;;
+    --run)
+        check_name "${2:-}"
+        x=$(db | jq -r --arg n "$2" '.apps[$n].exe // ""')
+        [ -n "${x}" ] && [ -f "${x}" ] || { say "Не выбран файл запуска" "Откройте Delta Box и выберите, какой .exe запускает «$2»"; exit 1; }
+        exec "${EXE}" --app "${NAME}" "${x}"
+        ;;
+    --file)    [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --app "${NAME}" "$(realpath -- "$2")" ;;
+    --install) [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --install "$(runner)" "$(realpath -- "$2")" "${NAME}" ;;
+    --remove)  check_name "${2:-}"; remove_app "$2" ;;
+    *) echo "delta-box: неизвестный ключ $1 (см. --help)" >&2; exit 2 ;;
+esac

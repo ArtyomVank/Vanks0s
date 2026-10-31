@@ -60,7 +60,8 @@ optdepends=(
     'fastfetch: сведения о системе'
     'nvidia-utils: показатели видеокарты NVIDIA в виджетах'
     'imagemagick: миниатюры обоев и уменьшенные обои для экрана входа'
-    'zenity: выбор папки с обоями и фото для виджета «Фото»'
+    'zenity: выбор папки с обоями, фото для виджета «Фото» и папок для Delta Box'
+    'flatpak: приложения Flathub в магазине Delta'
     'xdg-user-dirs: папка «Изображения» для обоев'
     'wine: программы Windows (.exe) — «Открыть обычно»'
     'umu-launcher: запуск .exe через Proton CachyOS с лучшей совместимостью'
@@ -86,6 +87,8 @@ package() {
     install -Dm755 "${_src}/bin/delta-exe"       "${pkgdir}/usr/bin/delta-exe"
     install -Dm755 "${_src}/bin/delta-open-url"  "${pkgdir}/usr/bin/delta-open-url"
     install -Dm755 "${_src}/bin/delta-games"     "${pkgdir}/usr/bin/delta-games"
+    install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"
+    install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
@@ -110,6 +113,12 @@ package() {
     # «Программы Windows»: все префиксы лаунчера и их программы
     install -Dm644 "${_src}/session/delta-exe-manager.desktop" \
         "${pkgdir}/usr/share/applications/delta-exe-manager.desktop"
+    # Delta Box: одна система Windows для программ из папок
+    install -Dm644 "${_src}/session/delta-box.desktop" \
+        "${pkgdir}/usr/share/applications/delta-box.desktop"
+    # магазин Delta: пакеты Arch и Flathub
+    install -Dm644 "${_src}/session/delta-store.desktop" \
+        "${pkgdir}/usr/share/applications/delta-store.desktop"
     install -Dm644 "${_src}/session/delta-welcome.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \

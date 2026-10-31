@@ -9,6 +9,8 @@
 #                                           установщик: программа ставится в префикс
 #                                           <имя>, её ярлыки появляются в меню
 #   delta-exe --app <префикс> <файл>        запуск установленной (из ярлыка в меню)
+#   delta-exe --add-app <префикс> <файл> [название]
+#                                           ярлык программы префикса в меню (Delta Box)
 #   delta-exe --runners                     найденные Proton CachyOS, Wine, umu (JSON)
 #   delta-exe --fetch                       скачать последний Proton CachyOS
 #   delta-exe --manager                     «Программы Windows»: все префиксы, их
@@ -529,10 +531,13 @@ exe_icon() {
 # строка Exec= по правилам .desktop: путь в кавычках, \ " ` $ — экранированы
 desktop_quote() { local v=$1; v=${v//\\/\\\\}; v=${v//\"/\\\"}; v=${v//\`/\\\`}; v=${v//\$/\\\$}; printf '"%s"' "${v}"; }
 
-add_app() {  # префикс, имя префикса, ярлык или пусто, exe
-    local prefix=$1 pname=$2 lnk=$3 exe=$4 title id file
-    title=$([ -n "${lnk}" ] && basename -- "${lnk}" .lnk || basename -- "${exe}" .exe)
-    id=delta-exe-${pname}-$(slug "${title}")
+add_app() {  # префикс, имя префикса, ярлык или пусто, exe[, название]
+    local prefix=$1 pname=$2 lnk=$3 exe=$4 title=${5:-} id file
+    [ -n "${title}" ] || title=$([ -n "${lnk}" ] && basename -- "${lnk}" .lnk || basename -- "${exe}" .exe)
+    # название без латиницы (кириллица) — slug пуст: имя ярлыка по пути exe
+    id=$(slug "${title}")
+    [ -n "${id}" ] || id=$(printf '%s' "${exe}" | md5sum | cut -c1-10)
+    id=delta-exe-${pname}-${id}
     file=${APPS}/${id}.desktop
     mkdir -p "${APPS}"
     {
@@ -686,6 +691,12 @@ case "${1:-}" in
     --fetch)   fetch_proton; exit $? ;;
     --install) [ -n "${3:-}" ] || exit 2; install_app "$2" "$3" "${4:-}"; exit 0 ;;
     --app)     [ -n "${3:-}" ] || exit 2; run_app "$2" "$3" ;;
+    --add-app)
+        check_prefix "${2:-}"; [ -f "${3:-}" ] || exit 2
+        add_app "$(prefix_of "$2")" "$2" "" "$3" "${4:-}" >/dev/null
+        command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
+        exit 0
+        ;;
     --manager) exec qs -p "${MANAGER}" -d ;;
     --list)    list_json; exit 0 ;;
     --set-runner) check_prefix "${2:-}"; [ -n "${3:-}" ] || exit 2; printf '%s\n' "$3" >"$(prefix_of "$2")/.delta-runner"; exit 0 ;;

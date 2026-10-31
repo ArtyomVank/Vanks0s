@@ -384,12 +384,12 @@ Item {
         NumberAnimation { target: bg; property: "blurred"; from: 0; to: 1; duration: 620; easing.type: Easing.OutCubic }
         // часы «въезжают» снизу с лёгкой пружиной, как .clockin
         NumberAnimation { target: clockShift; property: "y"; from: 70; to: 0; duration: 900; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
-        NumberAnimation { target: clockScale; properties: "xScale,yScale"; from: 1.25; to: 1; duration: 900; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+        NumberAnimation { target: clockScale; properties: "xScale,yScale"; from: 1.25; to: 1; duration: 900 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
         NumberAnimation { target: clockBox; property: "opacity"; from: 0; to: 1; duration: 500; easing.type: Easing.OutCubic }
         NumberAnimation { target: gridLoader; property: "opacity"; from: 0; to: 1; duration: 600; easing.type: Easing.OutCubic }
         SequentialAnimation {
             PropertyAction { target: login; property: "opacity"; value: 0 }
-            PauseAnimation { duration: 160 }
+            PauseAnimation { duration: 160 * Theme.anim.k }
             ParallelAnimation {
                 NumberAnimation { target: login; property: "opacity"; to: 1; duration: 420; easing.type: Easing.OutCubic }
                 NumberAnimation { target: loginShift; property: "y"; from: 40; to: 0; duration: 520; easing.type: Easing.OutCubic }
@@ -406,22 +406,22 @@ Item {
         NumberAnimation { target: bg; property: "blurred"; to: 0; duration: 850; easing.type: Easing.InOutQuad }
         // под ним — рабочий стол (если композитор показывает его сквозь блокировку)
         SequentialAnimation {
-            PauseAnimation { duration: root.toDesktop ? 420 : 0 }
+            PauseAnimation { duration: (root.toDesktop ? 420 : 0) * Theme.anim.k }
             NumberAnimation { target: bg; property: "sharp"; to: root.toDesktop ? 0 : 1; duration: root.toDesktop ? 420 : 0; easing.type: Easing.InOutQuad }
         }
         // часы улетают вверх и уменьшаются
         NumberAnimation { target: clockShift; property: "y"; to: -200; duration: 850; easing.type: root.curve }
-        NumberAnimation { target: clockScale; properties: "xScale,yScale"; to: 0.35; duration: 850; easing.type: root.curve }
+        NumberAnimation { target: clockScale; properties: "xScale,yScale"; to: 0.35; duration: 850 * Theme.anim.k; easing.type: root.curve }
         SequentialAnimation {
-            PauseAnimation { duration: 200 }
+            PauseAnimation { duration: 200 * Theme.anim.k }
             NumberAnimation { target: clockBox; property: "opacity"; to: 0; duration: 600; easing.type: Easing.InOutQuad }
         }
         // вход уезжает вниз
         NumberAnimation { target: loginShift; property: "y"; to: 170; duration: 700; easing.type: root.curve }
-        NumberAnimation { target: loginScale; properties: "xScale,yScale"; to: 0.9; duration: 700; easing.type: root.curve }
+        NumberAnimation { target: loginScale; properties: "xScale,yScale"; to: 0.9; duration: 700 * Theme.anim.k; easing.type: root.curve }
         NumberAnimation { target: login; property: "opacity"; to: 0; duration: 450; easing.type: Easing.InOutQuad }
         // виджеты сжимаются и расплываются
-        NumberAnimation { target: gridScale; properties: "xScale,yScale"; to: 0.6; duration: 600; easing.type: root.curve }
+        NumberAnimation { target: gridScale; properties: "xScale,yScale"; to: 0.6; duration: 600 * Theme.anim.k; easing.type: root.curve }
         NumberAnimation { target: gridShift; property: "y"; to: -40; duration: 600; easing.type: root.curve }
         NumberAnimation { target: gridLoader; property: "opacity"; to: 0; duration: 450; easing.type: Easing.InOutQuad }
         NumberAnimation { target: gridBlur; property: "v"; to: 1; duration: 500 }

@@ -105,12 +105,8 @@ FloatingWindow {
         afterInstall = null;
     }
 
-    // магазин: GNOME Software с Flathub; нет — сначала ставим
-    function openStore() {
-        const launch = () => Quickshell.execDetached(["gnome-software"]);
-        if (Catalog.isInstalled(Catalog.store)) launch();
-        else install([Catalog.store], launch);
-    }
+    // магазин Delta (delta-store): пакеты Arch и Flathub, Flathub он подключит сам
+    function openStore() { Quickshell.execDetached(["delta-store"]); }
 
     Process {
         id: proc
@@ -193,7 +189,7 @@ FloatingWindow {
                 color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
                 border.width: 1.5
                 border.color: Theme.accent
-                Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+                Behavior on x { NumberAnimation { duration: 420 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
             }
 
             Row {
@@ -299,7 +295,7 @@ FloatingWindow {
                 NumberAnimation on x {
                     running: win.installing
                     from: -runner.width; to: runner.parent.width
-                    duration: 1400; loops: Animation.Infinite
+                    duration: 1400 * Theme.anim.k; loops: Animation.Infinite
                     easing.type: Easing.InOutSine
                 }
             }
@@ -311,7 +307,7 @@ FloatingWindow {
                     name: win.error ? "warning" : win.installing ? "refresh" : win.finished ? "check" : "download"
                     size: 22
                     color: win.error ? "#E5484D" : win.finished && !win.installing ? "#3FB37A" : Theme.accent
-                    RotationAnimation on rotation { running: win.installing; from: 0; to: 360; duration: 1200; loops: Animation.Infinite; alwaysRunToEnd: true }
+                    RotationAnimation on rotation { running: win.installing; from: 0; to: 360; duration: 1200 * Theme.anim.k; loops: Animation.Infinite; alwaysRunToEnd: true }
                 }
                 ColumnLayout {
                     spacing: 1
@@ -407,8 +403,7 @@ FloatingWindow {
                         Layout.fillWidth: true
                         Label { text: I18n.tr("Магазин приложений"); size: "title"; Layout.fillWidth: true }
                         Label {
-                            text: Catalog.isInstalled(Catalog.store) ? "Тысячи программ из Arch и Flathub — ищите, ставьте, обновляйте"
-                                                                     : "Тысячи программ из Arch и Flathub. Сначала поставим сам магазин"
+                            text: I18n.tr("Тысячи программ из Arch и Flathub — ищите и ставьте в один щелчок")
                             tone: 2; size: "small"; Layout.fillWidth: true
                         }
                     }

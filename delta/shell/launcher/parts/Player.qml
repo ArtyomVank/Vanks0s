@@ -116,7 +116,7 @@ Item {
                 height: parent.height
                 radius: parent.radius
                 color: Theme.fg
-                Behavior on width { NumberAnimation { duration: 900; easing.type: Easing.Linear } }
+                Behavior on width { NumberAnimation { duration: 900 * Theme.anim.k; easing.type: Easing.Linear } }
             }
             MouseArea {
                 anchors { fill: parent; topMargin: -6; bottomMargin: -6 }

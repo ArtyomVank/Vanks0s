@@ -69,7 +69,7 @@ Item {
             running: !root.done && area.pressed === false
             loops: Animation.Infinite
             NumberAnimation { target: breathe; property: "t"; from: 0; to: 1; duration: 1600; easing.type: Easing.OutCubic }
-            PauseAnimation { duration: 300 }
+            PauseAnimation { duration: 300 * Theme.anim.k }
         }
     }
 
@@ -83,7 +83,7 @@ Item {
         border.width: 1
         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.6)
         scale: (area.pressed ? 0.97 : 1) + Math.max(0, root.fill) * 0.07
-        Behavior on scale { NumberAnimation { duration: 90 } }
+        Behavior on scale { NumberAnimation { duration: 90 * Theme.anim.k } }
         clip: true
 
         // заливка слева направо
