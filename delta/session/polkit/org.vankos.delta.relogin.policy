@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Delta: выход при автовходе — снова автовход и экран блокировки (pkexec delta-relogin).
+     Без пароля: delta-relogin сам проверяет, что автовход включён для того, кто просит. -->
+<policyconfig>
+  <vendor>Vanks OS</vendor>
+  <action id="org.vankos.delta.relogin">
+    <description>Log out to the lock screen</description>
+    <description xml:lang="ru">Выйти на экран блокировки</description>
+    <message>Authentication is required to log out to the lock screen</message>
+    <message xml:lang="ru">Чтобы выйти на экран блокировки, нужен пароль.</message>
+    <icon_name>system-log-out</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/delta-relogin</annotate>
+  </action>
+</policyconfig>

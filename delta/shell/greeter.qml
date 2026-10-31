@@ -28,9 +28,23 @@ ShellRoot {
     signal exitRequested()
     signal resetRequested()
     property bool leaving: false
-    // при запуске — «Добро пожаловать», потом экран входа своей анимацией
+    // при запуске — «Добро пожаловать», потом экран входа своей анимацией.
+    // После выхода при автовходе (delta-relogin, метка /run/delta-relogin)
+    // экран входа не нужен: greetd вот-вот перезапустится и войдёт сам, —
+    // заставка держится, пока есть метка (не дольше 20 с)
     property bool starting: true
-    Timer { interval: 1600; running: true; onTriggered: shell.starting = false }
+    property int held: 0
+    readonly property string reloginFlag: Quickshell.env("DELTA_RELOGIN_FLAG") || "/run/delta-relogin"
+    Timer { interval: 1600; running: true; onTriggered: reloginCheck.running = true }
+    Process {
+        id: reloginCheck
+        command: ["test", "-e", shell.reloginFlag]
+        onExited: code => {
+            if (code === 0 && shell.held < 40) { shell.held++; recheck.restart(); }
+            else shell.starting = false;
+        }
+    }
+    Timer { id: recheck; interval: 500; onTriggered: reloginCheck.running = true }
 
     Connections {
         target: be

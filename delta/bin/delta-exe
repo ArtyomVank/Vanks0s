@@ -21,7 +21,8 @@
 # запускается, а Proton идёт напрямую с STEAM_COMPAT_CLIENT_INSTALL_PATH на
 # него (umu запускает игры без Steam) — игра видит Steam, как «сторонняя игра»
 # в его библиотеке. Ссылки из программ (вход, «открыть сайт») открывает
-# браузер системы: в каждом префиксе winebrowser настроен на xdg-open.
+# браузер системы: в каждом префиксе winebrowser настроен на delta-open-url
+# (xdg-open без окружения Proton), а в контейнере umu — на xdg-open.
 #
 # «Авто» — самый свежий Proton CachyOS: из пакета proton-cachyos или скачанный
 # с GitHub (CachyOS/proton-cachyos) в ~/.local/share/delta/proton. Префикс
@@ -63,7 +64,7 @@ remember() {
     { printf '%s\n' "$1"; grep -vxF -- "$1" "$2" 2>/dev/null; } | head -n 30 >"$2.new" && mv "$2.new" "$2"
 }
 
-# журнал установок — последние ~2000 строк
+# журнал установок и запусков — последние ~2000 строк
 trim_log() {
     [ "$(wc -l <"${LOG}" 2>/dev/null || echo 0)" -gt 4000 ] || return 0
     tail -n 2000 "${LOG}" >"${LOG}.new" && mv "${LOG}.new" "${LOG}"
@@ -300,14 +301,15 @@ prepare() {
     CMD+=("${proton}/proton" "$([ "${how}" = wait ] && echo waitforexitandrun || echo run)" "${args[@]}")
 }
 
-# winebrowser префикса — на xdg-open: ссылки из программ открывает браузер
-# системы (под umu xdg-open контейнера уходит в портал OpenURI). Один раз.
+# winebrowser префикса — на delta-open-url: ссылки из программ открывает
+# браузер системы с чистым окружением; в контейнере umu его нет, и
+# срабатывает xdg-open контейнера (портал OpenURI). Один раз.
 browser_links() {
-    local runner=$1 prefix=$2 mark=$2/.delta-browser
+    local runner=$1 prefix=$2 mark=$2/.delta-browser2
     [ -e "${mark}" ] && return 0
     prepare "${runner}" reg "${prefix}"
     # reg — не файл: umu и proton ищут его внутри префикса
-    "${CMD[@]}" add 'HKCU\Software\Wine\WineBrowser' /v Browsers /d xdg-open /f >/dev/null 2>&1 && : >"${mark}"
+    "${CMD[@]}" add 'HKCU\Software\Wine\WineBrowser' /v Browsers /d delta-open-url,xdg-open /f >/dev/null 2>&1 && : >"${mark}"
     CMD=()
 }
 
@@ -395,7 +397,35 @@ run_launcher() {
     cd -- "$(dirname -- "${file}")" || true
     [ "${runner}" = wine ] || browser_links "${runner}" "${prefix}"
     prepare "${runner}" "${file}" "${prefix}"
-    exec "${CMD[@]}"
+    run_logged "${prefix}"
+    exit
+}
+
+# Запуск — в журнал: команда, код и время. Закрылась за минуту — туда же
+# конец вывода (весь — в exe-last.log) и объяснение в уведомлении: игре на
+# Unity, которая не подключилась к Steam (сама пишет об этом в Player.log и
+# выходит), — что нужен Steam со входом в аккаунт; остальным — где журнал.
+run_logged() {
+    local prefix=$1 t0 code secs out=${STATE}/exe-last.log plog
+    mkdir -p "${STATE}"
+    t0=$(date +%s)
+    printf '\n=== %s  запуск: %s\n' "$(date '+%F %T')" "${CMD[*]}" >>"${LOG}"
+    "${CMD[@]}" >"${out}" 2>&1
+    code=$?
+    secs=$(( $(date +%s) - t0 ))
+    printf '=== код %s, %s с\n' "${code}" "${secs}" >>"${LOG}"
+    if [ "${secs}" -lt 60 ]; then
+        tail -n 40 "${out}" >>"${LOG}"
+        plog=$(find "$(drive_c "${prefix}")/users" -maxdepth 6 -name Player.log -newermt "@${t0}" 2>/dev/null | head -n1)
+        if [ -n "${plog}" ] && grep -qiE 'Steam not initialized|SteamApi_Init failed|SteamAPI_Init\(\) failed' "${plog}"; then
+            printf '=== Player.log: игра не подключилась к Steam\n' >>"${LOG}"
+            say "Игра не подключилась к Steam" "Ей нужен запущенный Steam со входом в аккаунт. Откройте Steam, войдите и запустите игру снова; игры из библиотеки Steam запускайте из самого Steam"
+        elif [ "${code}" -ne 0 ]; then
+            say "Программа закрылась через ${secs} с" "Код ${code}. Подробности — в ~/.local/state/delta/exe.log"
+        fi
+    fi
+    trim_log
+    return "${code}"
 }
 
 # --- установка программы ---

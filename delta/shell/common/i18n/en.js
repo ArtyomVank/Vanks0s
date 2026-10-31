@@ -466,7 +466,7 @@ var strings = {
     "Сменить…": "Change…",
     "Вход": "Sign-in",
     "Входить без пароля": "Sign in without a password",
-    "Компьютер включается сразу на рабочий стол. Браузер может один раз спросить пароль": "The computer goes straight to the desktop. The browser may ask for a password once",
+    "При включении и после выхода — «Добро пожаловать» и экран блокировки, без экрана входа. Браузер может один раз спросить пароль": "At startup and after logging out: Welcome, then the lock screen, without the login screen. The browser may ask for a password once",
     "Блокировать при входе": "Lock at login",
     "Фото профиля": "Profile photo",
     "Картинка или готовый аватар": "A picture or a ready avatar",

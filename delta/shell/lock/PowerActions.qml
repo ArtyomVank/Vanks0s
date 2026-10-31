@@ -37,8 +37,10 @@ Singleton {
         case "hibernate": return ["systemctl", "hibernate"];
         case "reboot":    return ["systemctl", "reboot"];
         case "poweroff":  return ["systemctl", "poweroff"];
-        // выход — это завершение Hyprland: оболочка и приложения закроются вместе с ним
-        case "logout":    return ["hyprctl", "dispatch", "hl.dsp.exit()"];
+        // выход — это завершение Hyprland: оболочка и приложения закроются вместе с ним.
+        // При автовходе («Входить без пароля») вместо экрана входа — снова
+        // «Добро пожаловать» и экран блокировки, как при включении (delta-relogin)
+        case "logout":    return ["sh", "-c", '[ "$(delta-autologin status 2>/dev/null)" = "$(id -un)" ] && pkexec /usr/bin/delta-relogin; hyprctl dispatch "hl.dsp.exit()"'];
         }
         return null;
     }

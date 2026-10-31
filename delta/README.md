@@ -5,7 +5,7 @@
 ```
 bin/delta-session     запуск сессии: окружение, settings.json, delta-apply, Hyprland
 bin/delta-apply       settings.json → ~/.config/delta/hypr/generated.lua (с проверкой)
-bin/delta-shell       запуск оболочки Quickshell, `delta-shell ipc …`
+bin/delta-shell       запуск оболочки Quickshell под присмотром (упала — снова), `delta-shell ipc …`
 hypr/hyprland.lua     базовый конфиг Hyprland (Lua), подключает generated.lua и user.lua
 defaults/settings.json  значения по умолчанию для всех настроек
 shell/                оболочка (QML, Quickshell 0.3)

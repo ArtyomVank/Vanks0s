@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Delta — открыть ссылку из программы Windows в браузере системы.
+#
+#   delta-open-url <ссылка>
+#
+# winebrowser префиксов delta-exe зовёт его вместо xdg-open. Программа под
+# Proton передаёт своё окружение: LD_LIBRARY_PATH и LD_PRELOAD из Proton,
+# WINE*/STEAM*/SDL_* — браузер с ним путается в шрифтах и Vulkan и падает
+# (или роняет за собой стол). Поэтому браузер получает только переменные
+# сессии и запускается отдельно от программы: закроется игра — браузер живёт.
+set -u
+
+keep=()
+while IFS='=' read -r name _; do
+    case "${name}" in
+        HOME|USER|LOGNAME|SHELL|LANG|LANGUAGE|LC_*|TZ|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|\
+        XDG_*|DBUS_SESSION_BUS_ADDRESS|HYPRLAND_INSTANCE_SIGNATURE|DESKTOP_SESSION|\
+        QT_QPA_PLATFORMTHEME|GTK_THEME|XCURSOR_THEME|XCURSOR_SIZE|DELTA_DATA)
+            keep+=("${name}=${!name}") ;;
+    esac
+done < <(env)
+
+exec env -i "${keep[@]}" PATH=/usr/local/bin:/usr/bin setsid -f xdg-open "$@" >/dev/null 2>&1 </dev/null
