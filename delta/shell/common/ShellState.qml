@@ -74,6 +74,10 @@ Singleton {
     // подписи, ms — сколько держать. Показывает DockService (docks.top.island).
     signal islandRequested(var spec)
     function island(spec) { if (spec) islandRequested(spec); }
+    // «Ярлык на рабочий стол» из лаунчера и дока: виджет-ярлык приложения
+    // (id .desktop) ставит сетка виджетов монитора с фокусом (Widgets.qml)
+    signal appWidgetRequested(string entryId)
+    function addAppWidget(entryId) { if (entryId) appWidgetRequested(entryId); }
     // проверки во вложенной сессии: «курсор» над доком без настоящей мыши,
     // { "<экран>/<док>": координата вдоль края }; IPC docks hover
     property var devHover: ({})

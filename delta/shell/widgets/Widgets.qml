@@ -33,6 +33,11 @@ Scope {
         function onWidgetEditingChanged() { root.editingHere = ShellState.widgetEditing && root.focusedHere(); }
     }
     Component.onCompleted: editingHere = ShellState.widgetEditing && focusedHere()
+    // «Ярлык на рабочий стол» — на мониторе с фокусом
+    Connections {
+        target: ShellState
+        function onAppWidgetRequested(entryId) { if (root.focusedHere()) grid.addApp(entryId); }
+    }
 
     PanelWindow {
         id: win
@@ -95,5 +100,7 @@ Scope {
         function toggle(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
         // выбрать виджет в редакторе (проверки, «Настройки»): widgets select clock
         function select(id: string): void { if (root.editingHere) grid.select(id); }
+        // ярлык приложения на рабочий стол: widgets app org.gnome.Nautilus.desktop
+        function app(id: string): void { ShellState.addAppWidget(id); }
     }
 }

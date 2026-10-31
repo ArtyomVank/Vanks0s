@@ -1,12 +1,15 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell
 import qs.common
 import qs.common.ui
 import qs.widgets.kinds
 
 // Карточка одного виджета на сетке: подложка, содержимое, а в редакторе —
 // покачивание, рамка выбора, «×» и уголок для изменения размера.
-// Геометрию (bx/by/bw/bh) и перетаскивание ведёт WidgetGrid.
+// Геометрию (bx/by/bw/bh) и перетаскивание ведёт WidgetGrid. Вне редактора:
+// долгое нажатие — редактор, правый щелчок — меню виджета (WidgetGrid.openMenu),
+// у ярлыка приложения щелчок открывает приложение.
 Item {
     id: root
 
@@ -31,6 +34,24 @@ Item {
     readonly property bool lock: place === "lock"
     readonly property bool bg: item.bg !== false
     readonly property bool isClock: item.id === "clock"
+    readonly property bool isApp: WidgetTypes.isApp(item.id)
+    // ярлык держат нажатым — карточка и значок вдавливаются
+    readonly property bool pressing: isApp && !editing && tapper.pressed
+    signal launched()
+
+    // открыть приложение ярлыка (Terminal=true — через терминал, как в лаунчере)
+    function launch() {
+        const e = DesktopEntries.byId(WidgetTypes.appEntry(item.id));
+        launched();
+        if (!e) { grid.say(I18n.tr("Приложение не найдено — его удалили?")); return; }
+        Sounds.play("oobe-step", 0);
+        if (e.runInTerminal)
+            Quickshell.execDetached({
+                command: ["sh", "-c", "xdg-terminal-exec \"$@\" 2>/dev/null || kitty -e \"$@\"", "sh"].concat(e.command),
+                workingDirectory: e.workingDirectory || Quickshell.env("HOME")
+            });
+        else e.execute();
+    }
     // прозрачность виджета (item.opacity, 0.15–1; редактор → «прозрачность»)
     readonly property real alpha: Math.max(0.15, Math.min(1, Number(item.opacity ?? 1) || 1))
     // содержимому нечего показать (уведомления «без надписи») — карточки не видно, кроме редактора
@@ -68,9 +89,9 @@ Item {
         transform: Scale {
             origin.x: frame.width / 2
             origin.y: frame.height / 2
-            xScale: root.dragging ? 1.04 : 1
+            xScale: root.dragging ? 1.04 : root.pressing ? 0.95 : 1
             yScale: xScale
-            Behavior on xScale { NumberAnimation { duration: Theme.anim.fast } }
+            Behavior on xScale { NumberAnimation { duration: 240 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
         }
 
         // появление: лёгкий «поп» (frame.scale занят только им)
@@ -179,7 +200,7 @@ Item {
                     case "sun": return sunC;
                     case "photo": return photoC;
                     }
-                    return null;
+                    return root.isApp ? appC : null;
                 }
             }
         }
@@ -215,11 +236,27 @@ Item {
             onCanceled: root.grid.cancelDrag()
         }
 
-        // долгое нажатие вне редактора — войти в редактор (как на телефоне)
+        // долгое нажатие вне редактора — войти в редактор (как на телефоне);
+        // у ярлыка щелчок открывает приложение
         TapHandler {
+            id: tapper
             enabled: !root.editing && !root.lock
             longPressThreshold: 0.6
             onLongPressed: root.grid.requestEdit(root.item.id)
+            onTapped: if (root.isApp) root.launch()
+        }
+        HoverHandler {
+            enabled: root.isApp && !root.editing
+            cursorShape: Qt.PointingHandCursor
+        }
+        // правый щелчок — меню виджета: «Настроить виджет» и прочее
+        TapHandler {
+            enabled: !root.editing && !root.lock
+            acceptedButtons: Qt.RightButton
+            onTapped: ev => {
+                const p = frame.mapToItem(root.grid, ev.position.x, ev.position.y);
+                root.grid.openMenu(root.item.id, p.x, p.y);
+            }
         }
 
         // «×» — убрать виджет
@@ -278,4 +315,5 @@ Item {
     Component { id: timerC; TimerWidget { card: root } }
     Component { id: sunC; SunWidget { card: root } }
     Component { id: photoC; PhotoWidget { card: root } }
+    Component { id: appC; AppWidget { card: root } }
 }

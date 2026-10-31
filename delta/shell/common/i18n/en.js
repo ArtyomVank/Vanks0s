@@ -957,5 +957,22 @@ var strings = {
     "Нельзя добавить папку, внутри которой лежит сам Delta Box": "Can't add a folder that contains Delta Box itself",
     "Выберите папку программы, а не всю домашнюю папку": "Choose the program's folder, not your whole home folder",
     "Не удалось скопировать папку — нет прав на чтение или место кончилось": "Couldn't copy the folder — no read access or out of space",
+
+    // --- 0.6: ярлыки приложений на рабочем столе ---
+    "Ярлык приложения": "App shortcut",
+    "Ярлык": "Shortcut",
+    "С подписью": "With label",
+    "Только значок": "Icon only",
+    "Ярлык уже на рабочем столе": "The shortcut is already on the desktop",
+    "На рабочем столе нет места": "No room on the desktop",
+    "Уберите или уменьшите какой-нибудь виджет": "Remove or shrink a widget",
+    "Ярлык на рабочем столе": "Shortcut added to the desktop",
+    "Ярлык на рабочий стол": "Add shortcut to desktop",
+    "Настроить виджет": "Customize widget",
+    "Убрать ярлык": "Remove shortcut",
+    "Убрать виджет": "Remove widget",
+    "Приложение не найдено — его удалили?": "App not found — was it uninstalled?",
+    "Убрать из дока": "Unpin from dock",
+    "Закрепить в доке": "Pin to dock",
     "": ""
 };

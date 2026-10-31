@@ -183,8 +183,11 @@ Scope {
             }
 
             Component.onCompleted: if (root.open) reset()
+            // меню строки (правый щелчок): { entry, x, y } в координатах панели
+            property var ctx: null
             function reset() {
                 shown = true;
+                ctx = null;
                 list.currentIndex = 0;
                 list.positionViewAtBeginning();
                 field.focusInput();
@@ -222,6 +225,78 @@ Scope {
                 // доиграла обратная капля — окно можно прятать
                 onClosed: if (!root.open) win.shown = false
 
+                // меню строки: щелчок мимо закрывает
+                MouseArea {
+                    anchors.fill: parent
+                    z: 10
+                    visible: win.ctx !== null
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onPressed: win.ctx = null
+                }
+                Rectangle {
+                    id: ctxMenu
+                    z: 11
+                    visible: win.ctx !== null
+                    readonly property var entry: win.ctx ? win.ctx.entry : null
+                    readonly property bool pinned: entry ? root.pinned.indexOf(entry.id) !== -1 : false
+                    width: 250
+                    height: ctxCol.implicitHeight + 16
+                    x: win.ctx ? Math.max(8, Math.min(panel.width - width - 8, win.ctx.x)) : 0
+                    y: win.ctx ? Math.max(8, Math.min(panel.height - height - 8, win.ctx.y)) : 0
+                    radius: 16
+                    color: Theme.glass
+                    border.width: 1
+                    border.color: Theme.line
+                    scale: visible ? 1 : 0.92
+                    transformOrigin: Item.TopLeft
+                    Behavior on scale { NumberAnimation { duration: 200 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+
+                    component CtxItem: Rectangle {
+                        id: ci
+                        property string icon
+                        property string text
+                        signal picked()
+                        width: ctxCol.width
+                        height: 38
+                        radius: 10
+                        color: ciHov.hovered ? Theme.soft2 : "transparent"
+                        Row {
+                            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                            spacing: 10
+                            Sym { name: ci.icon; size: 18; color: Theme.fg2; anchors.verticalCenter: parent.verticalCenter }
+                            Label { text: ci.text; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                        HoverHandler { id: ciHov; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: { ci.picked(); win.ctx = null; } }
+                    }
+
+                    Column {
+                        id: ctxCol
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                        spacing: 2
+                        Label {
+                            width: parent.width
+                            leftPadding: 10; topPadding: 4; bottomPadding: 6
+                            text: ctxMenu.entry ? ctxMenu.entry.name : ""
+                            font.weight: Font.Bold
+                            elide: Text.ElideRight
+                        }
+                        CtxItem {
+                            icon: "play"; text: I18n.tr("Открыть")
+                            onPicked: root.launch(ctxMenu.entry)
+                        }
+                        CtxItem {
+                            icon: ctxMenu.pinned ? "pin-off" : "pin"
+                            text: ctxMenu.pinned ? I18n.tr("Убрать из дока") : I18n.tr("Закрепить в доке")
+                            onPicked: root.togglePin(ctxMenu.entry.id)
+                        }
+                        CtxItem {
+                            icon: "widgets"; text: I18n.tr("Ярлык на рабочий стол")
+                            onPicked: { ShellState.addAppWidget(ctxMenu.entry.id); root.hide(); }
+                        }
+                    }
+                }
+
                 Column {
                     id: col
                     anchors { fill: parent; margins: 18 }
@@ -239,7 +314,7 @@ Scope {
                         onAccepted: root.launch(root.results[list.currentIndex])
                         onKey: e => {
                             switch (e.key) {
-                            case Qt.Key_Escape: root.hide(); break;
+                            case Qt.Key_Escape: if (win.ctx) win.ctx = null; else root.hide(); break;
                             case Qt.Key_Down: list.incrementCurrentIndex(); break;
                             case Qt.Key_Up: list.decrementCurrentIndex(); break;
                             case Qt.Key_PageDown: list.currentIndex = Math.min(list.count - 1, list.currentIndex + 8); break;
@@ -304,10 +379,16 @@ Scope {
                             opacity: enter
                             transform: Translate { y: (1 - row.enter) * 18 }
 
+                            // левый — открыть, правый — меню: в док, ярлык на рабочий стол
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.launch(row.modelData)
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: m => {
+                                    if (m.button !== Qt.RightButton) { root.launch(row.modelData); return; }
+                                    const p = mapToItem(panel, m.x, m.y);
+                                    win.ctx = { entry: row.modelData, x: p.x, y: p.y };
+                                }
                             }
 
                             Rectangle {

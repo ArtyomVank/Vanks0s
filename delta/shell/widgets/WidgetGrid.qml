@@ -47,8 +47,9 @@ Item {
     // ---------- данные ----------
     readonly property var raw: Settings.get(key, [])
     readonly property var items: normalize(raw)
-    // прямоугольники виджетов — для маски ввода окна
+    // прямоугольники виджетов и открытого меню — для маски ввода окна
     readonly property var boxes: items.map(it => box(it.c, it.r, it.w, it.h))
+        .concat(menu ? [{ x: menuBox.x, y: menuBox.y, w: menuBox.width, h: menuBox.height }] : [])
 
     function clampInt(v, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(Number(v) || 0))); }
 
@@ -134,10 +135,18 @@ Item {
     Timer { id: captionTimer; interval: 3500; onTriggered: root.caption = "" }
 
     function select(id) { sel = find(id) ? id : ""; }
-    function nameOf(id) { const t = WidgetTypes.info(place, id); return t ? t.name : id; }
+    function nameOf(id) {
+        if (WidgetTypes.isApp(id)) {
+            const e = DesktopEntries.byId(WidgetTypes.appEntry(id));
+            return e ? e.name : WidgetTypes.appEntry(id);
+        }
+        const t = WidgetTypes.info(place, id);
+        return t ? t.name : id;
+    }
 
     onEditingChanged: {
         drag = null;
+        menu = null;
         if (editing) {
             sel = find(pendingSel) ? pendingSel : find("clock") ? "clock" : "";
             pendingSel = "";
@@ -187,6 +196,47 @@ Item {
         if (sel === id) sel = "";
     }
     function toggle(id) { if (find(id)) remove(id); else add(id); }
+
+    // ярлык приложения (id .desktop): ставится рядом с остальными, 2×2;
+    // уже есть — только напомнить. Что вышло — в острове верхнего дока.
+    function addApp(entryId) {
+        // id приложения — имя .desktop без расширения, как у DesktopEntries
+        entryId = String(entryId || "").replace(/\.desktop$/, "");
+        if (place === "lock" || !entryId) return false;
+        const id = "app:" + entryId;
+        const e = DesktopEntries.byId(entryId);
+        const name = e ? e.name : entryId;
+        if (find(id)) {
+            ShellState.island({ icon: "apps", title: I18n.tr("Ярлык уже на рабочем столе"), text: name });
+            return false;
+        }
+        const t = WidgetTypes.app;
+        let w = t.def[0], h = t.def[1];
+        let spot = findSpot(id, w, h);
+        if (!spot) { w = 1; h = 1; spot = findSpot(id, w, h); }
+        if (!spot) {
+            ShellState.island({ icon: "warning", title: I18n.tr("На рабочем столе нет места"), text: I18n.tr("Уберите или уменьшите какой-нибудь виджет") });
+            return false;
+        }
+        save(list => list.push({ id: id, c: spot.c, r: spot.r, w: w, h: h, bg: true, mode: "named" }));
+        Sounds.play("drop", 60);
+        ShellState.island({ icon: "apps", title: I18n.tr("Ярлык на рабочем столе"), text: name });
+        return true;
+    }
+
+    // ---------- меню виджета (правый щелчок вне редактора) ----------
+    // { id, x, y } — точка щелчка в координатах сетки
+    property var menu: null
+    function openMenu(id, x, y) {
+        if (editing || place === "lock" || !find(id)) return;
+        menu = { id: id, x: x, y: y };
+        menuClose.stop();
+    }
+    function closeMenu() { menu = null; }
+    // меню закрывается само, если курсор ушёл с него (вне редактора у окна
+    // нет клавиатуры, а щелчок мимо уходит другому окну)
+    Timer { id: menuClose; interval: 1800; onTriggered: root.closeMenu() }
+    onItemsChanged: if (menu && !find(menu.id)) menu = null
 
     function resizeTo(id, w, h) {
         const it = find(id);
@@ -336,7 +386,15 @@ Item {
         Behavior on height { NumberAnimation { duration: 120 * Theme.anim.k } }
     }
 
+    function cardFor(id) {
+        for (let i = 0; i < cards.count; i++) {
+            const c = cards.itemAt(i);
+            if (c && c.modelData === id) return c;
+        }
+        return null;
+    }
     Repeater {
+        id: cards
         // модель — только id: при правке настроек карточки не пересоздаются
         model: ScriptModel { values: root.items.map(x => x.id) }
         delegate: WidgetCard {
@@ -365,8 +423,11 @@ Item {
 
     // Панель свёрстана под экран концепта (1440 px): на маленьком экране
     // (или при крупном масштабе) она уменьшается целиком, а не переносится в столбик.
+    // Панель — над карточками (у них z 1–2): иначе виджет за панелью
+    // перехватывал нажатия на неё. Перетаскиваемая карточка (z 10) — над панелью.
     EditorBar {
         readonly property real k: Math.min(1, root.width / 1440)
+        z: 5
         grid: root
         shown: root.editing
         transformOrigin: Item.Bottom
@@ -374,5 +435,81 @@ Item {
         x: (root.width - width) / 2
         y: shown ? root.height - height - 10 * root.unit : root.height + 20
         width: Math.min(root.width - 32, 880 * root.unit) / k
+    }
+
+    Rectangle {
+        id: menuBox
+        z: 20
+        visible: root.menu !== null
+        readonly property var it: root.menu ? root.find(root.menu.id) : null
+        readonly property bool isApp: !!it && WidgetTypes.isApp(it.id)
+        width: 236
+        height: menuCol.implicitHeight + 16
+        x: root.menu ? Math.max(8, Math.min(root.width - width - 8, root.menu.x)) : 0
+        y: root.menu ? Math.max(8, Math.min(root.height - height - 8, root.menu.y)) : 0
+        radius: 16
+        color: Theme.glass
+        border.width: 1
+        border.color: Theme.line
+        opacity: visible ? 1 : 0
+        scale: visible ? 1 : 0.92
+        transformOrigin: Item.TopLeft
+        Behavior on scale { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+
+        HoverHandler {
+            onHoveredChanged: if (hovered) menuClose.stop(); else if (root.menu) menuClose.restart()
+        }
+
+        component MenuItem_: Rectangle {
+            id: mi
+            property string icon
+            property string text
+            property bool danger: false
+            signal picked()
+            width: menuCol.width
+            height: 38
+            radius: 10
+            color: miHov.hovered ? Theme.soft2 : "transparent"
+            Row {
+                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                spacing: 10
+                Sym { name: mi.icon; size: 18; color: mi.danger ? "#ff6b6b" : Theme.fg2; anchors.verticalCenter: parent.verticalCenter }
+                Label { text: mi.text; color: mi.danger ? "#ff6b6b" : Theme.fg; anchors.verticalCenter: parent.verticalCenter }
+            }
+            HoverHandler { id: miHov; cursorShape: Qt.PointingHandCursor }
+            // сначала действие, потом закрыть: пункты берут id из открытого меню
+            TapHandler { onTapped: { mi.picked(); root.closeMenu(); } }
+        }
+
+        Column {
+            id: menuCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+            spacing: 2
+            Label {
+                width: parent.width
+                leftPadding: 10
+                topPadding: 4
+                bottomPadding: 6
+                text: menuBox.it ? root.nameOf(menuBox.it.id) : ""
+                font.weight: Font.Bold
+                elide: Text.ElideRight
+            }
+            MenuItem_ {
+                visible: menuBox.isApp
+                icon: "play"; text: I18n.tr("Открыть")
+                onPicked: { const c = root.cardFor(menuBox.it ? menuBox.it.id : ""); if (c) c.launch(); }
+            }
+            MenuItem_ {
+                property string target: menuBox.it ? menuBox.it.id : ""
+                icon: "settings"; text: I18n.tr("Настроить виджет")
+                onPicked: root.requestEdit(target)
+            }
+            MenuItem_ {
+                property string target: menuBox.it ? menuBox.it.id : ""
+                icon: "trash"; danger: true
+                text: menuBox.isApp ? I18n.tr("Убрать ярлык") : I18n.tr("Убрать виджет")
+                onPicked: root.remove(target)
+            }
+        }
     }
 }

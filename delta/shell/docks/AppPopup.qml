@@ -76,6 +76,15 @@ PopupLayer {
             }
         }
         Row_ {
+            // виджет-ярлык на рабочем столе — для приложений с ярлыком .desktop
+            readonly property var entry: !pop.app ? null
+                : pop.app.kind === "app" ? (DesktopEntries.byId(pop.app.id) ?? DesktopEntries.heuristicLookup(pop.app.id))
+                : pop.app.kind === "run" ? DesktopEntries.heuristicLookup(pop.app.appId) : null
+            icon: "widgets"; text: I18n.tr("Ярлык на рабочий стол")
+            visible: entry !== null
+            onPicked: { ShellState.addAppWidget(entry.id); DockService.closeAppMenu(); }
+        }
+        Row_ {
             icon: "close"; danger: true
             text: pop.wins.length > 1 ? "Закрыть все окна (" + pop.wins.length + ")" : "Закрыть"
             visible: pop.wins.length > 0

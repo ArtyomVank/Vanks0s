@@ -103,9 +103,20 @@ Singleton {
         return d !== null && d.isLaptopBattery && d.isPresent;
     }
 
+    // Ярлык приложения: виджетов может быть сколько угодно — id «app:<id .desktop>».
+    // Только на рабочем столе; в галерее редактора его нет (ставится из лаунчера
+    // и дока: «Ярлык на рабочий стол»).
+    readonly property var app: ({ name: "Ярлык приложения", short: "Ярлык", icon: "apps", def: [2, 2], min: [1, 1], max: [4, 4],
+                                  modes: [["named", "С подписью", 1, 1], ["icon", "Только значок", 1, 1]], presets: [[1, 1], [2, 2], [3, 3]] })
+    function isApp(id) { return typeof id === "string" && id.startsWith("app:") && id.length > 4; }
+    function appEntry(id) { return isApp(id) ? id.slice(4) : ""; }
+
     function table(layer) { return layer === "lock" ? lock : desktop; }
     function order(layer) { return layer === "lock" ? lockOrder : desktopOrder; }
-    function info(layer, id) { return table(layer)[id] || null; }
+    function info(layer, id) {
+        if (isApp(id)) return layer === "lock" ? null : app;
+        return table(layer)[id] || null;
+    }
     function available(layer, id) {
         const t = info(layer, id);
         return t !== null && (!t.needsBattery || hasBattery);

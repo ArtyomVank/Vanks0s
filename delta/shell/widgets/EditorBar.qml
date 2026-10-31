@@ -164,7 +164,11 @@ Glass {
                 color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
                 Sym { anchors.centerIn: parent; name: root.info ? root.info.icon : "widgets"; size: 18; color: Theme.accent }
             }
-            Label { text: root.info ? root.info.name : ""; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
+            // у ярлыка — и название приложения
+            Label {
+                text: !root.info ? "" : root.it && WidgetTypes.isApp(root.it.id) ? root.info.name + " · " + root.grid.nameOf(root.it.id) : root.info.name
+                font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight
+            }
             Btn { text: I18n.tr("Убрать со стола"); kind: "danger"; icon: "trash"; onClicked: root.grid.remove(root.it.id) }
         }
 
