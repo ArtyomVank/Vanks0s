@@ -18,6 +18,8 @@ Rectangle {
     property int maxLength: 256
     signal accepted()
     signal edited()
+    // стрелки вверх/вниз (поиск: выбор в списке найденного); -1 / +1
+    signal step(int dir)
 
     function focusInput() { input.forceActiveFocus(); }
 
@@ -59,6 +61,8 @@ Rectangle {
         onAccepted: root.accepted()
         onTextEdited: root.edited()
         Keys.onEscapePressed: event => { if (root.clearable && text.length) { text = ""; root.edited(); } else event.accepted = false; }
+        Keys.onUpPressed: root.step(-1)
+        Keys.onDownPressed: root.step(1)
 
         Label {
             anchors.fill: parent

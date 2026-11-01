@@ -4,6 +4,7 @@ import QtQuick
 import qs.common
 import Quickshell
 import Quickshell.Io
+import "search.js" as Search
 
 // Список разделов «Настроек»: группы, названия, иконки, слова для поиска.
 // Файлы разделов пишут разные модули, поэтому названия и группы живут здесь,
@@ -91,9 +92,91 @@ Singleton {
         const hay = norm([sec.title, (folder(sec.group) || {}).title, sec.keywords, fileKeywords[sec.file] || ""].join(" "));
         return q.split(/\s+/).every(w => hay.indexOf(w) !== -1);
     }
-    function filtered(query) { return sections.filter(s => matches(s, query)); }
+    // разделы, где что-то нашлось (боковая панель при поиске)
+    function filtered(query) {
+        if (norm(query).trim().length === 0) return sections;
+        const hit = {};
+        for (const r of search(query)) hit[r.sec] = true;
+        return sections.filter(s => hit[s.id] || matches(s, query));
+    }
 
-    function rescan() { scan.running = true; }
+    // Строки разделов для поиска: { sec, kind: "row"|"card", key, sub, card }.
+    // key, sub, card — исходные строки для I18n.tr (ищем и по переводу, и по
+    // ним); у заголовков вида «Теплота: 40 %» key — начало до значения.
+    property var index: []
+    // заголовок строки без значения на конце («Теплота: » → «Теплота»)
+    function label(key) { return String(key || "").replace(/[\s:—-]+$/, ""); }
+
+    // Поиск: разделы и строки, лучшие первыми, не больше limit.
+    // Результат: { sec, kind: "section"|"card"|"row", key ("" — раздел
+    // целиком), sub, card, score }
+    function search(query, limit) {
+        const q = norm(query).trim();
+        if (q.length === 0) return [];
+        const out = [];
+        for (const sec of sections) {
+            if (scanned && present[sec.file] !== true) continue;
+            const f = folder(sec.group);
+            const s = Search.score(q, [[sec.title, 1.15], [sec.keywords, 0.7], [fileKeywords[sec.file] || "", 0.7], [f ? f.title : "", 0.45]]);
+            if (s > 0) out.push({ sec: sec.id, kind: "section", key: "", sub: "", card: "", score: s + 8 });
+        }
+        for (const e of index) {
+            const sec = byId(e.sec);
+            if (!sec) continue;
+            const name = label(e.key);
+            const tr = I18n.tr(e.key);
+            const fields = [[label(tr), 1.0], [e.sub ? I18n.tr(e.sub) : "", 0.55],
+                            [e.card ? label(I18n.tr(e.card)) : "", 0.6], [sec.title, 0.5], [sec.keywords, 0.35]];
+            // другой язык — ищем и по русскому оригиналу
+            if (tr !== e.key) fields.push([name, 0.9]);
+            const s = Search.score(q, fields);
+            if (s > 0) out.push({ sec: e.sec, kind: e.kind, key: e.key, sub: e.sub, card: e.kind === "card" ? "" : e.card, score: s + (e.kind === "card" ? 2 : 0) });
+        }
+        out.sort((a, b) => b.score - a.score);
+        // слабое рядом с сильным — шум (опечатка «свет» → «Цвет», строки,
+        // попавшие только по словам раздела): отсекаем относительно лучшего
+        const floor = out.length ? Math.max(18, out[0].score * 0.5) : 0;
+        // одинаковые строки в одной карточке (заголовок повторён) — один раз
+        const seen = {}, res = [];
+        for (const r of out) {
+            if (r.score < floor) break;
+            const k = r.sec + "\t" + r.card + "\t" + label(r.key);
+            if (seen[k]) continue;
+            seen[k] = true;
+            res.push(r);
+            if (res.length >= (limit || 50)) break;
+        }
+        return res;
+    }
+
+    function rescan() { scan.running = true; indexer.running = true; }
+
+    Process {
+        id: indexer
+        running: true
+        command: ["sh", "-c", "cd \"$1\" 2>/dev/null && awk -f \"$2\" ./*.qml", "sh", root.dir, Quickshell.shellDir + "/settings/index.awk"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const byFile = {};
+                for (const s of root.sections) byFile[s.file] = s.id;
+                const out = [];
+                let card = "", file = "", last = null;
+                for (const line of text.split("\n")) {
+                    const p = line.split("\t");
+                    if (p.length < 3) continue;
+                    const f = p[0].replace(/^\.\//, "");
+                    if (f !== file) { file = f; card = ""; last = null; }
+                    const sec = byFile[f];
+                    if (!sec) continue;
+                    if (p[1] === "sub") { if (last && !last.sub) last.sub = p[2]; continue; }
+                    if (p[1] === "card") card = p[2];
+                    last = { sec, kind: p[1], key: p[2], sub: "", card };
+                    out.push(last);
+                }
+                root.index = out;
+            }
+        }
+    }
 
     // имя файла <TAB> слова из `property string keywords: "…"`
     Process {

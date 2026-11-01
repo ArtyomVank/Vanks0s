@@ -11,6 +11,20 @@ Singleton {
     // "home" — главная с папками
     property string current: "home"
     property string query: ""
+    // поиск: найденное (Registry.search) и выбранное стрелками; searching —
+    // справа показан список найденного, а не раздел
+    readonly property var results: query.trim().length ? Registry.search(query) : []
+    property bool searching: false
+    property int pick: 0
+    onQueryChanged: { searching = query.trim().length > 0; pick = 0; }
+    // открыть найденное: раздел, а в нём прокрутить к строке и подсветить её
+    // card — найдена сама карточка; inCard — карточка, в которой строка
+    signal reveal(string section, string key, bool card, string inCard)
+    function openResult(r) {
+        if (!r) return;
+        open(r.sec);
+        if (r.key) reveal(r.sec, r.key, r.kind === "card", r.card || "");
+    }
     // разделы, которые уже открывали: их Loader остаётся живым
     property var visited: ({})
 
@@ -45,5 +59,6 @@ Singleton {
         v[id] = true;
         visited = v;
         current = id;
+        searching = false;
     }
 }

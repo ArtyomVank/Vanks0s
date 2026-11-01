@@ -1046,5 +1046,8 @@ var strings = {
     "Нужна другим программам": "Requis par d'autres programmes",
     "Ставить библиотеки для игр": "Installer les bibliothèques des jeux",
     "Перед первым запуском через лаунчер Delta смотрит, какие DLL нужны игре, и сама ставит Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA — как на Windows": "Avant le premier lancement via le lanceur, Delta vérifie les DLL dont le jeu a besoin et installe elle-même Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA — comme sous Windows",
+    "раздел": "section",
+    "Эта настройка сейчас недоступна": "Ce réglage n'est pas disponible pour l'instant",
+    "Попробуйте другое слово: «яркость», «обои», «пароль», «звук при входе»": "Essayez un autre mot : « luminosité », « fond d'écran », « mot de passe », « son de connexion »",
     "": ""
 };

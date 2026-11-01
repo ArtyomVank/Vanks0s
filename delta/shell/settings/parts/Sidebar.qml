@@ -7,8 +7,9 @@ import qs.common.ui
 import qs.settings
 
 // Левая колонка: логотип, поиск, «Все настройки» и папки с разделами
-// (сворачиваются). Поиск фильтрует список
-// по названию, группе и словам раздела; Enter открывает первый найденный.
+// (сворачиваются). Поиск ищет по разделам и по каждой строке в них (список
+// найденного — справа, SettingsWindow), а здесь оставляет разделы, где
+// что-то нашлось. Стрелки выбирают в найденном, Enter открывает.
 Rectangle {
     id: root
 
@@ -44,7 +45,15 @@ Rectangle {
             placeholder: I18n.tr("Поиск настроек")
             clearable: true
             onEdited: Nav.query = text
-            onAccepted: if (root.found.length) Nav.open(root.found[0].id)
+            onAccepted: {
+                if (Nav.results.length) Nav.openResult(Nav.results[Math.min(Nav.pick, Nav.results.length - 1)]);
+                else if (root.found.length) Nav.open(root.found[0].id);
+            }
+            onStep: dir => {
+                if (!Nav.results.length) return;
+                Nav.searching = true;
+                Nav.pick = Math.max(0, Math.min(Nav.results.length - 1, Nav.pick + dir));
+            }
             Connections {
                 target: Nav
                 function onQueryChanged() { if (search.text !== Nav.query) search.text = Nav.query; }
@@ -63,6 +72,28 @@ Rectangle {
                 id: list
                 width: flick.width
                 spacing: 2
+
+                // при поиске: вернуться к списку найденного
+                Rectangle {
+                    id: resRow
+                    readonly property bool sel: Nav.searching
+                    visible: Nav.query.trim().length > 0 && Nav.results.length > 0
+                    width: list.width
+                    height: visible ? 36 : 0
+                    radius: 10
+                    color: sel ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.28)
+                         : resHov.hovered ? Theme.soft2 : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 10 }
+                        spacing: 10
+                        Sym { name: "search"; size: 18; color: resRow.sel ? Theme.fg : Theme.fg2 }
+                        Label { text: I18n.tr("Найдено"); color: resRow.sel ? Theme.fg : Theme.fg2; Layout.fillWidth: true }
+                        Label { text: String(Nav.results.length); size: "small"; tone: 3 }
+                    }
+                    HoverHandler { id: resHov; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: Nav.searching = true }
+                }
 
                 // главная: все папки карточками
                 Row {
