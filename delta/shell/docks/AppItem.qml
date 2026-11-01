@@ -145,8 +145,8 @@ Item {
                 asynchronous: true
             }
 
-            // кнопка «Приложения» — четыре скруглённых квадрата без подложки;
-            // под курсором чуть расходятся
+            // кнопка «Приложения» — четыре полых скруглённых квадрата без
+            // подложки (только контур цвета акцента); под курсором чуть расходятся
             Item {
                 id: quad
                 anchors.fill: parent
@@ -163,10 +163,9 @@ Item {
                         width: quad.cube
                         height: quad.cube
                         radius: quad.cube * 0.32
-                        gradient: Gradient {
-                            GradientStop { position: 0; color: Qt.lighter(Theme.accent, index === 0 ? 1.45 : 1.25) }
-                            GradientStop { position: 1; color: Qt.darker(Theme.accent, index === 3 ? 1.4 : 1.15) }
-                        }
+                        color: "transparent"
+                        border.width: Math.max(2, Math.round(quad.cube * 0.17))
+                        border.color: Qt.lighter(Theme.accent, index === 0 ? 1.35 : 1.15)
                     }
                 }
             }
