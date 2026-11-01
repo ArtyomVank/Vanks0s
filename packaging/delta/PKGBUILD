@@ -8,8 +8,8 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.6.5
-pkgrel=2
+pkgver=0.6.6
+pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith)
 _codename=Zenith
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
