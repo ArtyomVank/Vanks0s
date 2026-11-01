@@ -1,22 +1,41 @@
-use std::time::Duration;
-
 use smithay::{
     backend::{
-        renderer::{damage::OutputDamageTracker, element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
+        egl::EGLDevice,
+        renderer::{damage::OutputDamageTracker, gles::GlesRenderer, ImportDma},
         winit::{self, WinitEvent},
     },
     input::pointer::{CursorIcon, CursorImageStatus},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::EventLoop,
     utils::{Rectangle, Transform},
+    wayland::dmabuf::DmabufFeedbackBuilder,
 };
 
-use crate::{config, CalloopData, Shell};
+use crate::{config, render::output_elements, CalloopData, Shell};
 
 /// Окно отладки: один выход размером с окно, ввод — из него же.
 pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> Result<(), Box<dyn std::error::Error>> {
-    let (mut backend, winit) = winit::init()?;
+    let (mut backend, winit) = winit::init::<GlesRenderer>()?;
     backend.window().set_title("Vanks Shell (отладка)");
+
+    // программы рисуют на видеокарте и отдают кадры как dmabuf — как в настоящей
+    // сессии. Без адреса видеокарты Quickshell ушёл бы на медленный SHM
+    let formats = backend.renderer().dmabuf_formats();
+    let node = EGLDevice::device_for_display(backend.renderer().egl_context().display())
+        .and_then(|device| device.try_get_render_node());
+    let feedback = match node {
+        Ok(Some(node)) => DmabufFeedbackBuilder::new(node.dev_id(), formats.clone()).build().ok(),
+        _ => None,
+    };
+    match feedback {
+        Some(feedback) => {
+            data.state.dmabuf_state.create_global_with_default_feedback::<Shell>(&data.display_handle, &feedback);
+        }
+        None => {
+            tracing::warn!("видеокарта окна не определилась: dmabuf без адреса устройства");
+            data.state.dmabuf_state.create_global::<Shell>(&data.display_handle, formats);
+        }
+    }
 
     let mode = Mode { size: backend.window_size(), refresh: 60_000 };
     let output = Output::new(
@@ -33,6 +52,8 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     output.change_current_state(Some(mode), Some(Transform::Flipped180), None, Some((0, 0).into()));
     output.set_preferred(mode);
     data.state.space.map_output(&output, (0, 0));
+    data.state.output_added(&output);
+    data.state.winit = Some(backend);
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
     // курсор рисует сессия вокруг; мы только меняем его фигуру, когда просит программа
@@ -43,9 +64,12 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
         match event {
             WinitEvent::Resized { size, .. } => {
                 output.change_current_state(Some(Mode { size, refresh: 60_000 }), None, None, None);
+                state.resize_lock_surfaces();
             }
             WinitEvent::Input(event) => state.process_input_event(event),
             WinitEvent::Redraw => {
+                // состояние оболочки нужно и для элементов кадра — окно временно отдельно
+                let Some(mut backend) = state.winit.take() else { return };
                 let want = match &state.cursor_status {
                     CursorImageStatus::Named(icon) => Some(*icon),
                     CursorImageStatus::Hidden => None,
@@ -63,40 +87,33 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
 
                 let size = backend.window_size();
                 let damage = Rectangle::from_size(size);
-                {
-                    let (renderer, mut framebuffer) = match backend.bind() {
-                        Ok(b) => b,
-                        Err(e) => {
-                            tracing::warn!("кадр пропущен: {e}");
-                            return;
+                let bound = match backend.bind() {
+                    Ok((renderer, mut framebuffer)) => {
+                        let elements = output_elements(renderer, state, &output, false);
+                        if let Err(e) = damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND) {
+                            tracing::warn!("ошибка отрисовки: {e:?}");
                         }
-                    };
-                    if let Err(e) = smithay::desktop::space::render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
-                        &output,
-                        renderer,
-                        &mut framebuffer,
-                        1.0,
-                        0,
-                        [&state.space],
-                        &[],
-                        &mut damage_tracker,
-                        config::BACKGROUND,
-                    ) {
-                        tracing::warn!("ошибка отрисовки: {e:?}");
+                        true
                     }
+                    Err(e) => {
+                        tracing::warn!("кадр пропущен: {e}");
+                        false
+                    }
+                };
+                if bound {
+                    if let Err(e) = backend.submit(Some(&[damage])) {
+                        tracing::warn!("кадр не показан: {e}");
+                    }
+                    state.lock_frame_drawn(&output);
+                    // программам — «рисуйте следующий кадр»
+                    state.send_frames(&output);
                 }
-                if let Err(e) = backend.submit(Some(&[damage])) {
-                    tracing::warn!("кадр не показан: {e}");
-                }
+                backend.window().request_redraw();
+                state.winit = Some(backend);
 
-                // программам — «рисуйте следующий кадр»
-                state.space.elements().for_each(|window| {
-                    window.send_frame(&output, state.start_time.elapsed(), Some(Duration::ZERO), |_, _| Some(output.clone()))
-                });
                 state.space.refresh();
                 state.popups.cleanup();
                 let _ = data.display_handle.flush_clients();
-                backend.window().request_redraw();
             }
             WinitEvent::CloseRequested => state.loop_signal.stop(),
             _ => (),

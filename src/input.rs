@@ -11,20 +11,50 @@ use smithay::{
     utils::SERIAL_COUNTER,
 };
 
+use smithay::wayland::shell::wlr_layer::Layer;
+
 use crate::{config, grabs::MoveSurfaceGrab, state::Shell};
 
 /// левая кнопка мыши (linux/input-event-codes.h)
 const BTN_LEFT: u32 = 0x110;
 
-/// Сочетания оболочки. Ищутся по латинской клавише, так что работают и в
-/// русской раскладке (Super+Й — это Super+Q).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Сочетания оболочки — те же, что у Delta в hyprland.lua, чтобы руки не
+/// переучивать. Ищутся по латинской клавише, так что работают и в русской
+/// раскладке (Super+Й — это Super+Q). «Глобальные» уходят в Delta
+/// (hyprland_global_shortcuts_v1), остальное делает оболочка.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     Terminal,
     CloseWindow,
     Quit,
     /// Ctrl+Alt+F1…F12 — другая консоль (только в настоящей сессии)
     Vt(i32),
+    /// сочетание Delta: «delta:lock», «delta:volume-up»…
+    Global(&'static str),
+    Exec(&'static str),
+    OpenHome,
+    Workspace(i32),
+    MoveToWorkspace(i32),
+}
+
+impl Action {
+    /// Что можно при заблокированном экране. Выход из сессии — нельзя: это был
+    /// бы обход замка, если сессию запустили из консоли.
+    fn allowed_when_locked(&self) -> bool {
+        match self {
+            Action::Vt(_) | Action::Exec(_) => true,
+            Action::Global(name) => matches!(
+                *name,
+                "delta:volume-up"
+                    | "delta:volume-down"
+                    | "delta:volume-mute"
+                    | "delta:mic-mute"
+                    | "delta:brightness-up"
+                    | "delta:brightness-down"
+            ),
+            _ => false,
+        }
+    }
 }
 
 /// sym — латинская клавиша (для сочетаний), modified — что даёт xkb с учётом
@@ -38,43 +68,115 @@ fn binding(mods: &ModifiersState, sym: Keysym, modified: Keysym) -> Option<Actio
     if mods.ctrl && mods.alt && sym == Keysym::BackSpace {
         return Some(Action::Quit);
     }
+    // мультимедийные клавиши — без Super, и на экране блокировки тоже
+    let media = match sym {
+        Keysym::XF86_AudioRaiseVolume => Some(Action::Global("delta:volume-up")),
+        Keysym::XF86_AudioLowerVolume => Some(Action::Global("delta:volume-down")),
+        Keysym::XF86_AudioMute => Some(Action::Global("delta:volume-mute")),
+        Keysym::XF86_AudioMicMute => Some(Action::Global("delta:mic-mute")),
+        Keysym::XF86_MonBrightnessUp => Some(Action::Global("delta:brightness-up")),
+        Keysym::XF86_MonBrightnessDown => Some(Action::Global("delta:brightness-down")),
+        Keysym::XF86_AudioNext => Some(Action::Exec("playerctl next")),
+        Keysym::XF86_AudioPrev => Some(Action::Exec("playerctl previous")),
+        Keysym::XF86_AudioPlay | Keysym::XF86_AudioPause => Some(Action::Exec("playerctl play-pause")),
+        Keysym::Print => Some(Action::Global("delta:screenshot")),
+        _ => None,
+    };
+    if media.is_some() {
+        return media;
+    }
     if !mods.logo {
         return None;
+    }
+    // Super+1…9, 0 — столы 1…10; с Shift — перенести туда окно
+    let digit = match sym.raw() {
+        r if (Keysym::_1.raw()..=Keysym::_9.raw()).contains(&r) => Some((r - Keysym::_1.raw()) as i32 + 1),
+        r if r == Keysym::_0.raw() => Some(10),
+        _ => None,
+    };
+    if let Some(n) = digit {
+        return Some(if mods.shift { Action::MoveToWorkspace(n) } else { Action::Workspace(n) });
     }
     match sym {
         Keysym::Return | Keysym::KP_Enter => Some(Action::Terminal),
         Keysym::q | Keysym::Q => Some(Action::CloseWindow),
         Keysym::e | Keysym::E if mods.shift => Some(Action::Quit),
+        Keysym::e | Keysym::E => Some(Action::OpenHome),
+        Keysym::s | Keysym::S => Some(Action::Global("delta:wallpapers")),
+        Keysym::n | Keysym::N => Some(Action::Global("delta:notifications")),
+        Keysym::w | Keysym::W => Some(Action::Global("delta:widgets")),
+        Keysym::i | Keysym::I => Some(Action::Global("delta:settings")),
+        Keysym::l | Keysym::L => Some(Action::Global("delta:lock")),
+        Keysym::Escape => Some(Action::Global("delta:power")),
+        Keysym::h | Keysym::H => Some(Action::Global("delta:minimize")),
+        Keysym::f | Keysym::F => Some(Action::Global("delta:fullscreen")),
         _ => None,
     }
 }
 
+fn is_super(sym: Keysym) -> bool {
+    sym == Keysym::Super_L || sym == Keysym::Super_R
+}
+
 impl Shell {
     pub fn process_input_event<I: InputBackend>(&mut self, event: InputEvent<I>) {
+        // любое действие за клавиатурой или мышью — не простой (IdleMonitor Delta)
+        if matches!(
+            event,
+            InputEvent::Keyboard { .. }
+                | InputEvent::PointerMotion { .. }
+                | InputEvent::PointerMotionAbsolute { .. }
+                | InputEvent::PointerButton { .. }
+                | InputEvent::PointerAxis { .. }
+        ) {
+            self.idle_notify.activity();
+        }
         match event {
             InputEvent::Keyboard { event, .. } => {
                 let serial = SERIAL_COUNTER.next_serial();
                 let time = Event::time_msec(&event);
                 let pressed = event.state() == KeyState::Pressed;
+                let locked = self.is_locked();
                 let action = self.seat.get_keyboard().unwrap().input::<Action, _>(
                     self,
                     event.key_code(),
                     event.state(),
                     serial,
                     time,
-                    |_, mods, handle| match binding(
-                        mods,
-                        handle.raw_latin_sym_or_raw_current_sym().unwrap_or(Keysym::NoSymbol),
-                        handle.modified_sym(),
-                    ) {
-                        // нажатие — действие, отпускание той же клавиши программе тоже не нужно
-                        Some(a) if pressed => FilterResult::Intercept(a),
-                        _ => FilterResult::Forward,
+                    |shell, mods, handle| {
+                        let sym = handle.raw_latin_sym_or_raw_current_sym().unwrap_or(Keysym::NoSymbol);
+                        // экран заблокирован: только консоли и громкость, остальное — замку
+                        if locked {
+                            shell.super_alone = false;
+                            return match binding(mods, sym, handle.modified_sym()) {
+                                Some(a) if pressed && a.allowed_when_locked() => FilterResult::Intercept(a),
+                                _ => FilterResult::Forward,
+                            };
+                        }
+                        // Super сам по себе (нажали и отпустили) — меню приложений Delta
+                        if is_super(handle.modified_sym()) || is_super(sym) {
+                            if pressed {
+                                shell.super_alone = true;
+                            } else if std::mem::take(&mut shell.super_alone) {
+                                return FilterResult::Intercept(Action::Global("delta:launcher-key"));
+                            }
+                            return FilterResult::Forward;
+                        }
+                        if pressed {
+                            shell.super_alone = false;
+                        }
+                        match binding(mods, sym, handle.modified_sym()) {
+                            // нажатие — действие, отпускание той же клавиши программе тоже не нужно
+                            Some(a) if pressed => FilterResult::Intercept(a),
+                            _ => FilterResult::Forward,
+                        }
                     },
                 );
                 if let Some(action) = action {
                     self.run_action(action);
                 }
+                // Alt+Shift сменил раскладку — Delta покажет новую
+                self.layout_maybe_changed();
             }
             // мышь и тачпад в настоящей сессии: сдвиг, а не точка
             InputEvent::PointerMotion { event, .. } => {
@@ -96,8 +198,35 @@ impl Shell {
                 let button = event.button_code();
                 let button_state = event.state();
 
-                if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
-                    let location = pointer.current_location();
+                if button_state == ButtonState::Pressed {
+                    self.super_alone = false;
+                }
+                let location = pointer.current_location();
+                // экран заблокирован: щелчок и клавиатура — только замку
+                if self.is_locked() {
+                    if button_state == ButtonState::Pressed {
+                        if let Some((surface, _)) = self.lock_surface_under(location) {
+                            keyboard.set_focus(self, Some(surface), serial);
+                        }
+                    }
+                    pointer.button(self, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(self);
+                    return;
+                }
+                // щелчок мимо меню Delta с захватом — меню закрывается
+                if button_state == ButtonState::Pressed {
+                    let under = self.surface_under(location).map(|(s, _)| s);
+                    self.focus_grab_click(under.as_ref());
+                }
+                let top_layer = self.layer_surface_under(location, &[Layer::Overlay, Layer::Top]);
+                let bottom_layer = || self.layer_surface_under(location, &[Layer::Bottom, Layer::Background]);
+                if button_state == ButtonState::Pressed && !pointer.is_grabbed() && top_layer.is_some() {
+                    // щелчок по панели Delta: клавиатура — ей, если она её берёт
+                    let (_, _, layer) = top_layer.unwrap();
+                    if layer.can_receive_keyboard_focus() {
+                        keyboard.set_focus(self, Some(layer.wl_surface().clone()), serial);
+                    }
+                } else if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
                     if let Some((window, _)) = self.space.element_under(location).map(|(w, l)| (w.clone(), l)) {
                         // щелчок по окну: оно впереди всех и получает клавиатуру
                         self.focus_window(&window, serial);
@@ -109,6 +238,9 @@ impl Shell {
                             pointer.set_grab(self, grab, serial, Focus::Clear);
                             return;
                         }
+                    } else if let Some((_, _, layer)) = bottom_layer().filter(|(_, _, l)| l.can_receive_keyboard_focus()) {
+                        // виджеты Delta на столе
+                        keyboard.set_focus(self, Some(layer.wl_surface().clone()), serial);
                     } else {
                         // щелчок по пустому столу — ни одно окно не активно
                         self.space.elements().for_each(|w| {
@@ -125,6 +257,17 @@ impl Shell {
                 pointer.frame(self);
             }
             InputEvent::PointerAxis { event, .. } => {
+                // Super + колесо — соседний занятый стол (как в Delta)
+                let logo = !self.is_locked() && self.seat.get_keyboard().map(|k| k.modifier_state().logo).unwrap_or(false);
+                if logo {
+                    if let Some(v) = event.amount_v120(Axis::Vertical).or(event.amount(Axis::Vertical)).filter(|v| *v != 0.0) {
+                        self.super_alone = false;
+                        if let Some(id) = self.resolve_ws(if v > 0.0 { "e+1" } else { "e-1" }) {
+                            self.switch_workspace(id);
+                        }
+                        return;
+                    }
+                }
                 let source = event.source();
                 let horizontal = event
                     .amount(Axis::Horizontal)
@@ -173,6 +316,18 @@ impl Shell {
     fn run_action(&mut self, action: Action) {
         tracing::debug!(?action, "сочетание");
         match action {
+            Action::Global(name) => {
+                self.trigger_global(name, true);
+                self.trigger_global(name, false);
+            }
+            Action::Exec(cmd) => self.spawn(cmd),
+            Action::OpenHome => self.spawn("xdg-open \"$HOME\""),
+            Action::Workspace(n) => self.switch_workspace(n),
+            Action::MoveToWorkspace(n) => {
+                if let Some(w) = self.focused_window() {
+                    self.move_to_workspace(&w, n, true);
+                }
+            }
             Action::Terminal => self.spawn(&config::terminal()),
             Action::CloseWindow => {
                 if let Some(t) = self.focused_window().and_then(|w| w.toplevel().cloned()) {

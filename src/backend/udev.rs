@@ -309,6 +309,7 @@ impl Shell {
 
         gpu.screens.insert(crtc, Screen { output: output.clone(), global, drm_output, queued: false, timer: None });
         self.space.map_output(&output, (x, 0));
+        self.output_added(&output);
 
         // первый монитор — мышь в его центр
         if self.space.outputs().count() == 1 {
@@ -328,6 +329,7 @@ impl Shell {
         }
         tracing::info!(name = screen.output.name(), "монитор отключён");
         self.space.unmap_output(&screen.output);
+        self.output_removed(&screen.output);
         self.display_handle.remove_global::<Shell>(screen.global);
     }
 
@@ -399,6 +401,9 @@ impl Shell {
         self.udev = Some(udev);
 
         let Some((output, drawn)) = result else { return };
+        if matches!(drawn, Some(Ok(_))) {
+            self.lock_frame_drawn(&output);
+        }
         let frame = output.current_mode().map(|m| Duration::from_secs_f64(1000.0 / m.refresh.max(1) as f64)).unwrap_or(Duration::from_millis(16));
         match drawn {
             // на монитор ушёл новый кадр: дальше — по VBlank
@@ -418,15 +423,12 @@ impl Shell {
         }
 
         // программам на этом мониторе — «можно рисовать следующий кадр»
-        let time = self.start_time.elapsed();
-        for window in self.space.elements() {
-            window.send_frame(&output, time, Some(Duration::ZERO), |_, _| Some(output.clone()));
-        }
+        self.send_frames(&output);
     }
 
     /// Отрисовать кадр монитора; true — кадр новый и поставлен на показ.
     fn draw(&mut self, renderer: &mut GlesRenderer, screen: &mut Screen) -> Result<bool, SwapBuffersError> {
-        let elements = output_elements(renderer, self, &screen.output);
+        let elements = output_elements(renderer, self, &screen.output, true);
         let result = screen
             .drm_output
             .render_frame(renderer, &elements, config::BACKGROUND, FrameFlags::DEFAULT)
@@ -493,6 +495,9 @@ impl Shell {
 
     /// Программа прислала кадр как dmabuf: сможем ли мы его показать.
     pub fn import_dmabuf(&mut self, dmabuf: &smithay::backend::allocator::dmabuf::Dmabuf) -> bool {
+        if let Some(backend) = self.winit.as_mut() {
+            return backend.renderer().import_dmabuf(dmabuf, None).is_ok();
+        }
         self.udev
             .as_mut()
             .and_then(|u| u.gpu.as_mut())

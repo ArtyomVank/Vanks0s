@@ -1781,7 +1781,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vanks-shell"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bitflags 2.13.2",
  "calloop 0.14.5",
@@ -1792,6 +1792,9 @@ dependencies = [
  "smithay-drm-extras",
  "tracing",
  "tracing-subscriber",
+ "wayland-backend",
+ "wayland-scanner",
+ "wayland-server",
  "xcursor",
 ]
 

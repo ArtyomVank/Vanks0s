@@ -1,7 +1,8 @@
 use std::{ffi::OsString, sync::Arc};
 
 use smithay::{
-    desktop::{PopupManager, Space, Window, WindowSurfaceType},
+    backend::{renderer::gles::GlesRenderer, winit::WinitGraphicsBackend},
+    desktop::{layer_map_for_output, utils::send_frames_surface_tree, PopupManager, Space, Window, WindowSurfaceType},
     input::{keyboard::XkbConfig, pointer::CursorImageStatus, Seat, SeatState},
     reexports::{
         calloop::{generic::Generic, EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction},
@@ -16,15 +17,25 @@ use smithay::{
         compositor::{CompositorClientState, CompositorState},
         cursor_shape::CursorShapeManagerState,
         dmabuf::DmabufState,
+        idle_inhibit::IdleInhibitManagerState,
         output::OutputManagerState,
         selection::data_device::DataDeviceState,
-        shell::xdg::XdgShellState,
+        session_lock::SessionLockManagerState,
+        shell::{
+            wlr_layer::{Layer, WlrLayerShellState},
+            xdg::{decoration::XdgDecorationState, XdgShellState},
+        },
         shm::ShmState,
         socket::ListeningSocketSource,
     },
 };
 
-use crate::{backend::udev::UdevData, config, cursor::Cursor, settings::Settings, CalloopData};
+use crate::{
+    backend::udev::UdevData, config, cursor::Cursor, ipc::Ipc, protocols::global_shortcuts::GlobalShortcutsState,
+    lock::{Lock, LockSurfaceOn},
+    protocols::{focus_grab::FocusGrabState, foreign_toplevel::ForeignToplevelState, idle_notify::IdleNotifyState},
+    settings::Settings, workspaces::Workspaces, CalloopData,
+};
 
 /// Всё состояние композитора.
 pub struct Shell {
@@ -42,17 +53,38 @@ pub struct Shell {
     // состояния протоколов Smithay
     pub compositor_state: CompositorState,
     pub xdg_shell_state: XdgShellState,
+    pub xdg_decoration_state: XdgDecorationState,
+    pub layer_shell_state: WlrLayerShellState,
     pub shm_state: ShmState,
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<Shell>,
     pub data_device_state: DataDeviceState,
     pub dmabuf_state: DmabufState,
     pub cursor_shape_state: CursorShapeManagerState,
+    pub session_lock_state: SessionLockManagerState,
     pub popups: PopupManager,
 
     pub seat: Seat<Self>,
     /// сколько окон уже поставлено каскадом (сдвиг следующего)
     pub cascade: i32,
+    /// все окна, и на других столах, — в порядке наложения (последнее сверху)
+    pub windows: Vec<Window>,
+    pub workspaces: Workspaces,
+    /// IPC как у Hyprland (ipc.rs) — для Delta
+    pub ipc: Option<Ipc>,
+    pub global_shortcuts: GlobalShortcutsState,
+    pub focus_grabs: FocusGrabState,
+    pub foreign_toplevels: ForeignToplevelState,
+    pub idle_notify: IdleNotifyState,
+    pub idle_inhibit_state: IdleInhibitManagerState,
+    /// поверхности, которые просят не считать простоем (видео, игры)
+    pub idle_inhibitors: Vec<WlSurface>,
+    /// Super нажат и пока ни с чем не сочетался (отпустят — меню Delta)
+    pub super_alone: bool,
+    /// блокировка экрана (lock.rs)
+    pub lock: Lock,
+    pub lock_surfaces: Vec<LockSurfaceOn>,
+    pub lock_retry: Option<std::time::Instant>,
 
     /// какой курсор просит программа под мышью (или своя стрелка)
     pub cursor_status: CursorImageStatus,
@@ -60,6 +92,8 @@ pub struct Shell {
     pub cursor: Cursor,
     /// настоящая сессия (DRM, libinput, libseat); в окне отладки — None
     pub udev: Option<UdevData>,
+    /// окно отладки; в настоящей сессии — None
+    pub winit: Option<WinitGraphicsBackend<GlesRenderer>>,
 }
 
 impl Shell {
@@ -68,11 +102,19 @@ impl Shell {
 
         let compositor_state = CompositorState::new::<Self>(&dh);
         let xdg_shell_state = XdgShellState::new::<Self>(&dh);
+        let xdg_decoration_state = XdgDecorationState::new::<Self>(&dh);
+        let layer_shell_state = WlrLayerShellState::new::<Self>(&dh);
         let shm_state = ShmState::new::<Self>(&dh, vec![]);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let data_device_state = DataDeviceState::new::<Self>(&dh);
         let cursor_shape_state = CursorShapeManagerState::new::<Self>(&dh);
+        let session_lock_state = SessionLockManagerState::new::<Self, _>(&dh, |_| true);
+        let global_shortcuts = GlobalShortcutsState::new(&dh);
+        let focus_grabs = FocusGrabState::new(&dh);
+        let foreign_toplevels = ForeignToplevelState::new(&dh);
+        let idle_notify = IdleNotifyState::new(&dh, &event_loop.handle());
+        let idle_inhibit_state = IdleInhibitManagerState::new::<Self>(&dh);
         let settings = Settings::load();
 
         // место (seat) — клавиатура и мышь одного пользователя. Раскладки и
@@ -103,18 +145,35 @@ impl Shell {
             socket_name,
             compositor_state,
             xdg_shell_state,
+            xdg_decoration_state,
+            layer_shell_state,
             shm_state,
             output_manager_state,
             seat_state,
             data_device_state,
             dmabuf_state: DmabufState::new(),
             cursor_shape_state,
+            session_lock_state,
             popups: PopupManager::default(),
             seat,
             cascade: 0,
+            windows: Vec::new(),
+            workspaces: Workspaces::default(),
+            ipc: None,
+            global_shortcuts,
+            focus_grabs,
+            foreign_toplevels,
+            idle_notify,
+            idle_inhibit_state,
+            idle_inhibitors: Vec::new(),
+            super_alone: false,
+            lock: Lock::default(),
+            lock_surfaces: Vec::new(),
+            lock_retry: None,
             cursor_status: CursorImageStatus::default_named(),
             cursor: Cursor::load(),
             udev: None,
+            winit: None,
         }
     }
 
@@ -166,38 +225,81 @@ impl Shell {
             .arg("-c")
             .arg(command)
             .env("WAYLAND_DISPLAY", &self.socket_name)
-            .env("XDG_CURRENT_DESKTOP", "Vanks")
+            // Delta и hyprctl находят нас как Hyprland (ipc.rs)
+            .env("HYPRLAND_INSTANCE_SIGNATURE", self.ipc.as_ref().map(|i| i.signature.as_str()).unwrap_or(""))
+            // Delta — рабочий стол поверх Vanks Shell
+            .env("XDG_CURRENT_DESKTOP", "Vanks:Delta")
+            .env("XDG_SESSION_DESKTOP", "vanks")
             .env("XDG_SESSION_TYPE", "wayland")
             // X11 вокруг нам не нужен: программа должна прийти к нам по Wayland
             .env_remove("DISPLAY")
             .spawn();
-        if let Err(e) = r {
-            tracing::warn!("не запустилось «{command}»: {e}");
+        match r {
+            // завершившуюся программу надо забрать, иначе останется зомби
+            Ok(mut child) => {
+                std::thread::spawn(move || child.wait());
+            }
+            Err(e) => tracing::warn!("не запустилось «{command}»: {e}"),
         }
     }
 
-    /// Окно и точка на его поверхности под курсором.
+    /// Поверхность под курсором и её начало на столе. Сверху вниз: слои
+    /// «поверх всего» и верхний (панели, меню Delta), окна, нижний слой и фон.
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space.element_under(pos).and_then(|(window, location)| {
+        // экран заблокирован: под мышью только замок
+        if self.is_locked() {
+            return self.lock_surface_under(pos);
+        }
+        if let Some((s, at, _)) = self.layer_surface_under(pos, &[Layer::Overlay, Layer::Top]) {
+            return Some((s, at));
+        }
+        let window = self.space.element_under(pos).and_then(|(window, location)| {
             window
                 .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
                 .map(|(s, p)| (s, (p + location).to_f64()))
-        })
+        });
+        window.or_else(|| self.layer_surface_under(pos, &[Layer::Bottom, Layer::Background]).map(|(s, at, _)| (s, at)))
+    }
+
+    /// Место для окон на мониторе: без краёв, занятых панелями.
+    pub fn usable_area(&self, output: &smithay::output::Output) -> smithay::utils::Rectangle<i32, Logical> {
+        let geo = self.space.output_geometry(output).unwrap_or_default();
+        let zone = layer_map_for_output(output).non_exclusive_zone();
+        smithay::utils::Rectangle::new(geo.loc + zone.loc, zone.size)
+    }
+
+    /// Программам на мониторе — «можно рисовать следующий кадр»: окнам и слоям.
+    pub fn send_frames(&self, output: &smithay::output::Output) {
+        let time = self.start_time.elapsed();
+        let throttle = Some(std::time::Duration::ZERO);
+        // экран заблокирован: остальное не видно — незачем и рисовать
+        if self.is_locked() {
+            if let Some(lock) = self.lock_surface(output) {
+                send_frames_surface_tree(lock.wl_surface(), output, time, throttle, |_, _| Some(output.clone()));
+            }
+            return;
+        }
+        for window in self.space.elements() {
+            window.send_frame(output, time, throttle, |_, _| Some(output.clone()));
+        }
+        for layer in layer_map_for_output(output).layers() {
+            layer.send_frame(output, time, throttle, |_, _| Some(output.clone()));
+        }
     }
 
     pub fn window_for_surface(&self, surface: &WlSurface) -> Option<Window> {
-        self.space
-            .elements()
+        self.windows
+            .iter()
             .find(|w| w.toplevel().map(|t| t.wl_surface() == surface).unwrap_or(false))
             .cloned()
     }
 
     /// Новое окно: по центру экрана, каждое следующее — со сдвигом (каскад).
     pub fn initial_position(&mut self, size: (i32, i32)) -> Point<i32, Logical> {
-        let Some(output) = self.space.outputs().next() else {
+        let Some(output) = self.output_under_pointer() else {
             return (0, 0).into();
         };
-        let geo = self.space.output_geometry(output).unwrap_or_default();
+        let geo = self.usable_area(&output);
         let step = config::CASCADE_STEP * (self.cascade % 8);
         self.cascade += 1;
         let x = geo.loc.x + (geo.size.w - size.0).max(0) / 2 + step;
@@ -209,7 +311,15 @@ impl Shell {
     /// новое окно. Остальные окна становятся неактивными (рамки, курсор ввода).
     pub fn focus_window(&mut self, window: &Window, serial: Serial) {
         self.space.raise_element(window, true);
+        self.raise_in_stack(window);
+        // при блокировке клавиатура только у замка
+        if self.is_locked() {
+            return;
+        }
         let surface = window.toplevel().map(|t| t.wl_surface().clone());
+        if let Some(s) = &surface {
+            self.focus_grab_window(s);
+        }
         if let Some(keyboard) = self.seat.get_keyboard() {
             keyboard.set_focus(self, surface, serial);
         }
@@ -220,10 +330,14 @@ impl Shell {
         });
     }
 
-    /// Фокус — верхнему окну (закрыли окно с фокусом), или никому.
+    /// Фокус — верхнему видимому окну (закрыли окно с фокусом, сменили стол), или никому.
     pub fn focus_top(&mut self) {
+        if self.is_locked() {
+            return;
+        }
         let serial = SERIAL_COUNTER.next_serial();
-        if let Some(top) = self.space.elements().last().cloned() {
+        let top = self.windows.iter().rev().find(|w| self.space.element_location(w).is_some()).cloned();
+        if let Some(top) = top {
             self.focus_window(&top, serial);
         } else if let Some(keyboard) = self.seat.get_keyboard() {
             keyboard.set_focus(self, Option::<WlSurface>::None, serial);
@@ -288,5 +402,10 @@ pub struct ClientState {
 
 impl ClientData for ClientState {
     fn initialized(&self, _client_id: ClientId) {}
-    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
+    fn disconnected(&self, _client_id: ClientId, reason: DisconnectReason) {
+        // программа закрылась сама — обычное дело; ошибка протокола — наша забота
+        if let DisconnectReason::ProtocolError(e) = reason {
+            tracing::warn!(error = %e, "программа отключена за ошибку протокола");
+        }
+    }
 }

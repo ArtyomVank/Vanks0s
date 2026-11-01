@@ -5,7 +5,7 @@
 # Журнал — в systemd (journalctl -t vanks-shell -b), а если его нет —
 # в ~/.local/state/vanks-shell/session.log (прошлый — session.log.old).
 
-export XDG_CURRENT_DESKTOP=Vanks
+export XDG_CURRENT_DESKTOP=Vanks:Delta
 export XDG_SESSION_DESKTOP=vanks
 export XDG_SESSION_TYPE=wayland
 # графической сессии ещё нет: оболочка сама ведёт видеокарту и ввод

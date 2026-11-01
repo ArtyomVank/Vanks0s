@@ -24,12 +24,17 @@
 | `config.rs` | постоянные (фон, каскад) и переменные окружения |
 | `settings.rs` | настройки Delta: `~/.config/delta/settings.json` поверх умолчаний Delta |
 | `input.rs` | клавиатура и мышь: сочетания оболочки, щелчок поднимает окно, Super+перетаскивание |
-| `handlers/` | протоколы Wayland: `compositor.rs` (кадры поверхностей), `xdg_shell.rs` (окна, меню, просьбы тащить и менять размер), `mod.rs` (seat, буфер обмена, выходы) |
+| `handlers/` | протоколы Wayland: `compositor.rs` (кадры поверхностей), `xdg_shell.rs` (окна, меню, просьбы тащить и менять размер, xdg-decoration), `layer_shell.rs` (панели Delta), `mod.rs` (seat, буфер обмена, выходы, dmabuf, запрет простоя) |
 | `grabs/` | захваты мыши: перемещение и изменение размера окна |
 | `backend/mod.rs` | какой бэкенд: внутри графической сессии — winit, с консоли — udev |
 | `backend/winit.rs` | окно отладки: выход размером с окно, ввод из него, отрисовка через GLES; курсор — у сессии вокруг |
 | `backend/udev.rs` | настоящая сессия: libseat, видеокарта (DRM/GBM/EGL), мониторы и их кадры, libinput, консоли |
-| `render.rs` | элементы кадра выхода: курсор поверх окон |
+| `render.rs` | элементы кадра выхода: курсор поверх окон, при блокировке — только замок |
+| `workspaces.rs` | рабочие столы и свёрнутые, адреса окон, развернуть и полный экран, выбор окна по `address:`/`class:`/`title:` |
+| `ipc.rs` | сокеты Hyprland: ответы `j/…` и события для Delta |
+| `dispatch.rs` | команды `dispatch`: Lua (`hl.dsp.…`) и старые |
+| `lock.rs` | ext-session-lock: блокировка экрана, восстановление после падения замка |
+| `protocols/` | протоколы, которых нет в Smithay: `global_shortcuts`, `focus_grab`, `foreign_toplevel` (и toplevel-mapping), `idle_notify` |
 | `cursor.rs` | тема курсора xcursor, фигуры по имени, анимация |
 | `edid.rs` | производитель и модель монитора из EDID |
 | `probe.rs` | `--probe`: что увидит настоящая сессия, без захвата |
@@ -72,8 +77,35 @@ DRM на паузе, кадров нет. Вернулась — ActivateSession
 
 ## Связь с Delta
 
-Цель 1.0 — Delta (доки, виджеты, экран блокировки, «Настройки») работает
-на Vanks Shell вместо Hyprland. Путь: сначала wlr-layer-shell — тогда
-панели Delta на Quickshell встают поверх Vanks Shell как есть; затем свой
-IPC вместо `hyprctl`; затем перенос эффектов (стекло, «желе», анимации)
-в сам композитор. Подробно — в ROADMAP.
+С 0.3 Delta работает на Vanks Shell без правок в самой Delta: оболочка
+отвечает ей как Hyprland 0.57 с конфигом на Lua.
+
+```
+Delta (Quickshell) ── Quickshell.Hyprland ──→ сокеты hypr/<подпись>/  ipc.rs, dispatch.rs
+                   ── wlr-layer-shell ─────→ handlers/layer_shell.rs
+                   ── GlobalShortcut ──────→ protocols/global_shortcuts.rs ← input.rs
+                   ── WlSessionLock ───────→ lock.rs
+                   ── ToplevelManager ─────→ protocols/foreign_toplevel.rs
+                   ── HyprlandFocusGrab ───→ protocols/focus_grab.rs
+                   ── IdleMonitor ─────────→ protocols/idle_notify.rs
+```
+
+`j/status` сообщает `configProvider: "lua"`: так Quickshell шлёт команды в виде
+`hl.dsp.focus({workspace=2})`, а их разбирает `dispatch.rs`. Подпись
+`vanks_<время>_<pid>` передаётся программам в `HYPRLAND_INSTANCE_SIGNATURE`,
+поэтому и обычный `hyprctl` работает с Vanks Shell.
+
+Дальше — перенос эффектов (стекло, «желе», анимации) в сам композитор. Подробно
+— в ROADMAP.
+
+### Обходы ошибок Smithay 0.7
+
+Оба случая одинаковы: программа снимает роль (destroy) и присылает пустой
+commit. Протокол это разрешает, а Quickshell так и делает, но проверки Smithay
+отключают её за ошибку протокола. Перед ними срабатывают наши проверки, заведённые
+в `CompositorHandler::new_surface`: `guard_removed_layer` (`layer_shell.rs`) и
+`guard_removed_lock` (`lock.rs`). Если в журнале есть «программа отключена за
+ошибку протокола» — смотреть сюда в первую очередь.
+
+`IdleNotifierState` из Smithay требует, чтобы цикл событий работал с тем же типом,
+что и Wayland; у нас там `CalloopData`, поэтому `idle_notify.rs` свой.

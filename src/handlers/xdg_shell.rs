@@ -1,14 +1,16 @@
 use std::cell::Cell;
 
 use smithay::{
-    delegate_xdg_shell,
-    desktop::{find_popup_root_surface, get_popup_toplevel_coords, PopupKind, Window},
+    delegate_xdg_decoration, delegate_xdg_shell,
+    desktop::{find_popup_root_surface, get_popup_toplevel_coords, layer_map_for_output, PopupKind, Window, WindowSurfaceType},
     input::{
         pointer::{Focus, GrabStartData as PointerGrabStartData},
         Seat,
     },
     reexports::{
-        wayland_protocols::xdg::shell::server::xdg_toplevel,
+        wayland_protocols::xdg::{
+            decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode, shell::server::xdg_toplevel,
+        },
         wayland_server::{
             protocol::{wl_seat, wl_surface::WlSurface},
             Resource,
@@ -17,7 +19,10 @@ use smithay::{
     utils::{Rectangle, Serial, SERIAL_COUNTER},
     wayland::{
         compositor::with_states,
-        shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState, XdgToplevelSurfaceData},
+        shell::xdg::{
+            decoration::XdgDecorationHandler, PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+            XdgToplevelSurfaceData,
+        },
     },
 };
 
@@ -39,13 +44,49 @@ impl XdgShellHandler for Shell {
     /// Новое окно: сразу впереди и с фокусом, как в Windows и GNOME.
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let window = Window::new_wayland_window(surface);
+        self.track_window(&window);
         self.space.map_element(window.clone(), (0, 0), true);
         self.focus_window(&window, SERIAL_COUNTER.next_serial());
     }
 
     /// Закрылось окно: фокус — тому, что под ним.
-    fn toplevel_destroyed(&mut self, _surface: ToplevelSurface) {
+    fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
+        let window = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned();
+        if let Some(window) = window {
+            self.untrack_window(&window);
+        }
         self.focus_top();
+    }
+
+    fn title_changed(&mut self, surface: ToplevelSurface) {
+        let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned() else { return };
+        let address = crate::workspaces::data(&window).address;
+        let (class, title) = crate::workspaces::class_title(&window);
+        self.ipc_event("windowtitle", &format!("{address:x}"));
+        self.ipc_event("windowtitlev2", &format!("{address:x},{title}"));
+        if self.focused_window().as_ref() == Some(&window) {
+            self.ipc_event("activewindow", &format!("{class},{title}"));
+        }
+    }
+
+    // кнопки окна и F11 программы — те же «развернуть» и «во весь экран»
+    fn maximize_request(&mut self, surface: ToplevelSurface) {
+        self.toplevel_mode(&surface, crate::workspaces::Mode::Maximized, true);
+    }
+    fn unmaximize_request(&mut self, surface: ToplevelSurface) {
+        self.toplevel_mode(&surface, crate::workspaces::Mode::Maximized, false);
+    }
+    fn fullscreen_request(&mut self, surface: ToplevelSurface, _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>) {
+        self.toplevel_mode(&surface, crate::workspaces::Mode::Fullscreen, true);
+    }
+    fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
+        self.toplevel_mode(&surface, crate::workspaces::Mode::Fullscreen, false);
+    }
+    // «свернуть» — как в Delta: на стол свёрнутых
+    fn minimize_request(&mut self, surface: ToplevelSurface) {
+        if let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned() {
+            self.move_to_workspace(&window, crate::workspaces::SPECIAL, false);
+        }
     }
 
     fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
@@ -145,20 +186,72 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
 }
 
 impl Shell {
-    /// Всплывающее меню не вылезает за экран.
-    fn unconstrain_popup(&self, popup: &PopupSurface) {
+    /// Программа просит режим (on) или выйти из него (!on); уже так — ничего.
+    pub fn toplevel_mode(&mut self, surface: &ToplevelSurface, mode: crate::workspaces::Mode, on: bool) {
+        let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(surface)).cloned() else { return };
+        let current = crate::workspaces::data(&window).mode;
+        if (current == mode) != on {
+            self.set_mode(&window, mode);
+        } else if !surface.is_initial_configure_sent() {
+            // первая настройка всё равно нужна
+        } else {
+            surface.send_configure();
+        }
+    }
+
+    /// Всплывающее меню не вылезает за экран — и у окон, и у панелей Delta.
+    pub fn unconstrain_popup(&self, popup: &PopupSurface) {
         let Ok(root) = find_popup_root_surface(&PopupKind::Xdg(popup.clone())) else { return };
-        let Some(window) = self.window_for_surface(&root) else { return };
-        let Some(output) = self.space.outputs().next() else { return };
-        let output_geo = self.space.output_geometry(output).unwrap();
-        let window_geo = self.space.element_geometry(&window).unwrap();
+        // начало родителя на столе и монитор, в который меню должно влезть
+        let parent = if let Some(window) = self.window_for_surface(&root) {
+            let geo = self.space.element_geometry(&window).unwrap_or_default();
+            let output = self.space.output_under(geo.loc.to_f64()).next().or_else(|| self.space.outputs().next()).cloned();
+            output.map(|o| (geo.loc, o))
+        } else {
+            self.space.outputs().find_map(|o| {
+                let map = layer_map_for_output(o);
+                let layer = map.layer_for_surface(&root, WindowSurfaceType::TOPLEVEL)?;
+                let loc = map.layer_geometry(layer)?.loc + self.space.output_geometry(o)?.loc;
+                Some((loc, o.clone()))
+            })
+        };
+        let Some((parent_loc, output)) = parent else { return };
+        let Some(output_geo) = self.space.output_geometry(&output) else { return };
 
         // цель — относительно родителя меню
         let mut target = output_geo;
         target.loc -= get_popup_toplevel_coords(&PopupKind::Xdg(popup.clone()));
-        target.loc -= window_geo.loc;
+        target.loc -= parent_loc;
         popup.with_pending_state(|state| {
             state.geometry = state.positioner.get_unconstrained_geometry(target);
         });
     }
 }
+
+// --- xdg-decoration: заголовки рисует не программа. Кнопки окна у Delta
+// (WindowControls), поэтому всегда «на стороне сервера», как в Hyprland ---
+fn server_side(toplevel: &ToplevelSurface) {
+    toplevel.with_pending_state(|s| s.decoration_mode = Some(DecorationMode::ServerSide));
+    let configured = with_states(toplevel.wl_surface(), |states| {
+        states
+            .data_map
+            .get::<XdgToplevelSurfaceData>()
+            .is_some_and(|d| d.lock().unwrap().initial_configure_sent)
+    });
+    if configured {
+        toplevel.send_pending_configure();
+    }
+}
+
+impl XdgDecorationHandler for Shell {
+    fn new_decoration(&mut self, toplevel: ToplevelSurface) {
+        server_side(&toplevel);
+    }
+    fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: DecorationMode) {
+        server_side(&toplevel);
+    }
+    fn unset_mode(&mut self, toplevel: ToplevelSurface) {
+        server_side(&toplevel);
+    }
+}
+delegate_xdg_decoration!(Shell);

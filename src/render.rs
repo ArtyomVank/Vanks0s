@@ -31,14 +31,15 @@ render_elements! {
     Cursor = MemoryRenderBufferRenderElement<R>,
 }
 
-/// Элементы кадра выхода — спереди назад: курсор, затем окна.
-pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output) -> Vec<OutputElement> {
+/// Элементы кадра выхода — спереди назад: курсор, затем окна или, при
+/// блокировке, только замок. Курсор в окне отладки рисует сессия вокруг.
+pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cursor: bool) -> Vec<OutputElement> {
     let mut elements = Vec::new();
     let Some(geo) = shell.space.output_geometry(output) else { return elements };
     let scale = Scale::from(output.current_scale().fractional_scale());
 
     let pointer = shell.seat.get_pointer().map(|p| p.current_location()).unwrap_or_default();
-    if geo.to_f64().contains(pointer) {
+    if draw_cursor && geo.to_f64().contains(pointer) {
         let at = (pointer - geo.loc.to_f64()).to_physical(scale);
 
         // картинка курсора от программы, которой уже нет, — обратно к стрелке
@@ -72,6 +73,18 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output) -> 
                 );
             }
         }
+    }
+
+    if shell.is_locked() {
+        if let Some(lock) = shell.lock_surface(output) {
+            let surface = lock.wl_surface().clone();
+            elements.extend(
+                render_elements_from_surface_tree(renderer, &surface, (0, 0), scale, 1.0, Kind::Unspecified)
+                    .into_iter()
+                    .map(OutputElement::Surface),
+            );
+        }
+        return elements;
     }
 
     match shell.space.render_elements_for_output(renderer, output, 1.0) {

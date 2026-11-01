@@ -16,14 +16,19 @@
 mod backend;
 mod config;
 mod cursor;
+mod dispatch;
 mod edid;
 mod grabs;
 mod handlers;
 mod input;
+mod ipc;
+mod lock;
 mod probe;
+mod protocols;
 mod render;
 mod settings;
 mod state;
+mod workspaces;
 
 use smithay::reexports::{
     calloop::EventLoop,
@@ -78,6 +83,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // видеокарту и ввод уже ведёт другая сессия: захват сломал бы её
+    // окну отладки нужна сессия вокруг. Если её сокета нет, наш собственный
+    // занял бы то же имя, и оболочка подключилась бы сама к себе и зависла
+    if kind == backend::Kind::Winit {
+        if let (Some(display), Some(dir)) = (std::env::var_os("WAYLAND_DISPLAY"), std::env::var_os("XDG_RUNTIME_DIR")) {
+            if !std::path::Path::new(&dir).join(&display).exists() {
+                return Err(format!("нет сессии Wayland «{}», окну отладки негде открыться", display.to_string_lossy()).into());
+            }
+        }
+    }
     if kind == backend::Kind::Udev && backend::inside_session() && std::env::var_os("VANKS_FORCE_TTY").is_none() {
         eprintln!("vanks-shell: уже идёт графическая сессия — настоящая сессия запускается с консоли (Ctrl+Alt+F3).");
         eprintln!("Окно отладки: vanks-shell --backend winit");
@@ -98,6 +112,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let display_handle = display.handle();
     let state = Shell::new(&mut event_loop, display);
     let mut data = CalloopData { state, display_handle };
+    if let Err(e) = data.state.init_ipc() {
+        tracing::warn!("IPC не поднялся — Delta не увидит оболочку: {e}");
+    }
 
     match kind {
         backend::Kind::Winit => backend::winit::init(&mut event_loop, &mut data)?,
@@ -105,15 +122,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     tracing::info!(socket = ?data.state.socket_name, backend = ?kind, "vanks-shell запущен");
 
-    // программы внутри — на нашем сокете, а не на сессии вокруг
-    let command = command.unwrap_or_else(|| config::terminal());
-    data.state.spawn(&command);
+    // программы внутри — на нашем сокете, а не на сессии вокруг. Без -c —
+    // Delta (или терминал, если Delta нет)
+    let nested = std::env::var_os("DELTA_NESTED").is_some() || kind == backend::Kind::Winit;
+    match command {
+        Some(c) => data.state.spawn(&c),
+        None => config::autostart(nested).iter().for_each(|c| data.state.spawn(c)),
+    }
 
     // ответы программам — после каждого прохода цикла, а не только с кадром:
     // монитор может спать (или окно отладки быть скрыто), а программы ждут
     event_loop.run(None, &mut data, |data| {
         data.state.space.refresh();
         data.state.popups.cleanup();
+        data.state.lock_watchdog();
+        data.state.foreign_toplevel_refresh();
         let _ = data.display_handle.flush_clients();
     })?;
     Ok(())

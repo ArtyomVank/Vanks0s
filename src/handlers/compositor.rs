@@ -12,7 +12,7 @@ use smithay::{
     },
 };
 
-use super::xdg_shell;
+use super::{layer_shell, xdg_shell};
 use crate::{grabs::resize_grab, state::ClientState, Shell};
 
 impl CompositorHandler for Shell {
@@ -22,6 +22,11 @@ impl CompositorHandler for Shell {
 
     fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
         &client.get_data::<ClientState>().unwrap().compositor_state
+    }
+
+    fn new_surface(&mut self, surface: &WlSurface) {
+        layer_shell::guard_removed_layer(surface);
+        crate::lock::guard_removed_lock(surface);
     }
 
     /// Программа прислала новый кадр поверхности.
@@ -37,6 +42,8 @@ impl CompositorHandler for Shell {
             }
         }
         xdg_shell::handle_commit(self, surface);
+        layer_shell::handle_commit(self, surface);
+        self.lock_commit(surface);
         resize_grab::handle_commit(&mut self.space, surface);
     }
 }

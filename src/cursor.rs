@@ -30,7 +30,12 @@ impl Cursor {
     pub fn load() -> Self {
         let name = std::env::var("XCURSOR_THEME").unwrap_or_else(|_| "default".into());
         let size = std::env::var("XCURSOR_SIZE").ok().and_then(|s| s.parse().ok()).unwrap_or(24);
-        Self { theme: CursorTheme::load(&name), size, shapes: HashMap::new() }
+        Self::with_theme(&name, size)
+    }
+
+    /// Другая тема (hyprctl setcursor — так «Оформление» Delta меняет курсор).
+    pub fn with_theme(name: &str, size: u32) -> Self {
+        Self { theme: CursorTheme::load(name), size, shapes: HashMap::new() }
     }
 
     /// Картинка фигуры на этот момент времени и её «горячая точка».

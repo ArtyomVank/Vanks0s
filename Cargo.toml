@@ -1,6 +1,6 @@
 [package]
 name = "vanks-shell"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Vanks Shell — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
 publish = false
@@ -16,6 +16,10 @@ serde_json = "1"
 calloop = { version = "0.14", features = ["signals"] }
 # сброс маски сигналов у запускаемых программ
 libc = "0.2"
+# протоколы Hyprland (protocols/*.xml) — код генерируется при сборке
+wayland-scanner = "0.31"
+wayland-server = "0.31"
+wayland-backend = "0.3"
 # темы курсора
 xcursor = "0.3"
 # какие мониторы подключены и к каким CRTC их вести (только сканер, без libdisplay-info)
