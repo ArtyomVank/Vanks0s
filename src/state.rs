@@ -102,6 +102,8 @@ pub struct Shell {
     pub super_alone: bool,
     /// идёт смахивание тремя пальцами: сколько уже прошли по горизонтали
     pub swipe: Option<f64>,
+    /// номер строки delta-drag.json
+    pub drag_seq: u64,
     /// блокировка экрана (lock.rs)
     pub lock: Lock,
     pub lock_surfaces: Vec<LockSurfaceOn>,
@@ -211,6 +213,7 @@ impl Shell {
             idle_inhibitors: Vec::new(),
             super_alone: false,
             swipe: None,
+            drag_seq: 0,
             lock: Lock::default(),
             lock_surfaces: Vec::new(),
             lock_retry: None,

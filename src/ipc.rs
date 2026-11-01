@@ -193,8 +193,13 @@ impl Shell {
             "getoption" => Some(json!({ "option": args, "int": 0, "set": false })),
             "splash" => return "Vanks Shell".into(),
             "dispatch" => return self.dispatch(args),
-            // настройки оболочки берутся из Delta напрямую; reload/keyword — «ок»
-            "reload" | "keyword" | "seterror" | "notify" | "dismissnotify" | "plugin" | "eval" => return "ok".into(),
+            // delta-apply после записи settings.json зовёт hyprctl reload
+            "reload" => {
+                self.settings = crate::settings::Settings::load();
+                return "ok".into();
+            }
+            // настройки оболочки берутся из Delta напрямую; keyword — «ок»
+            "keyword" | "seterror" | "notify" | "dismissnotify" | "plugin" | "eval" => return "ok".into(),
             "setcursor" => {
                 let mut it = args.split_whitespace();
                 if let (Some(theme), Some(size)) = (it.next(), it.next().and_then(|s| s.parse().ok())) {
@@ -345,7 +350,7 @@ impl Shell {
             "initialTitle": title,
             "pid": pid,
             "xwayland": window.is_x11(),
-            "pinned": false,
+            "pinned": d.pinned,
             "fullscreen": match d.mode { Mode::Normal => 0, Mode::Maximized => 1, Mode::Fullscreen => 2 },
             "fullscreenClient": 0,
             "grouped": [],

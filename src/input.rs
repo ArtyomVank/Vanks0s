@@ -12,16 +12,21 @@ use smithay::{
             GestureSwipeUpdateEvent, GrabStartData, MotionEvent, RelativeMotionEvent,
         },
     },
-    utils::{Logical, Point, SERIAL_COUNTER},
+    utils::{Logical, Point, Rectangle, SERIAL_COUNTER},
     wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
 
 use smithay::wayland::shell::wlr_layer::Layer;
 
-use crate::{config, grabs::MoveSurfaceGrab, state::Shell};
+use crate::{
+    config,
+    grabs::{resize_grab::ResizeEdge, MoveSurfaceGrab, ResizeSurfaceGrab},
+    state::Shell,
+};
 
 /// левая кнопка мыши (linux/input-event-codes.h)
 const BTN_LEFT: u32 = 0x110;
+const BTN_RIGHT: u32 = 0x111;
 /// смахивание тремя пальцами на столько точек — соседний стол (как hl.gesture в Delta)
 const SWIPE_DISTANCE: f64 = 120.0;
 
@@ -239,7 +244,19 @@ impl Shell {
                         if button == BTN_LEFT && keyboard.modifier_state().logo {
                             let initial_window_location = self.space.element_location(&window).unwrap();
                             let start_data = GrabStartData { focus: None, button, location };
-                            let grab = MoveSurfaceGrab { start_data, window, initial_window_location };
+                            let grab = MoveSurfaceGrab::new(start_data, window, initial_window_location);
+                            pointer.set_grab(self, grab, serial, Focus::Clear);
+                            return;
+                        }
+                        // Super + правая кнопка: размер за ближайший угол
+                        if button == BTN_RIGHT && keyboard.modifier_state().logo {
+                            let loc = self.space.element_location(&window).unwrap();
+                            let size = window.geometry().size;
+                            let mut edges = ResizeEdge::empty();
+                            edges |= if location.x < loc.x as f64 + size.w as f64 / 2.0 { ResizeEdge::LEFT } else { ResizeEdge::RIGHT };
+                            edges |= if location.y < loc.y as f64 + size.h as f64 / 2.0 { ResizeEdge::TOP } else { ResizeEdge::BOTTOM };
+                            let start_data = GrabStartData { focus: None, button, location };
+                            let grab = ResizeSurfaceGrab::start(start_data, window, edges, Rectangle::new(loc, size));
                             pointer.set_grab(self, grab, serial, Focus::Clear);
                             return;
                         }

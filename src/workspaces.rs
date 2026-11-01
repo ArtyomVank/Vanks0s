@@ -15,7 +15,7 @@ use smithay::{
     desktop::Window,
     output::Output,
     reexports::wayland_protocols::xdg::shell::server::xdg_toplevel,
-    utils::{Logical, Point, Rectangle, SERIAL_COUNTER},
+    utils::{Logical, Point, Rectangle, Size, SERIAL_COUNTER},
     wayland::{compositor::with_states, shell::xdg::XdgToplevelSurfaceData},
 };
 
@@ -45,6 +45,10 @@ pub struct WinData {
     pub mode: Mode,
     /// место и размер до «развернуть» / «во весь экран»
     pub restore: Option<Rectangle<i32, Logical>>,
+    /// размер до прилипания к краю: оторвали от края — вернётся
+    pub snapped: Option<Size<i32, Logical>>,
+    /// закреплено: видно на всех столах
+    pub pinned: bool,
 }
 
 pub fn data(window: &Window) -> RefMut<'_, WinData> {
@@ -173,9 +177,15 @@ impl Shell {
     /// Окно видно, если его стол активен на своём мониторе (или это
     /// показанные свёрнутые).
     pub fn is_visible(&self, window: &Window) -> bool {
-        let ws = data(window).workspace;
+        let (ws, pinned) = {
+            let d = data(window);
+            (d.workspace, d.pinned)
+        };
         if ws == SPECIAL {
             return self.workspaces.special_shown;
+        }
+        if pinned {
+            return true;
         }
         let monitor = self.workspaces.monitor_of.get(&ws).cloned().unwrap_or_default();
         self.workspaces.active.get(&monitor) == Some(&ws)
@@ -330,6 +340,28 @@ impl Shell {
         let geo = self.space.element_geometry(window)?;
         let center = (geo.loc + geo.size.downscale(2).to_point()).to_f64();
         self.space.output_under(center).next().cloned().or_else(|| self.output_under_pointer())
+    }
+
+    /// Новый размер окна: Wayland-окно пришлёт кадр, X-серверу хватает команды.
+    pub fn resize_window(&mut self, window: &Window, size: Size<i32, Logical>) {
+        if let Some(t) = window.toplevel() {
+            t.with_pending_state(|s| s.size = Some(size));
+            t.send_pending_configure();
+        } else if let Some(x11) = window.x11_surface() {
+            let _ = x11.configure(Rectangle::new(x11.geometry().loc, size));
+        }
+    }
+
+    /// Новое место окна; окно X11 должно его знать: от него считают меню и курсор.
+    pub fn move_window(&mut self, window: &Window, loc: Point<i32, Logical>) {
+        if self.space.element_location(window).is_some() {
+            self.space.map_element(window.clone(), loc, false);
+        } else {
+            data(window).loc = loc;
+        }
+        if let Some(x11) = window.x11_surface() {
+            let _ = x11.configure(Rectangle::new(loc, x11.geometry().size));
+        }
     }
 
     /// Развернуть / во весь экран / обратно. Повтор того же — возврат.

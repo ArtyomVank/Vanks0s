@@ -258,7 +258,7 @@ impl XwmHandler for Shell {
         let Some(start_data) = self.x11_grab_start(button) else { return };
         let Some(initial_window_location) = self.space.element_location(&window) else { return };
         if let Some(pointer) = self.seat.get_pointer() {
-            let grab = MoveSurfaceGrab { start_data, window, initial_window_location };
+            let grab = MoveSurfaceGrab::new(start_data, window, initial_window_location);
             pointer.set_grab(self, grab, SERIAL_COUNTER.next_serial(), Focus::Clear);
         }
     }

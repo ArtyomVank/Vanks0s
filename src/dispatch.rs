@@ -20,6 +20,9 @@ impl Args {
     fn get(&self, key: &str) -> Option<&str> {
         self.named.get(key).map(String::as_str)
     }
+    fn int(&self, key: &str) -> Option<i32> {
+        self.get(key).and_then(|v| v.parse::<f64>().ok()).map(|v| v as i32)
+    }
     fn flag(&self, key: &str, default: bool) -> bool {
         self.get(key).map(|v| v == "true").unwrap_or(default)
     }
@@ -120,6 +123,11 @@ impl Shell {
                 }
             }
             "window.move" => {
+                if let (Some(x), Some(y)) = (a.int("x"), a.int("y")) {
+                    let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
+                    self.move_window(&window, (x, y).into());
+                    return true;
+                }
                 let Some(id) = a.get("workspace").and_then(|w| self.resolve_ws(w)) else { return true };
                 let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
                 self.move_to_workspace(&window, id, a.flag("follow", true));
@@ -160,9 +168,26 @@ impl Shell {
                 self.loop_signal.stop();
                 true
             }
-            // свойства окна («желе» Delta), плавание, раскладка — у нас окна и
-            // так плавающие, эффекты — в 0.5
-            "window.set_prop" | "window.float" | "window.pin" | "window.drag" | "window.resize" | "layout" => true,
+            "window.resize" => {
+                let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
+                if let (Some(w), Some(h)) = (a.int("x"), a.int("y")) {
+                    self.resize_window(&window, (w.max(1), h.max(1)).into());
+                }
+                true
+            }
+            "window.alter_zorder" => {
+                let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
+                self.alter_zorder(&window, a.get("mode") != Some("bottom"));
+                true
+            }
+            "window.pin" => {
+                let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
+                self.toggle_pin(&window);
+                true
+            }
+            // свойства окна («желе» Delta) — вместе с эффектами; окна и так
+            // плавающие, а тащит их сам захват мыши
+            "window.set_prop" | "window.float" | "window.drag" | "layout" => true,
             _ => false,
         }
     }
@@ -212,9 +237,57 @@ impl Shell {
                 self.loop_signal.stop();
                 true
             }
-            "togglefloating" | "setprop" | "pin" | "movefocus" | "layoutmsg" | "dpms" => true,
+            "pin" => {
+                let Some(window) = self.select_window(arg) else { return false };
+                self.toggle_pin(&window);
+                true
+            }
+            "alterzorder" => {
+                let (mode, sel) = arg.split_once(',').unwrap_or((arg, ""));
+                let Some(window) = self.select_window(sel) else { return false };
+                self.alter_zorder(&window, mode.trim() != "bottom");
+                true
+            }
+            // «exact 100 200,address:0x…»
+            "movewindowpixel" | "resizewindowpixel" => {
+                let (spec, sel) = arg.split_once(',').unwrap_or((arg, ""));
+                let nums: Vec<i32> = spec.split_whitespace().filter_map(|n| n.parse().ok()).collect();
+                let [x, y] = nums[..] else { return false };
+                let Some(window) = self.select_window(sel) else { return false };
+                let exact = spec.trim_start().starts_with("exact");
+                if name == "movewindowpixel" {
+                    let (bx, by) = if exact { (0, 0) } else { self.space.element_location(&window).unwrap_or_default().into() };
+                    self.move_window(&window, (bx + x, by + y).into());
+                } else {
+                    let (bw, bh) = if exact { (0, 0) } else { window.geometry().size.into() };
+                    self.resize_window(&window, ((bw + x).max(1), (bh + y).max(1)).into());
+                }
+                true
+            }
+            "togglefloating" | "setprop" | "movefocus" | "layoutmsg" | "dpms" => true,
             _ => false,
         }
+    }
+
+    fn alter_zorder(&mut self, window: &smithay::desktop::Window, top: bool) {
+        if top {
+            self.raise_in_stack(window);
+        } else if let Some(i) = self.windows.iter().position(|w| w == window) {
+            let w = self.windows.remove(i);
+            self.windows.insert(0, w);
+        }
+        self.update_visibility();
+    }
+
+    fn toggle_pin(&mut self, window: &smithay::desktop::Window) {
+        {
+            let mut d = crate::workspaces::data(window);
+            d.pinned = !d.pinned;
+        }
+        self.update_visibility();
+        let pinned = crate::workspaces::data(window).pinned;
+        let address = crate::workspaces::data(window).address;
+        self.ipc_event("pin", &format!("{address:x},{}", pinned as u8));
     }
 
     /// Фокус окну по селектору; оно на другом столе — перейти туда.

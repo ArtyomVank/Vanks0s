@@ -1,6 +1,12 @@
 // Основа — пример smallvil из Smithay v0.7.0 (MIT, © Smithay contributors), см. NOTICE.
 
-use crate::Shell;
+use std::time::{Duration, Instant};
+
+use super::snap::Zone;
+use crate::{
+    workspaces::{self, Mode},
+    Shell,
+};
 use smithay::{
     desktop::Window,
     input::pointer::{
@@ -10,13 +16,73 @@ use smithay::{
         PointerInnerHandle, RelativeMotionEvent,
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{Logical, Point, Rectangle},
+    utils::{Logical, Point, Rectangle, Size},
 };
 
+/// Сдвиг, после которого щелчок становится перетаскиванием.
+const MOVE_THRESHOLD: f64 = 3.0;
+/// Развёрнутое окно отрывается от места не сразу, как в GNOME.
+const UNMAXIMIZE_THRESHOLD: f64 = 14.0;
+/// Как часто писать состояние для Delta: 250 раз в секунду хватает и на 240 Гц.
+const WRITE_EVERY: Duration = Duration::from_millis(4);
+
 pub struct MoveSurfaceGrab {
-    pub start_data: PointerGrabStartData<Shell>,
-    pub window: Window,
-    pub initial_window_location: Point<i32, Logical>,
+    start_data: PointerGrabStartData<Shell>,
+    window: Window,
+    initial_window_location: Point<i32, Logical>,
+    moving: bool,
+    /// где держат окно, от его левого верхнего угла
+    grip: Point<i32, Logical>,
+    zone: Option<Zone>,
+    monitor: String,
+    last_write: Option<Instant>,
+}
+
+impl MoveSurfaceGrab {
+    pub fn new(start_data: PointerGrabStartData<Shell>, window: Window, initial_window_location: Point<i32, Logical>) -> Self {
+        let grip = (start_data.location - initial_window_location.to_f64()).to_i32_round();
+        Self { start_data, window, initial_window_location, moving: false, grip, zone: None, monitor: String::new(), last_write: None }
+    }
+
+    /// Окно сдвинули: прежний размер — если оно развёрнуто или прижато к краю.
+    /// false — пока рано или нельзя. Мышь заперта на время захвата, поэтому
+    /// режим меняем уже после этого вызова (insert_idle).
+    fn begin(&mut self, data: &mut Shell, delta: Point<f64, Logical>) -> bool {
+        let size = self.window.geometry().size;
+        let (mode, snapped, restore) = {
+            let d = workspaces::data(&self.window);
+            (d.mode, d.snapped, d.restore)
+        };
+        let old = match mode {
+            Mode::Fullscreen => return false,
+            Mode::Maximized => {
+                if delta.x.abs() + delta.y.abs() < UNMAXIMIZE_THRESHOLD {
+                    return false;
+                }
+                let window = self.window.clone();
+                data.loop_handle.insert_idle(move |d| d.state.set_mode(&window, Mode::Maximized));
+                Some(restore.map(|r| r.size).unwrap_or(Size::from(((size.w * 3) / 5, (size.h * 7) / 10))))
+            }
+            Mode::Normal => {
+                if let Some(old) = snapped {
+                    workspaces::data(&self.window).snapped = None;
+                    data.resize_window(&self.window, old);
+                }
+                snapped
+            }
+        };
+        // окно стало другого размера: курсор держит ту же долю его ширины
+        if let Some(old) = old {
+            self.grip.x = self.grip.x * old.w / size.w.max(1);
+            self.grip.y = if mode == Mode::Maximized { self.grip.y } else { self.grip.y * old.h / size.h.max(1) };
+            self.initial_window_location = (self.start_data.location - self.grip.to_f64()).to_i32_round();
+            // отпустят сразу — окно останется под курсором, а не на старом месте
+            if mode == Mode::Maximized {
+                workspaces::data(&self.window).restore = Some(Rectangle::new(self.initial_window_location, old));
+            }
+        }
+        true
+    }
 }
 
 impl PointerGrab<Shell> for MoveSurfaceGrab {
@@ -31,11 +97,27 @@ impl PointerGrab<Shell> for MoveSurfaceGrab {
         handle.motion(data, None, event);
 
         let delta = event.location - self.start_data.location;
+        let first = !self.moving;
+        if first {
+            if delta.x.abs() + delta.y.abs() < MOVE_THRESHOLD || !self.begin(data, delta) {
+                return;
+            }
+            self.moving = true;
+        }
         let new_location = (self.initial_window_location.to_f64() + delta).to_i32_round();
-        data.space.map_element(self.window.clone(), new_location, true);
-        // окно X11 должно знать своё место: от него считают меню и курсор
-        if let Some(x11) = self.window.x11_surface() {
-            let _ = x11.configure(Rectangle::new(new_location, x11.geometry().size));
+        data.move_window(&self.window, new_location);
+
+        let (output, zone) = data.snap_zone(event.location);
+        if let Some(output) = output {
+            self.monitor = output.name();
+        }
+        let zone_changed = zone != self.zone;
+        self.zone = zone;
+        let due = self.last_write.is_none_or(|t| t.elapsed() >= WRITE_EVERY);
+        if first || zone_changed || due {
+            self.last_write = Some(Instant::now());
+            let state = if first { "begin" } else { "move" };
+            data.write_drag(state, &self.window, &self.monitor, self.grip, self.zone.as_ref());
         }
     }
 
@@ -64,6 +146,10 @@ impl PointerGrab<Shell> for MoveSurfaceGrab {
         if !handle.current_pressed().contains(&BTN_LEFT) {
             // No more buttons are pressed, release the grab.
             handle.unset_grab(self, data, event.serial, event.time, true);
+            if self.moving {
+                let (window, monitor, grip, zone) = (self.window.clone(), self.monitor.clone(), self.grip, self.zone.take());
+                data.loop_handle.insert_idle(move |d| d.state.finish_drag(&window, &monitor, grip, zone));
+            }
         }
     }
 

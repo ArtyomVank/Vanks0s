@@ -57,9 +57,25 @@ impl Input {
     }
 }
 
+/// Раздел windows: то, что нужно самому композитору.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct Windows {
+    pub snap: bool,
+    #[serde(rename = "gapsOut")]
+    pub gaps_out: i32,
+}
+
+impl Default for Windows {
+    fn default() -> Self {
+        Self { snap: true, gaps_out: 14 }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Settings {
     pub input: Input,
+    pub windows: Windows,
 }
 
 fn data_dir() -> PathBuf {
@@ -96,17 +112,20 @@ fn merge(base: &mut Value, over: Value) {
     }
 }
 
+fn section<T: serde::de::DeserializeOwned + Default>(merged: &Value, key: &str) -> T {
+    merged
+        .get(key)
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).map_err(|e| tracing::warn!("{key}: {e}")).ok())
+        .unwrap_or_default()
+}
+
 impl Settings {
     pub fn load() -> Self {
         let mut merged = read_json(data_dir().join("defaults/settings.json")).unwrap_or(Value::Null);
         if let Some(user) = config_dir().and_then(|d| read_json(d.join("settings.json"))) {
             merge(&mut merged, user);
         }
-        let input = merged
-            .get("input")
-            .cloned()
-            .and_then(|v| serde_json::from_value(v).map_err(|e| tracing::warn!("input: {e}")).ok())
-            .unwrap_or_default();
-        Settings { input }
+        Settings { input: section(&merged, "input"), windows: section(&merged, "windows") }
     }
 }

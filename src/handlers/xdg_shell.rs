@@ -110,7 +110,7 @@ impl XdgShellHandler for Shell {
         let Some(window) = self.window_for_surface(wl_surface) else { return };
         let initial_window_location = self.space.element_location(&window).unwrap();
         let pointer = seat.get_pointer().unwrap();
-        pointer.set_grab(self, MoveSurfaceGrab { start_data, window, initial_window_location }, serial, Focus::Clear);
+        pointer.set_grab(self, MoveSurfaceGrab::new(start_data, window, initial_window_location), serial, Focus::Clear);
     }
 
     /// Программа просит менять размер (за свой край).
