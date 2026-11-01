@@ -36,6 +36,19 @@ ColumnLayout {
     property bool done: false
 
     readonly property var deltaUpdate: updates.find(u => u.name === "delta") || null
+    // версии на выбор: { "0": "0.6.8-1", "1": "1.0-1" }
+    property var offers: ({})
+    readonly property int currentLine: parseInt(deltaVersion) || 0
+    function readOffers() {
+        Exec.read(["delta-update", "offers"], (code, out) => {
+            const o = {};
+            for (const l of out.split("\n")) {
+                const m = l.match(/^(\d+)\t(\S+)/);
+                if (m) o[m[1]] = m[2];
+            }
+            offers = o;
+        });
+    }
 
     function plural(n) {
         const a = n % 10, b = n % 100;
@@ -68,10 +81,12 @@ ColumnLayout {
         });
         Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2"], (code, out) => deltaVersion = out.trim());
     }
-    Component.onCompleted: check()
+    Component.onCompleted: { check(); readOffers(); }
 
-    function install() {
+    // line: пусто — обновить то, что стоит; "1" — перейти на Delta 1.x
+    function install(line) {
         if (installing) return;
+        apply.command = ["pkexec", "delta-update", "apply"].concat(line ? [String(line)] : []);
         installing = true;
         done = false;
         needReboot = false;
@@ -198,6 +213,36 @@ ColumnLayout {
                         easing.type: Easing.InOutSine
                     }
                 }
+            }
+        }
+    }
+
+    // Delta на Hyprland и Delta 1.0: выбор, что скачать. Показывается, только пока
+    // стоит линия 0: на 1.x выбирать уже нечего
+    Card {
+        title: I18n.tr("Версия Delta")
+        visible: root.currentLine === 0 && root.offers["0"] !== undefined
+        SettingRow {
+            icon: "check"
+            title: "Delta " + String(root.offers["0"] || "").replace(/-\d+$/, "") + " · " + I18n.tr("Рекомендуется")
+            subtitle: I18n.tr("Последняя версия на Hyprland: больше на Hyprland обновления приходить не будут")
+            Btn {
+                readonly property bool have: root.deltaVersion === root.offers["0"]
+                text: have ? I18n.tr("Установлена") : I18n.tr("Скачать")
+                kind: have ? "soft" : "accent"
+                enabled: !have && !root.installing
+                onClicked: root.install("")
+            }
+        }
+        SettingRow {
+            visible: root.offers["1"] !== undefined
+            icon: "dock"
+            title: "Delta " + String(root.offers["1"] || "").replace(/-\d+$/, "")
+            subtitle: I18n.tr("Новое графическое окружение: своя оболочка вместо Hyprland")
+            Btn {
+                text: I18n.tr("Скачать")
+                enabled: !root.installing
+                onClicked: root.install("1")
             }
         }
     }

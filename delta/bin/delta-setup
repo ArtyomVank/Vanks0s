@@ -13,6 +13,12 @@
 #   delta-setup remove <пакеты>  удалить (root; зовёт магазин Delta через pkexec)
 #   delta-setup protected        пакеты, которые удалять нельзя (по одному в строке)
 #
+#   delta-setup performance status
+#                                on | off | unsupported (без root)
+#   delta-setup performance on|off
+#                                максимальная производительность (root): процессор
+#                                всегда на полной частоте, и после перезагрузки
+#
 # --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
 # рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
 #
@@ -246,8 +252,64 @@ cmd_remove() {
     step "Готово"
 }
 
+# Максимальная производительность: регулятор частоты performance, как в
+# cpupower-gui и CoreCtrl, но одной кнопкой и без отдельной программы. Правило
+# systemd-tmpfiles повторяет его при каждой загрузке; службу power-profiles-daemon
+# переключаем тоже, иначе она вернёт свой режим. DELTA_SETUP_ROOT — для проверок.
+PERF_ROOT=${DELTA_SETUP_ROOT:-}
+PERF_RULE=${PERF_ROOT}/etc/tmpfiles.d/delta-performance.conf
+PERF_POLICIES=${PERF_ROOT}/sys/devices/system/cpu/cpufreq
+perf_write() {  # файл значение: драйвер может отказать (EPP при performance) — не страшно
+    [ -w "$1" ] && { printf '%s\n' "$2" >"$1"; } 2>/dev/null
+    return 0
+}
+cmd_performance() {
+    local p any=0 all=1 want gov
+    for p in "${PERF_POLICIES}"/policy*/scaling_governor; do
+        [ -r "${p}" ] || continue
+        any=1
+        [ "$(cat "${p}")" = performance ] || all=0
+    done
+    if [ "${1:-}" = status ]; then
+        [ "${any}" = 1 ] || { echo unsupported; return 0; }
+        [ "${all}" = 1 ] && echo on || echo off
+        return 0
+    fi
+    [ -n "${PERF_ROOT}" ] || [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup performance …"
+    [ "${any}" = 1 ] || die "Частотой этого процессора система не управляет"
+    case "${1:-}" in
+        on)
+            mkdir -p "$(dirname -- "${PERF_RULE}")"
+            printf '%s\n' '# Delta: «Максимальная производительность» (Настройки → Рекомендации)' \
+                'w /sys/devices/system/cpu/cpufreq/policy*/scaling_governor - - - - performance' >"${PERF_RULE}" \
+                || die "Не удалось сохранить режим"
+            for p in "${PERF_POLICIES}"/policy*; do
+                perf_write "${p}/scaling_governor" performance
+                perf_write "${p}/energy_performance_preference" performance
+            done
+            [ -z "${PERF_ROOT}" ] && command -v powerprofilesctl >/dev/null && powerprofilesctl set performance >/dev/null 2>&1
+            ;;
+        off)
+            rm -f "${PERF_RULE}"
+            for p in "${PERF_POLICIES}"/policy*; do
+                # обычный регулятор: какой есть у этого драйвера
+                want=""
+                for gov in schedutil powersave ondemand; do
+                    grep -qw "${gov}" "${p}/scaling_available_governors" 2>/dev/null && { want=${gov}; break; }
+                done
+                [ -n "${want}" ] && perf_write "${p}/scaling_governor" "${want}"
+                perf_write "${p}/energy_performance_preference" balance_performance
+            done
+            [ -z "${PERF_ROOT}" ] && command -v powerprofilesctl >/dev/null && powerprofilesctl set balanced >/dev/null 2>&1
+            ;;
+        *) die "performance: on | off | status" ;;
+    esac
+    return 0
+}
+
 case "${1:-}" in
     detect) cmd_detect ;;
+    performance) shift; cmd_performance "$@" ;;
     install) shift; cmd_install "$@" ;;
     remove) shift; cmd_remove "$@" ;;
     protected) printf '%s\n' "${PROTECTED[@]}" ;;
@@ -255,5 +317,5 @@ case "${1:-}" in
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
-    *) die "неизвестная команда: $1 (detect | install | remove)" ;;
+    *) die "неизвестная команда: $1 (detect | install | remove | performance)" ;;
 esac

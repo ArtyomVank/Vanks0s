@@ -6,6 +6,12 @@
 #                         код 0 — есть обновления, 2 — нет, 1 — нет связи
 #   delta-update apply    установить всё (root; «Настройки» зовут через pkexec,
 #                         пароль спрашивает окно polkit оболочки)
+#   delta-update apply 1  то же и перейти на Delta 1.x (новое окружение)
+#   delta-update offers   какие версии Delta можно выбрать: «линия<TAB>версия»
+#                         по строке (0 — на Hyprland, 1 — своё окружение)
+#
+# Сама собой линия не меняется: check и apply берут новую версию только той же
+# линии, что уже стоит. Переход на 1.x — лишь по выбору пользователя.
 #
 # Пакета delta нет в репозиториях Arch: он лежит в релизах GitHub проекта
 # (DELTA_REPO — «владелец/репозиторий» в /usr/share/delta/update.conf,
@@ -50,17 +56,35 @@ run_pacman() {
     return "${PIPESTATUS[0]}"
 }
 
-# последний пакет delta из релизов GitHub: «ссылка<TAB>имя<TAB>sha256:…»
-delta_latest() {
+# новейший пакет delta линии $1 из релизов GitHub: «ссылка<TAB>имя<TAB>sha256:…»
+delta_release() {
     [ -n "${DELTA_REPO}" ] || return 1
     command -v curl >/dev/null && command -v jq >/dev/null || return 1
+    delta_releases_json |
+        jq -r --arg line "$1" '[.[] | select((.draft or .prerelease) | not) | .assets[]?
+               | select(.name | test("^delta-" + $line + "\\.[^-]*-[0-9.]+-any\\.pkg\\.tar\\.zst$"))]
+               | first // empty | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null
+}
+delta_releases_json() {
+    [ -n "${DELTA_RELEASES_FILE:-}" ] && { cat "${DELTA_RELEASES_FILE}"; return; }
     curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' \
-        "https://api.github.com/repos/${DELTA_REPO}/releases/latest" 2>/dev/null |
-        jq -r '.assets[]? | select(.name | test("^delta-[^-]+-[0-9.]+-any\\.pkg\\.tar\\.zst$"))
-               | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null | head -n1
+        "https://api.github.com/repos/${DELTA_REPO}/releases?per_page=40" 2>/dev/null
 }
 pkg_version() { local n=${1#delta-}; printf '%s\n' "${n%-any.pkg.tar.zst}"; }
 installed()   { pacman -Q "$1" 2>/dev/null | awk '{print $2}'; }
+# линия установленной Delta: 0 — на Hyprland, 1 — своё окружение
+current_line() { local v; v=$(installed delta); v=${v%%.*}; printf '%s\n' "${v:-0}"; }
+delta_latest() { delta_release "${1:-$(current_line)}"; }
+
+cmd_offers() {
+    local line latest name
+    for line in 0 1; do
+        latest=$(delta_release "${line}") || continue
+        [ -n "${latest}" ] || continue
+        IFS=$'\t' read -r _ name _ <<<"${latest}"
+        printf '%s\t%s\n' "${line}" "$(pkg_version "${name}")"
+    done
+}
 
 # «delta старая -> новая», если в релизах версия новее установленной
 delta_check() {
@@ -135,6 +159,8 @@ cmd_check() {
 }
 
 cmd_apply() {
+    local line=${1:-}
+    [ -z "${line}" ] || [ "${line}" = 0 ] || [ "${line}" = 1 ] || die "неизвестная линия: ${line}"
     [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-update apply"
     # окно «Настроек» закрыли или сессия завершилась — установку не прерываем
     trap '' HUP PIPE
@@ -153,7 +179,7 @@ cmd_apply() {
     run_pacman -Su --noconfirm || die "Обновление системы не удалось"
 
     local latest url name digest new old file
-    if latest=$(delta_latest) && [ -n "${latest}" ]; then
+    if latest=$(delta_latest "${line}") && [ -n "${latest}" ]; then
         IFS=$'\t' read -r url name digest <<<"${latest}"
         new=$(pkg_version "${name}")
         old=$(installed delta)
@@ -179,10 +205,11 @@ cmd_apply() {
 
 case "${1:-}" in
     check) cmd_check ;;
-    apply) cmd_apply ;;
+    apply) shift; cmd_apply "$@" ;;
+    offers) cmd_offers ;;
     -h|--help|"")
-        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
-    *) die "неизвестная команда: $1 (check | apply)" ;;
+    *) die "неизвестная команда: $1 (check | apply | offers)" ;;
 esac

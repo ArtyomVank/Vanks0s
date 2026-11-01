@@ -18,7 +18,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Рекомендации")
     property string icon: "gamepad"
-    property string keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс фпс fps кадры cs2 разрывы tearing"
+    property string keywords: "максимальная производительность процессор частота режим добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс фпс fps кадры cs2 разрывы tearing"
     spacing: 18
 
     // .exe: запомненные «всегда обычно» и «всегда через лаунчер»
@@ -161,8 +161,35 @@ ColumnLayout {
         }
     }
 
+    // режим процессора: его хранит система, поэтому спрашиваем её, а не настройки
+    property string performance: ""   // on | off | unsupported
+    property bool performanceBusy: false
+    function readPerformance() {
+        Exec.read(["delta-setup", "performance", "status"], (code, out) => performance = code === 0 ? out.trim() : "unsupported");
+    }
+    Component.onCompleted: readPerformance()
+    function setPerformance(on) {
+        performanceBusy = true;
+        Exec.run(["pkexec", "delta-setup", "performance", on ? "on" : "off"], {
+            label: I18n.tr("Максимальная производительность"),
+            done: () => { performanceBusy = false; readPerformance(); }
+        });
+    }
+
     Card {
         title: I18n.tr("Игры")
+        SettingRow {
+            icon: "rocket"
+            title: I18n.tr("Максимальная производительность")
+            subtitle: root.performance === "unsupported"
+                ? I18n.tr("Частотой этого процессора система не управляет")
+                : I18n.tr("Процессор всегда работает на полной частоте: меньше просадок в играх, но больше нагрев и расход батареи")
+            Toggle {
+                enabled: root.performance !== "unsupported" && !root.performanceBusy
+                checked: root.performance === "on"
+                onToggled: v => root.setPerformance(v)
+            }
+        }
         SettingRow {
             icon: "gauge"
             title: I18n.tr("Больше кадров в играх")

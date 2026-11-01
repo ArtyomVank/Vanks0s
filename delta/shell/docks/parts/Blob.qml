@@ -33,6 +33,11 @@ Item {
     // где окно Blob на экране, если оно не на весь экран (уведомления, OSD):
     // точку источника для острова дока нужно отдать в координатах экрана
     property point screenOffset: Qt.point(0, 0)
+    // во сколько раз короче путь капли (окну приложений важно открыться быстро)
+    property real speed: 1
+    // когда показать содержимое: по умолчанию — когда карточка уже почти раскрылась
+    property real revealAt: 0.86
+    readonly property bool revealed: open && t > revealAt
 
     default property alias content: inner.data
     readonly property alias body: body
@@ -98,7 +103,7 @@ Item {
         // длинный путь (окно приложений из дока) — чуть дольше
         const dist = Math.hypot(sx - land.x, sy - land.y);
         const full = Math.min(1250, 720 + dist * 0.6);
-        anim.duration = Math.max(1, Math.round(Math.abs(to - t) * (to > 0 ? full : full * 0.72)));
+        anim.duration = Math.max(1, Math.round(Math.abs(to - t) * (to > 0 ? full : full * 0.72) * speed * Theme.anim.k));
         anim.start();
     }
     // сразу карточка, без анимации (обратный путь «Настроек» начинается с окна)
@@ -265,7 +270,7 @@ Item {
             y: -body.y
             width: root.width
             height: root.height
-            opacity: root.open && root.t > 0.86 ? 1 : 0
+            opacity: root.revealed ? 1 : 0
             // открытое окно должно уметь взять фокус ещё до конца анимации
             visible: opacity > 0 || root.open
             Behavior on opacity { NumberAnimation { duration: (inner.opacity < 0.5 ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic } }

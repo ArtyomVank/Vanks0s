@@ -271,9 +271,17 @@ Scope {
                 list.currentIndex = 0;
                 list.positionViewAtBeginning();
                 field.focusInput();
-                // подсказка в поле печатается со щелчками, строки въезжают по очереди
-                hint.play(140);
-                counter.play(220);
+                // строки спрятаны, пока карточка не раскроется (панель уже могла
+                // раскрыться, если окно открыли снова посреди закрытия)
+                rowsIn.stop();
+                appear = 0;
+                if (panel.revealed) entrance();
+            }
+            // подсказка в поле печатается со щелчками, строки въезжают по очереди.
+            // Раньше это шло с нажатия Super и заканчивалось под пустой карточкой
+            function entrance() {
+                hint.play(60);
+                counter.play(120);
                 rowsIn.restart();
             }
             Timer {
@@ -295,7 +303,7 @@ Scope {
                 full: root.query.trim().length ? I18n.tr("Найдено") + ": " + root.results.length : I18n.tr("Все приложения") + " · " + root.results.length
             }
             property real appear: 1
-            NumberAnimation { id: rowsIn; target: win; property: "appear"; from: 0; to: 1; duration: 620; easing.type: Easing.OutCubic }
+            NumberAnimation { id: rowsIn; target: win; property: "appear"; from: 0; to: 1; duration: 420 * Theme.anim.k; easing.type: Easing.OutCubic }
 
             Connections {
                 target: root
@@ -305,6 +313,12 @@ Scope {
             DockParts.Blob {
                 id: panel
                 strong: true
+                // карточка сразу цвета стекла и открывается быстро: не большая
+                // пустая плита цвета акцента, которая потом темнеет
+                ballColor: Theme.glass2
+                speed: 0.6
+                revealAt: 0.62
+                onRevealedChanged: if (revealed) win.entrance()
                 x: Math.round((win.width - width) / 2)
                 y: Math.round((win.height - height) / 2)
                 width: win.panelW

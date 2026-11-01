@@ -251,7 +251,7 @@ steam_logged_in() {
     pgrep -x steam >/dev/null || return 1
     [ -f "${log}" ] || return 1
     [ "${HOME}/.steam/steam.pid" -nt "${log}" ] && return 1
-    last=$(tail -n 40 -- "${log}" | grep -E '^\[[^]]*\] \[(Logged|Logging|Connecting|Disconnect)' | tail -n1)
+    last=$(tail -n 400 -- "${log}" | grep -E '^\[[^]]*\] \[(Logged|Logging|Connecting|Disconnect)' | tail -n1)
     [[ ${last} == *"] [Logged On,"* && ${last} != *"LogOff("* ]]
 }
 # Steam запущен и в него вошли — иначе игра не подключится к Steam и
@@ -265,7 +265,9 @@ start_steam() {
         setsid -f steam -silent >/dev/null 2>&1 </dev/null
     fi
     for i in $(seq 120); do
-        steam_logged_in "${dir}" && { sleep 2; return 0; }
+        # вход уже в журнале, а игры Steam начинает принимать чуть позже:
+        # запущенная сразу получала «ConnectToGlobalUser failed» и закрывалась
+        steam_logged_in "${dir}" && { sleep 8; return 0; }
         # через 10 с без входа — подсказать, что ждём именно его
         [ "${i}" -eq 10 ] && say "Войдите в Steam" "Игра запустится сразу после входа в аккаунт"
         sleep 1
@@ -355,6 +357,7 @@ prepare() {
             fix_steam_root "${steam}"
             start_steam "${steam}"
             id=$(app_id "${file}")
+            STEAM_GAME_ID=${id}
         else
             steam=""
             say "Игре нужен Steam" "Поставьте Steam в «Играх и программах Windows» (плитка Steam) и войдите в аккаунт — без него игра может не запуститься"
@@ -606,6 +609,15 @@ run_logged() {
         plog=$(find "$(drive_c "${prefix}")/users" -maxdepth 6 -name Player.log -newermt "@${t0}" 2>/dev/null | head -n1)
         if [ -n "${plog}" ] && grep -qiE 'Steam not initialized|SteamApi_Init failed|SteamAPI_Init\(\) failed' "${plog}"; then
             printf '=== Player.log: игра не подключилась к Steam\n' >>"${LOG}"
+            # номер игры известен, значит, Steam просто ещё не был готов:
+            # ещё одна попытка, когда он окончательно загрузится
+            if [ -n "${STEAM_GAME_ID:-}" ] && [ -z "${STEAM_RETRIED:-}" ]; then
+                STEAM_RETRIED=1
+                printf '=== повтор через 15 с: Steam мог быть не готов\n' >>"${LOG}"
+                sleep 15
+                run_logged "${prefix}"
+                return
+            fi
             say "Игра не подключилась к Steam" "Steam её не пустил: игры нет в вашей библиотеке Steam или неизвестен её номер (steam_appid.txt). Купленную игру поставьте через Steam — она запустится из «Игр и программ Windows»"
         elif [ "${code}" -ne 0 ]; then
             say "Программа закрылась через ${secs} с" "Код ${code}. Подробности — в ~/.local/state/delta/exe.log"
