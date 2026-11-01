@@ -1,10 +1,10 @@
 //! Настройки. Пока — постоянные значения и переменные окружения; файл
 //! настроек (общий с «Настройками» Delta) — в плане, docs/ROADMAP.md.
 
-/// Терминал для Super+Enter и запуска без -c: VANKS_TERMINAL, иначе как в
+/// Терминал для Super+Enter и запуска без -c: DELTA_TERMINAL, иначе как в
 /// Delta — терминал по умолчанию (xdg-terminal-exec), а нет его — kitty.
 pub fn terminal() -> String {
-    std::env::var("VANKS_TERMINAL").unwrap_or_else(|_| "xdg-terminal-exec || kitty".into())
+    std::env::var("DELTA_TERMINAL").unwrap_or_else(|_| "xdg-terminal-exec || kitty".into())
 }
 
 /// Цвет фона, пока нет обоев: тёмный фиолетовый, как акцент Delta по умолчанию.

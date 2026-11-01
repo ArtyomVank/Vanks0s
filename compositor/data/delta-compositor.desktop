@@ -1,7 +1,7 @@
 [Desktop Entry]
-Name=Vanks Shell (разработка)
+Name=композитор Delta (разработка)
 Comment=Своя оболочка Vanks OS — ранняя версия, только для проверки
-Exec=/usr/local/bin/vanks-shell-session
+Exec=/usr/local/bin/delta-compositor-session
 Type=Application
 DesktopNames=Vanks
 Keywords=vanks;wayland;

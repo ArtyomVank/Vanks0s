@@ -1,8 +1,8 @@
 [package]
-name = "vanks-shell"
-version = "0.4.0"
+name = "delta-compositor"
+version = "1.0.0"
 edition = "2021"
-description = "Vanks Shell — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
+description = "композитор Delta — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
 publish = false
 
 [dependencies]

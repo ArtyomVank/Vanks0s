@@ -57,6 +57,7 @@ impl XdgShellHandler for Shell {
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         let window = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned();
         if let Some(window) = window {
+            self.fx_window_closing(&window);
             self.untrack_window(&window);
         }
         self.focus_top();
@@ -190,6 +191,7 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
         let placed = window.user_data().get_or_insert(Placed::default);
         if !placed.0.get() && size.w > 0 && size.h > 0 {
             placed.0.set(true);
+            crate::workspaces::data(&window).fx.opening = true;
             let loc = shell.initial_position((size.w, size.h));
             shell.space.map_element(window.clone(), loc, false);
         }

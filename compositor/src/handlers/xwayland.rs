@@ -122,6 +122,7 @@ impl XwmHandler for Shell {
         }
         let window = Window::new_x11_window(surface.clone());
         self.track_window(&window);
+        crate::workspaces::data(&window).fx.opening = true;
         let size = surface.geometry().size;
         let loc = self.initial_position((size.w, size.h));
         let _ = surface.configure(Rectangle::new(loc, size));

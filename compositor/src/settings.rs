@@ -64,11 +64,70 @@ pub struct Windows {
     pub snap: bool,
     #[serde(rename = "gapsOut")]
     pub gaps_out: i32,
+    pub rounding: i32,
+    pub border: i32,
+    pub blur: bool,
+    pub animations: bool,
+    /// «Скорость анимаций»: множитель времени всех анимаций
+    #[serde(rename = "animSpeed", deserialize_with = "number")]
+    pub anim_speed: f32,
+    /// как появляется окно: assemble, inside, popin, slide, fade
+    #[serde(rename = "openAnim")]
+    pub open_anim: String,
+    /// как закрывается; нет — так же
+    #[serde(rename = "closeAnim")]
+    pub close_anim: Option<String>,
+    /// своя скорость появления и закрытия окон
+    #[serde(rename = "openSpeed", deserialize_with = "number")]
+    pub open_speed: f32,
+    #[serde(deserialize_with = "number")]
+    pub jelly: f32,
+    /// плавающие окна (Настройки → Окна)
+    pub floating: bool,
 }
 
 impl Default for Windows {
     fn default() -> Self {
-        Self { snap: true, gaps_out: 14 }
+        Self {
+            snap: true,
+            gaps_out: 14,
+            rounding: 16,
+            border: 2,
+            blur: true,
+            animations: true,
+            anim_speed: 1.0,
+            open_anim: "popin".into(),
+            close_anim: None,
+            open_speed: 1.0,
+            jelly: 1.0,
+            floating: true,
+        }
+    }
+}
+
+/// Раздел appearance: что влияет на вид окон.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct Appearance {
+    pub style: String,
+    pub accent: String,
+    #[serde(deserialize_with = "number")]
+    pub frost: f32,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self { style: "delta".into(), accent: "#7C5CFF".into(), frost: 0.5 }
+    }
+}
+
+/// Число или строка с числом — настройки иногда пишут так.
+fn number<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+    let v = Value::deserialize(d)?;
+    match &v {
+        Value::Number(n) => Ok(n.as_f64().unwrap_or(1.0) as f32),
+        Value::String(s) => s.parse().map_err(serde::de::Error::custom),
+        _ => Err(serde::de::Error::custom("не число")),
     }
 }
 
@@ -76,6 +135,7 @@ impl Default for Windows {
 pub struct Settings {
     pub input: Input,
     pub windows: Windows,
+    pub appearance: Appearance,
     pub monitors: Vec<crate::monitors::MonitorRule>,
 }
 
@@ -132,6 +192,6 @@ impl Settings {
             .and_then(Value::as_array)
             .map(|list| list.iter().filter_map(crate::monitors::MonitorRule::from_value).collect())
             .unwrap_or_default();
-        Settings { input: section(&merged, "input"), windows: section(&merged, "windows"), monitors }
+        Settings { input: section(&merged, "input"), windows: section(&merged, "windows"), appearance: section(&merged, "appearance"), monitors }
     }
 }

@@ -103,6 +103,8 @@ impl PointerGrab<Shell> for MoveSurfaceGrab {
                 return;
             }
             self.moving = true;
+            let at = (self.initial_window_location.to_f64() + delta).to_i32_round();
+            data.fx_jelly_begin(&self.window, self.grip, at);
         }
         let new_location = (self.initial_window_location.to_f64() + delta).to_i32_round();
         data.move_window(&self.window, new_location);
@@ -147,6 +149,7 @@ impl PointerGrab<Shell> for MoveSurfaceGrab {
             // No more buttons are pressed, release the grab.
             handle.unset_grab(self, data, event.serial, event.time, true);
             if self.moving {
+                data.fx_jelly_release(&self.window);
                 let (window, monitor, grip, zone) = (self.window.clone(), self.monitor.clone(), self.grip, self.zone.take());
                 data.loop_handle.insert_idle(move |d| d.state.finish_drag(&window, &monitor, grip, zone));
             }

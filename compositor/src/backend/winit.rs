@@ -18,7 +18,7 @@ use crate::{config, render::{output_elements, take_feedback}, CalloopData, Shell
 /// Окно отладки: один выход размером с окно, ввод — из него же.
 pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> Result<(), Box<dyn std::error::Error>> {
     let (mut backend, winit) = winit::init::<GlesRenderer>()?;
-    backend.window().set_title("Vanks Shell (отладка)");
+    backend.window().set_title("композитор Delta (отладка)");
 
     // программы рисуют на видеокарте и отдают кадры как dmabuf — как в настоящей
     // сессии. Без адреса видеокарты Quickshell ушёл бы на медленный SHM
@@ -91,9 +91,10 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
                 let size = backend.window_size();
                 let damage = Rectangle::from_size(size);
                 let mut feedback = None;
+                // до bind: снимки окон для анимаций рисуются в свои текстуры
+                let elements = output_elements(backend.renderer(), state, &output, false);
                 let bound = match backend.bind() {
                     Ok((renderer, mut framebuffer)) => {
-                        let elements = output_elements(renderer, state, &output, false);
                         match damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND) {
                             Ok(result) => feedback = Some(take_feedback(state, &output, &result.states)),
                             Err(e) => tracing::warn!("ошибка отрисовки: {e:?}"),

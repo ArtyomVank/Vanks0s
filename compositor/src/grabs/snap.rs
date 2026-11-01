@@ -100,6 +100,8 @@ impl Shell {
             self.set_mode(window, crate::workspaces::Mode::Maximized);
             return;
         }
+        let loc = self.space.element_location(window).unwrap_or_default();
+        self.fx_geometry_from(window, Rectangle::new(loc, window.geometry().size));
         data(window).snapped = Some(window.geometry().size);
         self.resize_window(window, zone.rect.size);
         self.move_window(window, zone.rect.loc);

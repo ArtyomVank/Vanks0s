@@ -1,4 +1,4 @@
-//! Настоящая сессия: Vanks Shell сама ведёт видеокарту (DRM/KMS) и ввод
+//! Настоящая сессия: композитор Delta сама ведёт видеокарту (DRM/KMS) и ввод
 //! (libinput), а доступ к ним даёт libseat (logind или seatd) — так же, как
 //! Hyprland. Запускается с текстовой консоли или экрана входа (greetd).
 //!
@@ -615,6 +615,19 @@ impl Shell {
             InputEvent::DeviceRemoved { device } => udev.keyboards.retain(|d| d != device),
             _ => {}
         }
+    }
+
+    /// Выполнить с рендерером вне кадра (снимок закрывающегося окна).
+    pub fn with_renderer<T>(&mut self, f: impl FnOnce(&mut Self, &mut GlesRenderer) -> T) -> Option<T> {
+        if let Some(mut udev) = self.udev.take() {
+            let result = udev.gpu.as_mut().map(|g| f(self, &mut g.renderer));
+            self.udev = Some(udev);
+            return result;
+        }
+        let mut backend = self.winit.take()?;
+        let result = f(self, backend.renderer());
+        self.winit = Some(backend);
+        Some(result)
     }
 
     /// Лампочки Caps Lock и т. п. на всех клавиатурах.

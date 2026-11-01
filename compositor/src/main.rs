@@ -1,15 +1,15 @@
-//! Vanks Shell — своя графическая оболочка Vanks OS на Wayland.
+//! композитор Delta — своя графическая оболочка Vanks OS на Wayland.
 //!
 //! Композитор: протокол Wayland, окна xdg-shell, клавиатура и мышь,
 //! перемещение и размер окон, фокус по щелчку. Внутри графической сессии
 //! открывается окном отладки (winit), с текстовой консоли или экрана входа —
 //! настоящей сессией (DRM/KMS, libinput, libseat). План до 1.0 — docs/ROADMAP.md.
 //!
-//!     vanks-shell                      окно отладки или настоящая сессия — по месту запуска
-//!     vanks-shell -c <команда>         внутри — эта команда, а не терминал
-//!     vanks-shell --backend winit|tty  выбрать явно
-//!     vanks-shell --probe              видеокарты, мониторы, доступ — ничего не захватывая
-//!     vanks-shell --version
+//!     delta-compositor                      окно отладки или настоящая сессия — по месту запуска
+//!     delta-compositor -c <команда>         внутри — эта команда, а не терминал
+//!     delta-compositor --backend winit|tty  выбрать явно
+//!     delta-compositor --probe              видеокарты, мониторы, доступ — ничего не захватывая
+//!     delta-compositor --version
 
 #![allow(irrefutable_let_patterns)]
 
@@ -19,6 +19,7 @@ mod cursor;
 mod dispatch;
 mod edid;
 mod focus;
+mod fx;
 mod grabs;
 mod handlers;
 mod input;
@@ -54,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--backend" => match args.next().as_deref().and_then(backend::Kind::parse) {
                 Some(k) => kind = k,
                 None => {
-                    eprintln!("vanks-shell: --backend winit или tty");
+                    eprintln!("delta-compositor: --backend winit или tty");
                     std::process::exit(2);
                 }
             },
@@ -63,15 +64,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             }
             "--version" | "-V" => {
-                println!("vanks-shell {}", env!("CARGO_PKG_VERSION"));
+                println!("delta-compositor {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             "-h" | "--help" => {
-                println!("vanks-shell [-c <команда>] [--backend winit|tty] [--probe] — композитор Vanks OS");
+                println!("delta-compositor [-c <команда>] [--backend winit|tty] [--probe] — композитор Vanks OS");
                 return Ok(());
             }
             other => {
-                eprintln!("vanks-shell: неизвестный ключ {other}");
+                eprintln!("delta-compositor: неизвестный ключ {other}");
                 std::process::exit(2);
             }
         }
@@ -81,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing_subscriber::fmt().with_env_filter(env_filter).init();
     } else {
         // свои события — да, служебные сообщения Smithay — только предупреждения
-        tracing_subscriber::fmt().with_env_filter("vanks_shell=info,smithay=warn").init();
+        tracing_subscriber::fmt().with_env_filter("delta_compositor=info,smithay=warn").init();
     }
 
     // видеокарту и ввод уже ведёт другая сессия: захват сломал бы её
@@ -94,9 +95,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    if kind == backend::Kind::Udev && backend::inside_session() && std::env::var_os("VANKS_FORCE_TTY").is_none() {
-        eprintln!("vanks-shell: уже идёт графическая сессия — настоящая сессия запускается с консоли (Ctrl+Alt+F3).");
-        eprintln!("Окно отладки: vanks-shell --backend winit");
+    if kind == backend::Kind::Udev && backend::inside_session() && std::env::var_os("DELTA_FORCE_TTY").is_none() {
+        eprintln!("delta-compositor: уже идёт графическая сессия — настоящая сессия запускается с консоли (Ctrl+Alt+F3).");
+        eprintln!("Окно отладки: delta-compositor --backend winit");
         std::process::exit(1);
     }
 
@@ -122,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backend::Kind::Winit => backend::winit::init(&mut event_loop, &mut data)?,
         backend::Kind::Udev => backend::udev::init(&mut event_loop, &mut data)?,
     }
-    tracing::info!(socket = ?data.state.socket_name, backend = ?kind, "vanks-shell запущен");
+    tracing::info!(socket = ?data.state.socket_name, backend = ?kind, "delta-compositor запущен");
 
     // программы внутри — на нашем сокете, а не на сессии вокруг. Без -c —
     // Delta (или терминал, если Delta нет)

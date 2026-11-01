@@ -1,4 +1,4 @@
-Vanks Shell — часть Vanks OS.
+композитор Delta — часть Vanks OS.
 
 Части кода (src/grabs/, устройство src/state.rs, src/input.rs, src/handlers/,
 src/backend/winit.rs) основаны на примере smallvil из Smithay v0.7.0:

@@ -1,5 +1,5 @@
 //! IPC как у Hyprland — чтобы Delta (Quickshell.Hyprland и hyprctl) работала
-//! поверх Vanks Shell без единой правки.
+//! поверх композитор Delta без единой правки.
 //!
 //!   $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock   запрос → ответ
 //!   $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock  события «имя>>данные\n»
@@ -160,13 +160,13 @@ impl Shell {
         let args = args.trim();
 
         let value = match cmd {
-            "status" => Some(json!({ "configProvider": "lua", "version": HYPR_VERSION, "compositor": "Vanks Shell" })),
+            "status" => Some(json!({ "configProvider": "lua", "version": HYPR_VERSION, "compositor": "композитор Delta" })),
             "version" => Some(json!({
-                "branch": "vanks-shell",
+                "branch": "delta-compositor",
                 "commit": env!("CARGO_PKG_VERSION"),
                 "version": HYPR_VERSION,
                 "dirty": false,
-                "commit_message": "Vanks Shell",
+                "commit_message": "композитор Delta",
                 "commit_date": "",
                 "tag": format!("v{HYPR_VERSION}"),
                 "commits": "0",
@@ -191,7 +191,7 @@ impl Shell {
             "configerrors" => Some(json!([""])),
             "binds" | "globalshortcuts" | "animations" => Some(json!([])),
             "getoption" => Some(json!({ "option": args, "int": 0, "set": false })),
-            "splash" => return "Vanks Shell".into(),
+            "splash" => return "композитор Delta".into(),
             "dispatch" => return self.dispatch(args),
             // delta-apply после записи settings.json зовёт hyprctl reload
             "reload" => {

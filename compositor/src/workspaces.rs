@@ -51,6 +51,8 @@ pub struct WinData {
     pub pinned: bool,
     /// не рисовать на мониторе: поверх его живая копия («желе» Delta)
     pub hidden: bool,
+    /// анимации и снимок окна
+    pub fx: crate::fx::WinFx,
 }
 
 pub fn data(window: &Window) -> RefMut<'_, WinData> {
@@ -239,12 +241,25 @@ impl Shell {
         if old == id && !self.workspaces.special_shown {
             return;
         }
+        // кто уедет с экрана: окна прежнего стола этого монитора
+        let leaving: Vec<Window> = self
+            .windows
+            .iter()
+            .filter(|w| {
+                let d = data(w);
+                d.workspace == old && !d.pinned
+            })
+            .cloned()
+            .collect();
         // стол уже показан на другом мониторе — туда только фокус (как Hyprland)
         self.ensure_ws(id, &output);
         self.workspaces.monitor_of.insert(id, output.clone());
         self.workspaces.active.insert(output.clone(), id);
         self.workspaces.special_shown = false;
         self.update_visibility();
+        if old != id {
+            self.fx_workspace(output.clone(), leaving, if id > old { 1.0 } else { -1.0 });
+        }
         self.focus_top();
         self.ipc_event("workspace", &ws_name(id));
         self.ipc_event("workspacev2", &format!("{id},{}", ws_name(id)));
@@ -371,6 +386,11 @@ impl Shell {
         let Some(output) = self.output_of(window) else { return };
         let current = data(window).mode;
         let target = if current == mode { Mode::Normal } else { mode };
+        if target != Mode::Fullscreen && current != Mode::Fullscreen {
+            if let Some(loc) = self.space.element_location(window) {
+                self.fx_geometry_from(window, Rectangle::new(loc, window.geometry().size));
+            }
+        }
 
         let geo = match target {
             Mode::Normal => data(window).restore.take(),

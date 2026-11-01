@@ -89,6 +89,7 @@ pub struct Shell {
     /// все окна, и на других столах, — в порядке наложения (последнее сверху)
     pub windows: Vec<Window>,
     pub workspaces: Workspaces,
+    pub fx: crate::fx::Fx,
     /// IPC как у Hyprland (ipc.rs) — для Delta
     pub ipc: Option<Ipc>,
     pub global_shortcuts: GlobalShortcutsState,
@@ -206,6 +207,7 @@ impl Shell {
             cascade: 0,
             windows: Vec::new(),
             workspaces: Workspaces::default(),
+            fx: Default::default(),
             ipc: None,
             global_shortcuts,
             focus_grabs,
@@ -280,7 +282,7 @@ impl Shell {
             .env("WAYLAND_DISPLAY", &self.socket_name)
             // Delta и hyprctl находят нас как Hyprland (ipc.rs)
             .env("HYPRLAND_INSTANCE_SIGNATURE", self.ipc.as_ref().map(|i| i.signature.as_str()).unwrap_or(""))
-            // Delta — рабочий стол поверх Vanks Shell
+            // Delta — рабочий стол поверх композитор Delta
             .env("XDG_CURRENT_DESKTOP", "Vanks:Delta")
             .env("XDG_SESSION_DESKTOP", "vanks")
             .env("XDG_SESSION_TYPE", "wayland")

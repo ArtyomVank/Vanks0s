@@ -320,6 +320,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "delta-compositor"
+version = "1.0.0"
+dependencies = [
+ "bitflags 2.13.2",
+ "calloop 0.14.5",
+ "libc",
+ "serde",
+ "serde_json",
+ "smithay",
+ "smithay-drm-extras",
+ "tracing",
+ "tracing-subscriber",
+ "wayland-backend",
+ "wayland-scanner",
+ "wayland-server",
+ "xcursor",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1813,25 +1832,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "vanks-shell"
-version = "0.4.0"
-dependencies = [
- "bitflags 2.13.2",
- "calloop 0.14.5",
- "libc",
- "serde",
- "serde_json",
- "smithay",
- "smithay-drm-extras",
- "tracing",
- "tracing-subscriber",
- "wayland-backend",
- "wayland-scanner",
- "wayland-server",
- "xcursor",
-]
 
 [[package]]
 name = "version_check"
