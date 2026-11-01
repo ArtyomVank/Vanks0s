@@ -1,0 +1,27 @@
+[package]
+name = "vanks-shell"
+version = "0.1.0"
+edition = "2021"
+description = "Vanks Shell — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
+publish = false
+
+[dependencies]
+tracing = "0.1"
+bitflags = "2.2"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+
+# Smithay — библиотека для Wayland-композиторов (на ней COSMIC и niri).
+# Пока только окно отладки (winit); вход в настоящую сессию (DRM/libinput,
+# features backend_drm, backend_libinput, backend_udev, backend_session_libseat)
+# — следующий шаг, см. docs/ROADMAP.md
+[dependencies.smithay]
+version = "0.7.0"
+default-features = false
+features = ["backend_winit", "wayland_frontend", "desktop"]
+
+[profile.dev]
+# композитор в отладке без оптимизаций заметно подтормаживает
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
