@@ -145,10 +145,10 @@ Item {
     NotifsWidget {
         id: notes
         visible: root.notifOn && !root.gridHasNotifs && !root.editing && list.length > 0
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: Math.round((root.width - width) / 2)
         y: Math.round(root.height * 0.38)
-        width: Math.min(420, root.width * 0.34)
-        height: Math.max(80, Math.min(implicitHeight, login.y - y - 24))
+        width: Math.round(Math.min(420, root.width * 0.34))
+        height: Math.round(Math.max(80, Math.min(implicitHeight, login.y - y - 24)))
         fixedRow: 64
         item: ({ id: "notifs", mode: Settings.get("notifications.lockView", "stack") })
     }

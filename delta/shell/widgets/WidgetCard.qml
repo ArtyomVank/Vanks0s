@@ -61,10 +61,12 @@ Item {
     opacity: vanish ? 0 : 1
     Behavior on opacity { NumberAnimation { duration: Theme.anim.normal } }
 
-    x: bx + (dragging ? dragDx : 0)
-    y: by + (dragging ? dragDy : 0)
-    width: bw
-    height: bh
+    // целые пиксели: содержимое без подложки рисуется через слой с тенью, и
+    // слой, сдвинутый на полпикселя, размывает текст
+    x: Math.round(bx + (dragging ? dragDx : 0))
+    y: Math.round(by + (dragging ? dragDy : 0))
+    width: Math.round(bw)
+    height: Math.round(bh)
     z: dragging || resizing ? 10 : selected ? 2 : 1
 
     // перенос и смена размера — с пружинкой, как в концепте; за пальцем — без анимации
@@ -165,9 +167,9 @@ Item {
             readonly property real pad: root.item.id === "photo" ? 0 : 1
             anchors {
                 fill: parent
-                topMargin: body.pad * (root.lock ? 12 * root.height / 100 : 7 * Math.min(root.width, root.height) / 100)
+                topMargin: Math.round(body.pad * (root.lock ? 12 * root.height / 100 : 7 * Math.min(root.width, root.height) / 100))
                 bottomMargin: anchors.topMargin
-                leftMargin: body.pad * (root.lock ? 14 * root.height / 100 : 8 * Math.min(root.width, root.height) / 100)
+                leftMargin: Math.round(body.pad * (root.lock ? 14 * root.height / 100 : 8 * Math.min(root.width, root.height) / 100))
                 rightMargin: anchors.leftMargin
             }
             // без подложки текст читается поверх обоев за счёт мягкой тени

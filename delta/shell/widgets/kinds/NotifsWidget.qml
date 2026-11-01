@@ -30,10 +30,11 @@ Base {
     // без карточки (экран блокировки сам по себе) строка задаётся снаружи —
     // тогда и высоту виджета можно взять по содержимому (implicitHeight)
     property real fixedRow: 0
-    readonly property real rowH: fixedRow > 0 ? fixedRow : Math.max(44, Math.min(25 * ch, 18 * cw, 96))
-    readonly property real gap: rowH * 0.12
+    // размеры — в целых пикселях: текст на дробной позиции выходит мыльным
+    readonly property real rowH: Math.round(fixedRow > 0 ? fixedRow : Math.max(44, Math.min(25 * ch, 18 * cw, 96)))
+    readonly property real gap: Math.round(rowH * 0.12)
     // край карточки под верхней в стопке
-    readonly property real peek: rowH * 0.14
+    readonly property real peek: Math.round(rowH * 0.14)
     readonly property real clearH: list.length > 0 && !editing ? Math.max(20, rowH * 0.4) : 0
     // у «Числом» кнопка справа, у карточек — снизу
     readonly property real cardsH: height - head.height - gap - (clearH > 0 && !counter ? clearH + gap : 0)
@@ -149,12 +150,15 @@ Base {
                 z: -row.index
                 radius: Math.min(height * 0.32, 22)
                 transformOrigin: Item.Bottom
+                // на экране блокировки — тёмное стекло: белый текст на светлой
+                // полупрозрачной карточке поверх светлых обоев сливался в муть
+                readonly property real a: row.inStack && row.index > 0 ? 0.7 : 1
                 gradient: Gradient {
-                    GradientStop { position: 0; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, row.inStack && row.index > 0 ? 0.16 : 0.22) }
-                    GradientStop { position: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, row.inStack && row.index > 0 ? 0.10 : 0.13) }
+                    GradientStop { position: 0; color: root.lock ? Qt.rgba(0.05, 0.05, 0.09, 0.46 * row.a) : Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.22 * row.a) }
+                    GradientStop { position: 1; color: root.lock ? Qt.rgba(0.05, 0.05, 0.09, 0.36 * row.a) : Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.13 * row.a) }
                 }
                 border.width: 1
-                border.color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.16)
+                border.color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, root.lock ? 0.14 : 0.16)
 
                 // стопка: карточки под верхней выглядывают краем снизу
                 y: row.inStack ? row.index * root.peek : row.index * (root.rowH + root.gap)
@@ -186,8 +190,10 @@ Base {
                     // значок приложения: первая буква на своём цвете
                     Rectangle {
                         id: badge
-                        anchors { left: parent.left; leftMargin: root.rowH * 0.18; verticalCenter: parent.verticalCenter }
-                        width: root.rowH * 0.56; height: width
+                        anchors.left: parent.left
+                        anchors.leftMargin: Math.round(root.rowH * 0.18)
+                        y: Math.round((parent.height - height) / 2)
+                        width: Math.round(root.rowH * 0.56); height: width
                         radius: width * 0.3
                         color: Qt.hsla(root.hue(row.app), 0.55, 0.55, 1)
                         WText {
@@ -199,8 +205,9 @@ Base {
                         }
                     }
                     Column {
-                        anchors { left: badge.right; leftMargin: root.rowH * 0.18; right: parent.right; rightMargin: root.rowH * 0.22; verticalCenter: parent.verticalCenter }
-                        spacing: root.rowH * 0.03
+                        anchors { left: badge.right; leftMargin: Math.round(root.rowH * 0.18); right: parent.right; rightMargin: Math.round(root.rowH * 0.22) }
+                        y: Math.round((parent.height - height) / 2)
+                        spacing: Math.round(root.rowH * 0.03)
                         Item {
                             width: parent.width
                             height: sum.height
@@ -219,7 +226,7 @@ Base {
                                 text: root.ago(row.modelData.time)
                                 px: root.rowH * 0.19
                                 color: root.pal.c1
-                                opacity: 0.6
+                                opacity: root.lock ? 0.75 : 0.6
                             }
                         }
                         WText {
@@ -230,7 +237,7 @@ Base {
                                 : root.plain(row.modelData.body)
                             px: root.rowH * 0.21
                             color: root.pal.c1
-                            opacity: 0.78
+                            opacity: root.lock ? 0.88 : 0.78
                         }
                     }
                 }
