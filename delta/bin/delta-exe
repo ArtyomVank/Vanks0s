@@ -18,6 +18,11 @@
 #   delta-exe --list                        то же для окна (JSON)
 #   delta-exe --set-runner <префикс> <раннер> · --winecfg <префикс>
 #   delta-exe --folder <префикс> · --remove <префикс>
+#   delta-exe --uninstall-info <ярлык.desktop>   что удалится (JSON для окна)
+#   delta-exe --uninstall <ярлык.desktop>        удалить программу: её папку в
+#                                           C:, ярлыки, а если система Windows
+#                                           была только её — и систему
+#   delta-exe --tidy                        убрать ярлыки удалённых программ
 #   delta-exe --proton         путь к самому свежему Proton CachyOS (для delta-games)
 #
 # Игре с steam_api*.dll нужен Steam. Игра из библиотеки Steam запускается
@@ -628,7 +633,16 @@ install_app() {
 run_app() {
     local pname=$1 file=$2 runner=auto
     [ -f "$(prefix_of "${pname}")/.delta-runner" ] && runner=$(head -n1 "$(prefix_of "${pname}")/.delta-runner")
-    [ -f "${file}" ] || { say "Программа не найдена" "${file}"; exit 1; }
+    if [ ! -f "${file}" ]; then
+        # программу удалили — её ярлык из меню убираем сам (диск не подключён — нет)
+        if reachable "${file}"; then
+            tidy
+            say "Программа не найдена" "Её больше нет — ярлык убран из меню приложений"
+        else
+            say "Программа не найдена" "Диск с ней не подключён: ${file}"
+        fi
+        exit 1
+    fi
     run_launcher "${runner}" "${file}" "${pname}"
 }
 
@@ -692,6 +706,136 @@ remove_prefix() {
     return 0
 }
 
+# --- удаление программы и уборка ярлыков ---
+desk_value() { sed -n "s/^$2=//p" "$1" | head -n1; }
+
+# Папка программы внутри C: — её и удаляем: Program Files[ (x86)]\<папка>,
+# ProgramData\<папка>, users\<кто>\AppData\{Local,Roaming}\<папка> или папка
+# прямо в C:. Общие (Common Files, Windows, сама users) — никогда.
+program_dir() {
+    local exe=$1 c=$2 rel top rest sub
+    local -a parts
+    case "${exe}" in "${c}"/*) ;; *) return 1 ;; esac
+    rel=${exe#"${c}"/}
+    top=${rel%%/*}
+    [ "${top}" != "${rel}" ] || return 1
+    rest=${rel#*/}
+    case "${top,,}" in
+        windows) return 1 ;;
+        users)
+            # users/<кто>/AppData/Local|Roaming/<папка>/…
+            IFS=/ read -r -a parts <<<"${rest}"
+            [ "${#parts[@]}" -ge 5 ] && [ "${parts[1],,}" = appdata ] || return 1
+            case "${parts[2],,}" in local|roaming) ;; *) return 1 ;; esac
+            [ "${parts[3],,}" = microsoft ] && return 1
+            printf '%s/users/%s/%s/%s/%s\n' "${c}" "${parts[0]}" "${parts[1]}" "${parts[2]}" "${parts[3]}"
+            ;;
+        "program files"|"program files (x86)"|programdata)
+            sub=${rest%%/*}
+            [ "${sub}" != "${rest}" ] || return 1
+            case "${sub,,}" in "common files"|microsoft|"windows nt"|"internet explorer"|"windows media player") return 1 ;; esac
+            printf '%s/%s/%s\n' "${c}" "${top}" "${sub}"
+            ;;
+        *) printf '%s/%s\n' "${c}" "${top}" ;;
+    esac
+}
+
+# План удаления по ярлыку .desktop (JSON для окна подтверждения):
+#   dir — папка программы, которую удалим; keep — файлы вне Box, которые
+#   остаются (игра, запущенная из своей папки); prefix — у программы своя
+#   система Windows, и после неё там ничего не останется — удалим целиком.
+uninstall_plan() {
+    local desk=$1 exe pname prefix c dir="" keep="" whole=false d x left=0
+    exe=$(desk_value "${desk}" X-Delta-Exe)
+    pname=$(desk_value "${desk}" X-Delta-Prefix)
+    case "${pname}" in ""|.|..|*/*) return 1 ;; esac
+    prefix=$(prefix_of "${pname}")
+    c=$(drive_c "${prefix}")
+    dir=$(program_dir "${exe}" "${c}") || dir=""
+    case "${exe}" in "${prefix}"/*) ;; *) keep=$(dirname -- "${exe}") ;; esac
+    # другие ярлыки того же префикса, не из этой папки
+    for d in "${APPS}"/delta-exe-*.desktop; do
+        [ -f "${d}" ] && [ "${d}" != "${desk}" ] && grep -qx "X-Delta-Prefix=${pname}" "${d}" || continue
+        x=$(desk_value "${d}" X-Delta-Exe)
+        [ -n "${dir}" ] && case "${x}" in "${dir}"/*) continue ;; esac
+        left=$((left + 1))
+    done
+    # Delta Box — общая система: её не удаляем никогда
+    [ "${pname}" != delta-box ] && [ "${left}" = 0 ] && [ -d "${prefix}" ] && whole=true
+    jq -n --arg name "$(desk_value "${desk}" Name)" --arg exe "${exe}" --arg prefixName "${pname}" \
+        --arg dir "${dir}" --arg keep "${keep}" --argjson whole "${whole}" \
+        --arg size "$(if [ "${whole}" = true ]; then du -sh -- "${prefix}" 2>/dev/null | cut -f1; elif [ -n "${dir}" ]; then du -sh -- "${dir}" 2>/dev/null | cut -f1; fi)" \
+        '{ kind: "windows", name: $name, exe: $exe, prefix: $prefixName, dir: $dir, keep: $keep, whole: $whole, size: $size }'
+}
+
+uninstall_app() {
+    local desk=$1 plan exe pname prefix dir whole d x lnk t
+    plan=$(uninstall_plan "${desk}") || { echo "delta-exe: это не ярлык программы Windows" >&2; exit 2; }
+    exe=$(jq -r .exe <<<"${plan}"); pname=$(jq -r .prefix <<<"${plan}")
+    dir=$(jq -r .dir <<<"${plan}"); whole=$(jq -r .whole <<<"${plan}")
+    prefix=$(prefix_of "${pname}")
+    if [ "${whole}" = true ]; then
+        remove_prefix "${pname}"
+        rm -f -- "${desk}" "${ICONS}/$(basename -- "${desk}" .desktop).png"
+        return 0
+    fi
+    # ярлыки этой программы: этот и все, что ведут в её папку
+    for d in "${APPS}"/delta-exe-*.desktop; do
+        [ -f "${d}" ] && grep -qx "X-Delta-Prefix=${pname}" "${d}" || continue
+        x=$(desk_value "${d}" X-Delta-Exe)
+        if [ "${d}" = "${desk}" ] || { [ -n "${dir}" ] && case "${x}" in "${dir}"/*) true ;; *) false ;; esac; }; then
+            rm -f -- "${d}" "${ICONS}/$(basename -- "${d}" .desktop).png"
+        fi
+    done
+    if [ -n "${dir}" ]; then
+        # её ярлыки в «Пуске» и на рабочем столе Windows
+        while IFS= read -r lnk; do
+            t=$(link_target "${lnk}" "${prefix}") || continue
+            case "${t}" in "${dir}"/*) rm -f -- "${lnk}" ;; esac
+        done < <(list_links "${prefix}")
+        rm -rf -- "${dir}"
+    fi
+    command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
+    return 0
+}
+
+# файл на диске, который сейчас не подключён (флешка, второй диск), — не
+# «пропал»: его ярлык не трогаем
+reachable() {
+    local root
+    case "$1" in
+        /run/media/*/*/*) root=$(cut -d/ -f1-5 <<<"$1") ;;
+        /media/*/*|/mnt/*/*) root=$(cut -d/ -f1-3 <<<"$1") ;;
+        *) return 0 ;;
+    esac
+    mountpoint -q -- "${root}"
+}
+
+# Уборка ярлыков программ Windows: программы нет (удалили её папку, сам
+# префикс) — ярлык долой; ярлык прежних версий с двоичным мусором в Icon=
+# (оболочка на нём падала) — пересоздать.
+tidy() {
+    local d exe pname title
+    for d in "${APPS}"/delta-exe-*.desktop; do
+        [ -f "${d}" ] || continue
+        exe=$(desk_value "${d}" X-Delta-Exe)
+        pname=$(desk_value "${d}" X-Delta-Prefix)
+        [ -n "${exe}" ] || continue
+        if [ ! -e "${exe}" ]; then
+            reachable "${exe}" || continue
+            rm -f -- "${d}" "${ICONS}/$(basename -- "${d}" .desktop).png"
+            continue
+        fi
+        if [ "$(stat -c %s -- "${d}")" -gt 8192 ]; then
+            title=$(desk_value "${d}" Name)
+            rm -f -- "${d}"
+            [ -n "${pname}" ] && [ -d "$(prefix_of "${pname}")" ] && add_app "$(prefix_of "${pname}")" "${pname}" "" "${exe}" "${title}" >/dev/null
+        fi
+    done
+    command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
+    return 0
+}
+
 case "${1:-}" in
     -h|--help)
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
@@ -715,6 +859,9 @@ case "${1:-}" in
     --winecfg) check_prefix "${2:-}"; winecfg "$2" ;;
     --folder)  check_prefix "${2:-}"; exec xdg-open "$(drive_c "$(prefix_of "$2")")" ;;
     --remove)  check_prefix "${2:-}"; remove_prefix "$2"; exit 0 ;;
+    --uninstall-info) [ -f "${2:-}" ] || exit 2; uninstall_plan "$2"; exit $? ;;
+    --uninstall) [ -f "${2:-}" ] || exit 2; uninstall_app "$2"; exit 0 ;;
+    --tidy)    tidy; exit 0 ;;
     --run)
         mode=${2:-}
         if [ "${mode}" = normal ]; then

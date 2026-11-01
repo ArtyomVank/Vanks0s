@@ -211,21 +211,23 @@ FloatingWindow {
             Item { Layout.fillHeight: true }
         }
 
-        // на наведении: сменить файл запуска, удалить из Box
+        // на наведении: сменить файл запуска, удалить из Box. Поставленные
+        // установщиком удаляются по ярлыку: их папка в C: и ярлыки
+        readonly property string key: own ? modelData.name : modelData.desktop
         Row {
-            visible: tile.own && (hov.hovered || win.removing === tile.modelData.name)
+            visible: tile.key !== "" && (hov.hovered || win.removing === tile.key)
             anchors { top: parent.top; right: parent.right; margins: 6 }
             spacing: 2
-            Btn { icon: "settings"; iconSize: 15; kind: "ghost"; onClicked: win.pick(tile.modelData.name) }
+            Btn { visible: tile.own; icon: "settings"; iconSize: 15; kind: "ghost"; onClicked: win.pick(tile.modelData.name) }
             Btn {
                 icon: "trash"
                 iconSize: 15
                 kind: "danger"
-                text: win.removing === tile.modelData.name ? I18n.tr("Точно?") : ""
+                text: win.removing === tile.key ? I18n.tr("Точно?") : ""
                 onClicked: {
-                    if (win.removing !== tile.modelData.name) { win.removing = tile.modelData.name; return; }
+                    if (win.removing !== tile.key) { win.removing = tile.key; return; }
                     win.removing = "";
-                    win.change(["delta-box", "--remove", tile.modelData.name]);
+                    win.change(tile.own ? ["delta-box", "--remove", tile.key] : ["delta-box", "--uninstall", tile.key]);
                 }
             }
         }

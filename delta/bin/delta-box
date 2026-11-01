@@ -11,6 +11,8 @@
 #   delta-box --file <exe>        запустить любой файл внутри Box
 #   delta-box --install <файл>    установщик — в Box, ярлыки его программ в меню
 #   delta-box --remove <имя>      удалить копию программы из Box (оригинал цел)
+#   delta-box --uninstall <ярлык> удалить программу, поставленную установщиком:
+#                                 её папку в C: и ярлыки (delta-exe --uninstall)
 #   delta-box --get steam|chrome  скачать официальный установщик для Windows и
 #                                 поставить в Box (для опытных: родные версии
 #                                 для Linux работают лучше). Пишет для окна
@@ -68,6 +70,10 @@ list_json() {
     local pf apps others d exe
     mkdir -p "${BOX}"
     pf=$(programs)
+    # ярлыки удалённых программ — долой, из списка — папки, которых больше нет
+    "${EXE}" --tidy >/dev/null 2>&1
+    [ -s "${DB}" ] && db_write '.apps |= with_entries(select(.key as $k | $have | index($k)))' \
+        --argjson have "$(find "${pf}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | jq -R . | jq -s .)"
     apps=$(db | jq -c '.apps | to_entries[]' | while IFS= read -r e; do
         local n x icon="" desk=""
         n=$(jq -r .key <<<"${e}")
@@ -222,6 +228,10 @@ case "${1:-}" in
     --file)    [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --app "${NAME}" "$(realpath -- "$2")" ;;
     --install) [ -f "${2:-}" ] || exit 2; mkdir -p "${BOX}"; exec "${EXE}" --install "$(runner)" "$(realpath -- "$2")" "${NAME}" ;;
     --remove)  check_name "${2:-}"; remove_app "$2" ;;
+    --uninstall)
+        [ -f "${2:-}" ] && grep -qx "X-Delta-Prefix=${NAME}" "$2" || { echo "delta-box: это не ярлык программы Box" >&2; exit 2; }
+        "${EXE}" --uninstall "$2"
+        ;;
     --get)     get_app "${2:-}" ;;
     *) echo "delta-box: неизвестный ключ $1 (см. --help)" >&2; exit 2 ;;
 esac

@@ -34,6 +34,71 @@ Scope {
     // IPC (демо, проверки): меню первой строки, как правый щелчок по ней
     property bool menuPending: false
     function showMenu() { menuPending = true; }
+    // IPC: окно удаления для первой строки, как «Удалить» в её меню
+    function showRemove() { if (results.length) askRemove(results[0]); }
+
+    // --- удаление приложения (меню строки → «Удалить») ---
+    // delta-store what <id> говорит, что это (программа Windows, flatpak,
+    // пакет, просто ярлык) и можно ли удалить; окно подтверждения показывает
+    // это словами, delta-store uninstall удаляет как положено. Меню само
+    // обновится: DesktopEntries следит за папками ярлыков.
+    property var removal: null          // ответ what: { id, name, kind, can, why, … }
+    property bool removing: false
+    property string removeStep: ""
+    function askRemove(entry) {
+        removal = { id: entry.id, name: entry.name, kind: "", can: false, why: "" };
+        whatProc.command = ["delta-store", "what", entry.id];
+        whatProc.running = true;
+    }
+    function confirmRemove() {
+        if (!removal || !removal.can || removing) return;
+        removing = true;
+        removeStep = I18n.tr("Удаляю…");
+        uninstallProc.command = ["delta-store", "uninstall", removal.id];
+        uninstallProc.running = true;
+    }
+    // тексты delta-store — по-русски; «Удаляю <имя>» и «Причина: <пакеты>» переводим по частям
+    function trStep(t) {
+        if (t.startsWith("Удаляю ")) return I18n.tr("Удаляю…");
+        const i = t.indexOf(": ");
+        return i > 0 ? I18n.tr(t.slice(0, i)) + ": " + t.slice(i + 2) : I18n.tr(t);
+    }
+    Process {
+        id: whatProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (!root.removal) return;
+                try {
+                    const r = JSON.parse(text);
+                    root.removal = Object.assign({ name: root.removal.name }, r, { name: r.name || root.removal.name });
+                } catch (e) {
+                    root.removal = Object.assign({}, root.removal, { kind: "none", why: I18n.tr("Не удалось узнать, откуда это приложение") });
+                }
+            }
+        }
+    }
+    Process {
+        id: uninstallProc
+        stdout: SplitParser {
+            onRead: line => { if (line.startsWith("::step:: ")) root.removeStep = root.trStep(line.slice(9)); }
+        }
+        onExited: code => {
+            const name = root.removal ? root.removal.name : "";
+            root.removing = false;
+            root.removal = null;
+            Sounds.play(code === 0 ? "swoosh" : "dialog-error", 0);
+            Quickshell.execDetached(["notify-send", "-a", "Delta", "-i", code === 0 ? "user-trash" : "dialog-error",
+                code === 0 ? I18n.tr("Приложение удалено") : I18n.tr("Удалить не получилось"),
+                code === 0 ? name : root.removeStep]);
+        }
+    }
+    // ярлыки удалённых программ Windows убираются сами — при открытии меню
+    property real tidiedAt: 0
+    function tidy() {
+        if (Date.now() - tidiedAt < 60000) return;
+        tidiedAt = Date.now();
+        Quickshell.execDetached(["sh", "-c", "command -v delta-exe >/dev/null && exec delta-exe --tidy"]);
+    }
 
     // --- частота запусков: часто используемые выше ---
     property var usage: ({})
@@ -134,8 +199,10 @@ Scope {
             targetScreen = focusedScreen();
             everOpened = true;
             Sounds.play("launcher", 0);
+            tidy();
         } else {
             query = "";
+            if (!removing) removal = null;
         }
     }
 
@@ -319,6 +386,94 @@ Scope {
                             icon: "widgets"; text: I18n.tr("Ярлык на рабочий стол")
                             onPicked: { ShellState.addAppWidget(ctxMenu.entry.id); root.hide(); }
                         }
+                        CtxItem {
+                            icon: "trash"; text: I18n.tr("Удалить")
+                            onPicked: root.askRemove(ctxMenu.entry)
+                        }
+                    }
+                }
+
+                // подтверждение удаления: что именно удалится
+                MouseArea {
+                    anchors.fill: parent
+                    z: 12
+                    visible: root.removal !== null
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onPressed: if (!root.removing) root.removal = null
+                    // список под окном удаления притушен
+                    Rectangle { anchors.fill: parent; radius: panel.radiusOpen; color: Qt.rgba(0, 0, 0, 0.35) }
+                }
+                Rectangle {
+                    id: removeBox
+                    z: 13
+                    visible: root.removal !== null
+                    readonly property var r: root.removal || ({})
+                    readonly property string details: {
+                        if (r.kind === "") return I18n.tr("Смотрю, что это за приложение…");
+                        if (!r.can) return r.why ? root.trStep(r.why) : I18n.tr("Это приложение удалить нельзя");
+                        switch (r.kind) {
+                        case "windows": {
+                            let t = r.whole ? I18n.tr("Удалится программа вместе с её системой Windows")
+                                : r.dir ? I18n.tr("Удалится папка программы в Delta Box") : I18n.tr("Уберётся её ярлык");
+                            if (r.size && r.size !== "0") t += " (" + r.size + ")";
+                            if (r.keep) t += ". " + I18n.tr("Файлы в папке") + " «" + r.keep.split("/").pop() + "» " + I18n.tr("останутся");
+                            return t + ".";
+                        }
+                        case "flatpak": return I18n.tr("Приложение Flatpak удалится. Ваши файлы останутся.");
+                        case "pacman": return I18n.tr("Пакет") + " «" + r.pkg + "» " + I18n.tr("удалится — понадобится пароль администратора.");
+                        case "shortcut": return I18n.tr("Ярлык уберётся из меню приложений.");
+                        }
+                        return r.why ? root.trStep(r.why) : "";
+                    }
+                    width: Math.min(panel.width - 48, 400)
+                    height: rmCol.implicitHeight + 36
+                    x: Math.round((panel.width - width) / 2)
+                    y: Math.round((panel.height - height) / 2)
+                    radius: 20
+                    // поверх списка — плотная, иначе строки просвечивают сквозь текст
+                    color: Qt.rgba(Theme.base.r, Theme.base.g, Theme.base.b, 0.97)
+                    border.width: 1
+                    border.color: Theme.line
+                    scale: visible ? 1 : 0.92
+                    Behavior on scale { NumberAnimation { duration: 220 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+
+                    Column {
+                        id: rmCol
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
+                        spacing: 12
+                        Row {
+                            spacing: 10
+                            Sym { name: "trash"; size: 22; color: "#ff6b6b"; anchors.verticalCenter: parent.verticalCenter }
+                            Label {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: rmCol.width - 32
+                                text: I18n.tr("Удалить") + " «" + (removeBox.r.name || "") + "»?"
+                                size: "title"
+                                elide: Text.ElideRight
+                            }
+                        }
+                        Label {
+                            width: parent.width
+                            text: root.removing ? root.removeStep : removeBox.details
+                            tone: 3
+                            wrapMode: Text.WordWrap
+                        }
+                        Row {
+                            anchors.right: parent.right
+                            spacing: 8
+                            Btn {
+                                text: removeBox.r.can || removeBox.r.kind === "" ? I18n.tr("Отмена") : I18n.tr("Понятно")
+                                enabled: !root.removing
+                                onClicked: root.removal = null
+                            }
+                            Btn {
+                                visible: removeBox.r.can === true
+                                text: root.removing ? I18n.tr("Удаляю…") : I18n.tr("Удалить")
+                                kind: "danger"
+                                enabled: !root.removing
+                                onClicked: root.confirmRemove()
+                            }
+                        }
                     }
                 }
 
@@ -339,7 +494,7 @@ Scope {
                         onAccepted: root.launch(root.results[list.currentIndex])
                         onKey: e => {
                             switch (e.key) {
-                            case Qt.Key_Escape: if (win.ctx) win.ctx = null; else root.hide(); break;
+                            case Qt.Key_Escape: if (root.removal && !root.removing) root.removal = null; else if (win.ctx) win.ctx = null; else root.hide(); break;
                             case Qt.Key_Down: list.incrementCurrentIndex(); break;
                             case Qt.Key_Up: list.decrementCurrentIndex(); break;
                             case Qt.Key_PageDown: list.currentIndex = Math.min(list.count - 1, list.currentIndex + 8); break;

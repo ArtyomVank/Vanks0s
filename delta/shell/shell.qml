@@ -106,9 +106,10 @@ ShellRoot {
         function set(key: string, json: string): void { Settings.set(key, JSON.parse(json)); }
         // окно приложений, обоев, питания: delta-shell ipc call shell overlay launcher
         function overlay(name: string): void { ShellState.toggleOverlay(name); }
-        // окно приложений с запросом и меню первой строки: launcher steam, launcherMenu
+        // окно приложений с запросом и меню первой строки: launcher steam, launcherMenu, launcherRemove steam
         function launcher(query: string): void { appLauncher.show(query); }
         function launcherMenu(): void { appLauncher.showMenu(); }
+        function launcherRemove(query: string): void { appLauncher.show(query); appLauncher.showRemove(); }
         function center(): void { notifications.toggleCenter(); }
         function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
     }

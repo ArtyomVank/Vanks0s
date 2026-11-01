@@ -9,6 +9,9 @@
 #   delta-store lookup <id flatpak>…  значки и описания из Flathub (JSON, для подборки)
 #   delta-store install pacman|flatpak <имя>
 #   delta-store remove pacman|flatpak <имя>
+#   delta-store what <id ярлыка>      что это за приложение из меню и можно ли его
+#                                     удалить (JSON: kind windows|flatpak|pacman|shortcut)
+#   delta-store uninstall <id ярлыка> удалить приложение из меню — как положено его виду
 #                                     печатают для окна «::step:: <текст>», остальное — вывод
 #                                     pacman или flatpak; код — успех или нет
 #   delta-store connect               поставить Flatpak, подключить Flathub, скачать каталог
@@ -317,6 +320,96 @@ cmd_remove() {
     esac
 }
 
+# --- удаление из меню приложений ---
+# Файл ярлыка по id, как его видит меню (DesktopEntries): ярлык в подпапке
+# applications — id с «-» вместо «/» (wine/Programs/X.desktop → wine-Programs-X).
+desktop_file() {
+    local id=${1%.desktop} d f
+    [[ ${id} =~ ^[A-Za-z0-9._@+-]+$ ]] || return 1
+    for d in "${XDG_DATA_HOME:-${HOME}/.local/share}" "${HOME}/.local/share/flatpak/exports/share" \
+             /var/lib/flatpak/exports/share $(tr : ' ' <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"); do
+        [ -d "${d}/applications" ] || continue
+        f=${d}/applications/${id}.desktop
+        [ -f "${f}" ] && { printf '%s\n' "${f}"; return 0; }
+        f=$(find "${d}/applications" -mindepth 2 -name '*.desktop' -printf '%P\n' 2>/dev/null |
+            while IFS= read -r r; do [ "$(tr / - <<<"${r%.desktop}")" = "${id}" ] && { printf '%s\n' "${r}"; break; }; done)
+        [ -n "${f}" ] && { printf '%s/applications/%s\n' "${d}" "${f}"; return 0; }
+    done
+    return 1
+}
+
+# Что за приложение и можно ли его удалить (JSON для окна подтверждения):
+#   windows  — программа Windows (Delta Box, лаунчер): delta-exe --uninstall
+#   flatpak  — flatpak uninstall (своё или системное)
+#   pacman   — пакет: pkexec delta-setup remove; нужное системе и другим
+#              пакетам — нельзя (can: false, why — почему)
+#   shortcut — просто ярлык в ~/.local/share/applications: убрать его
+cmd_what() {
+    local id=$1 f name pkg fp req why
+    f=$(desktop_file "${id}") || { jq -n --arg id "${id}" '{ id: $id, kind: "none", can: false, why: "Ярлык не найден" }'; return 1; }
+    name=$(sed -n 's/^Name=//p' "${f}" | head -n1)
+    if grep -q '^X-Delta-Prefix=' "${f}"; then
+        delta-exe --uninstall-info "${f}" | jq --arg id "${id}" --arg file "${f}" '. + { id: $id, file: $file, can: true }'
+        return
+    fi
+    fp=$(sed -n 's/^X-Flatpak=//p' "${f}" | head -n1)
+    if [ -n "${fp}" ]; then
+        jq -n --arg id "${id}" --arg file "${f}" --arg name "${name}" --arg app "${fp}" \
+            --arg scope "$(case "${f}" in "${HOME}"/*) echo user ;; *) echo system ;; esac)" \
+            '{ id: $id, file: $file, name: $name, kind: "flatpak", app: $app, scope: $scope, can: true }'
+        return
+    fi
+    case "${f}" in
+        "${XDG_DATA_HOME:-${HOME}/.local/share}"/applications/*)
+            jq -n --arg id "${id}" --arg file "${f}" --arg name "${name}" '{ id: $id, file: $file, name: $name, kind: "shortcut", can: true }'
+            return ;;
+    esac
+    pkg=$(LC_ALL=C pacman -Qqo -- "${f}" 2>/dev/null | head -n1)
+    if [ -z "${pkg}" ]; then
+        jq -n --arg id "${id}" --arg file "${f}" --arg name "${name}" '{ id: $id, file: $file, name: $name, kind: "none", can: false, why: "Неизвестно, откуда это приложение" }'
+        return
+    fi
+    req=$(LC_ALL=C pacman -Qi -- "${pkg}" 2>/dev/null | sed -n 's/^Required By *: *//p' | head -n1)
+    [ "${req}" = None ] && req=""
+    if delta-setup protected 2>/dev/null | grep -qx -- "${pkg}"; then
+        why="Это часть системы — её удалять нельзя"
+    elif [ -n "${req}" ]; then
+        why="Нужна другим программам: ${req}"
+    else
+        why=""
+    fi
+    jq -n --arg id "${id}" --arg file "${f}" --arg name "${name}" --arg pkg "${pkg}" --arg why "${why}" \
+        '{ id: $id, file: $file, name: $name, kind: "pacman", pkg: $pkg, can: ($why == ""), why: $why }'
+}
+
+cmd_uninstall() {
+    local info kind
+    info=$(cmd_what "$1") || { step "Ярлык не найден"; return 1; }
+    kind=$(jq -r .kind <<<"${info}")
+    [ "$(jq -r .can <<<"${info}")" = true ] || { step "$(jq -r .why <<<"${info}")"; return 1; }
+    case "${kind}" in
+        windows)
+            step "Удаляю $(jq -r .name <<<"${info}")"
+            delta-exe --uninstall "$(jq -r .file <<<"${info}")" || return 1
+            step "Готово"
+            ;;
+        flatpak)
+            if dry; then step "Проверка: flatpak uninstall $(jq -r .app <<<"${info}")"; sleep 1; step "Готово"; return 0; fi
+            step "Удаляю $(jq -r .name <<<"${info}")"
+            flatpak uninstall "--$(jq -r .scope <<<"${info}")" -y --noninteractive "$(jq -r .app <<<"${info}")" 2>&1 || return 1
+            step "Готово"
+            ;;
+        pacman)
+            cmd_remove pacman "$(jq -r .pkg <<<"${info}")"
+            ;;
+        shortcut)
+            step "Убираю ярлык"
+            rm -f -- "$(jq -r .file <<<"${info}")"
+            step "Готово"
+            ;;
+    esac
+}
+
 # Flathub: flatpak и remote (delta-setup), затем каталог приложений
 cmd_connect() {
     if dry; then step "Проверка: pkexec delta-setup install flatpak; flatpak update --appstream"; sleep 2; step "Готово"; return 0; fi
@@ -343,5 +436,7 @@ case "${1:-}" in
     connect)   cmd_connect ;;
     install)   [ -n "${3:-}" ] || exit 2; cmd_install "$2" "$3" ;;
     remove)    [ -n "${3:-}" ] || exit 2; cmd_remove "$2" "$3" ;;
+    what)      [ -n "${2:-}" ] || exit 2; cmd_what "$2" ;;
+    uninstall) [ -n "${2:-}" ] || exit 2; cmd_uninstall "$2" ;;
     *) echo "delta-store: неизвестная команда $1 (см. --help)" >&2; exit 2 ;;
 esac

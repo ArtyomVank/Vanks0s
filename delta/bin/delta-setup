@@ -11,6 +11,7 @@
 #                                пароль спрашивает окно polkit оболочки)
 #
 #   delta-setup remove <пакеты>  удалить (root; зовёт магазин Delta через pkexec)
+#   delta-setup protected        пакеты, которые удалять нельзя (по одному в строке)
 #
 # --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
 # рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
@@ -249,6 +250,7 @@ case "${1:-}" in
     detect) cmd_detect ;;
     install) shift; cmd_install "$@" ;;
     remove) shift; cmd_remove "$@" ;;
+    protected) printf '%s\n' "${PROTECTED[@]}" ;;
     -h|--help|"")
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
