@@ -15,7 +15,7 @@ import qs.lock.parts
 //   ShellState.locked / ShellState.unlocking — для остальных модулей
 //
 // Экран блокировки (LockSurface.qml) грузится только в момент блокировки.
-// Пароль проверяет PAM (конфиг «login», как у входа в систему).
+// Пароль проверяет PAM (конфиг «delta-lock» — «login» плюс связка ключей).
 //
 // Плавный переход к рабочему столу: на время анимации включаем в Hyprland
 // misc.session_lock_xray — композитор рисует рабочий стол под прозрачными
@@ -163,8 +163,19 @@ Scope {
         }
     }
 
+    // Свой конфиг PAM (session/pam/delta-lock): как «login», плюс открывает
+    // связку ключей GNOME. Нет файла (вложенная сессия, Delta без пакета) —
+    // «login», иначе без конфига экран было бы не разблокировать.
+    property string pamConfig: "login"
+    Process {
+        running: true
+        command: ["test", "-r", "/etc/pam.d/delta-lock"]
+        onExited: code => { if (code === 0) root.pamConfig = "delta-lock"; }
+    }
+
     PamContext {
         id: pam
+        config: root.pamConfig
         onPamMessage: {
             if (responseRequired) {
                 if (auth.pending.length) {

@@ -14,6 +14,8 @@ pkgdesc="Delta — графическое окружение Vanks OS повер
 arch=('any')
 url="https://github.com/ArtyomVank/Vanks0s"
 license=('GPL-3.0-or-later')
+# свой PAM экрана блокировки: правки администратора обновление не затирает
+backup=('etc/pam.d/delta-lock')
 
 depends=(
     # конфиг на Lua (hl.*): проверен на 0.56.2 и 0.57.0 (Hyprland --verify-config)
@@ -137,6 +139,9 @@ package() {
     done
     install -Dm644 "${_src}/session/greetd/tmpfiles.conf" \
         "${pkgdir}/usr/lib/tmpfiles.d/delta-greeter.conf"
+
+    # экран блокировки: пароль заодно открывает связку ключей (lock/Lock.qml)
+    install -Dm644 "${_src}/session/pam/delta-lock" "${pkgdir}/etc/pam.d/delta-lock"
 
     # право на автовход: pkexec delta-autologin спрашивает пароль администратора
     install -Dm644 "${_src}/session/polkit/org.vankos.delta.autologin.policy" \
