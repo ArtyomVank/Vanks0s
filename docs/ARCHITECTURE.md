@@ -24,8 +24,10 @@
 | `config.rs` | постоянные (фон, каскад) и переменные окружения |
 | `settings.rs` | настройки Delta: `~/.config/delta/settings.json` поверх умолчаний Delta |
 | `input.rs` | клавиатура и мышь: сочетания оболочки, щелчок поднимает окно, Super+перетаскивание |
-| `handlers/` | протоколы Wayland: `compositor.rs` (кадры поверхностей), `xdg_shell.rs` (окна, меню, просьбы тащить и менять размер, xdg-decoration), `layer_shell.rs` (панели Delta), `mod.rs` (seat, буфер обмена, выходы, dmabuf, запрет простоя) |
-| `grabs/` | захваты мыши: перемещение и изменение размера окна |
+| `handlers/` | протоколы Wayland: `compositor.rs` (кадры поверхностей), `xdg_shell.rs` (окна, меню, просьбы тащить и менять размер, xdg-decoration), `layer_shell.rs` (панели Delta), `xwayland.rs` (окна X11), `mod.rs` (seat, буфер обмена, выходы, dmabuf, запрет простоя) |
+| `grabs/` | захваты мыши: перемещение и изменение размера окна; `snap.rs` — зоны прилипания и `delta-drag.json` |
+| `monitors.rs` | правила мониторов Delta: разбор `monitors` и `hl.monitor(...)`, применение к выходам |
+| `focus.rs` | цель фокуса клавиатуры: поверхность Wayland или окно X11 |
 | `backend/mod.rs` | какой бэкенд: внутри графической сессии — winit, с консоли — udev |
 | `backend/winit.rs` | окно отладки: выход размером с окно, ввод из него, отрисовка через GLES; курсор — у сессии вокруг |
 | `backend/udev.rs` | настоящая сессия: libseat, видеокарта (DRM/GBM/EGL), мониторы и их кадры, libinput, консоли |
@@ -34,7 +36,7 @@
 | `ipc.rs` | сокеты Hyprland: ответы `j/…` и события для Delta |
 | `dispatch.rs` | команды `dispatch`: Lua (`hl.dsp.…`) и старые |
 | `lock.rs` | ext-session-lock: блокировка экрана, восстановление после падения замка |
-| `protocols/` | протоколы, которых нет в Smithay: `global_shortcuts`, `focus_grab`, `foreign_toplevel` (и toplevel-mapping), `idle_notify` |
+| `protocols/` | протоколы, которых нет в Smithay: `global_shortcuts`, `focus_grab`, `foreign_toplevel` (и toplevel-mapping), `idle_notify`, `screencopy` (wlr-screencopy и hyprland_toplevel_export) |
 | `cursor.rs` | тема курсора xcursor, фигуры по имени, анимация |
 | `edid.rs` | производитель и модель монитора из EDID |
 | `probe.rs` | `--probe`: что увидит настоящая сессия, без захвата |

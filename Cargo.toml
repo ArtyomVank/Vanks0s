@@ -1,6 +1,6 @@
 [package]
 name = "vanks-shell"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Vanks Shell — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
 publish = false
