@@ -487,9 +487,10 @@ end
 -- delta-dev check) падает, если создать его во время разбора конфига
 local drag_timer = nil
 
--- Щелчок делает окно под курсором главным: фокус и наверх стопки. Hyprland
--- и сам так делает, но под невидимыми окнами X11 (Wine, Proton, Steam)
--- отдаёт щелчок прежнему активному окну — и отвечает заднее окно.
+-- Щелчок делает окно под курсором главным (наверх стопки его поднимает
+-- window.active ниже). Hyprland и сам так делает, но под невидимыми окнами
+-- X11 (Wine, Proton, Steam) отдаёт щелчок прежнему активному окну — и
+-- отвечает заднее окно.
 -- hl.get_windows() идёт снизу вверх по стопке. Щелчки по докам и меню
 -- (слои top/overlay) окна под ними не трогают; слои на весь экран, которые
 -- ввод пропускают (кнопки окна, желе, край), не в счёт.
@@ -512,28 +513,30 @@ local function raise_under_cursor()
         return not w.hidden and w.workspace and w.workspace.visible and w.at and w.size
             and inside(p, w.at.x, w.at.y, w.size.x, w.size.y)
     end
-    local hit, top = nil, nil
+    local hit = nil
     -- закреплённые над всеми, плавающие над плиткой
     for _, pass in ipairs({ "pinned", "floating", "tiled" }) do
-        top = nil
         for i = #list, 1, -1 do
             local w = list[i]
             local kind = w.pinned and "pinned" or (w.floating and "floating" or "tiled")
-            if kind == pass and w.workspace and w.workspace.visible and not w.hidden then
-                top = top or w
-                if not hit and shown(w) then hit = w end
-            end
+            if kind == pass and not hit and shown(w) then hit = w end
         end
         if hit then break end
     end
     if not hit then return end
-    local sel = "address:" .. hit.address
     local a = hl.get_active_window()
-    if not a or a.address ~= hit.address then hl.dispatch(hl.dsp.focus({ window = sel })) end
-    if hit.floating and top and top.address ~= hit.address then
-        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = sel }))
-    end
+    if not a or a.address ~= hit.address then hl.dispatch(hl.dsp.focus({ window = "address:" .. hit.address })) end
 end
+
+-- Активное окно — наверх стопки. Hyprland рисует активное плавающее окно
+-- поверх остальных, но в стопке его не поднимает: стоило фокусу уйти в док,
+-- меню или на стол, окна вставали в старом порядке, а щелчок по месту, где
+-- они перекрываются, доставался заднему. Поэтому окно, ставшее активным
+-- (щелчок, док, Alt+Tab, просьба программы), поднимаем и в стопке.
+hl.on("window.active", function(w)
+    if not w or not w.floating or w.pinned then return end
+    hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = "address:" .. w.address }))
+end)
 
 -- delta_drag.press()/release() можно звать и через `hyprctl eval` —
 -- так перетаскивание проверяют без мыши (tools/delta-dev.sh)
