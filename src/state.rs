@@ -2,9 +2,9 @@ use std::{ffi::OsString, sync::Arc};
 
 use smithay::{
     desktop::{PopupManager, Space, Window, WindowSurfaceType},
-    input::{Seat, SeatState},
+    input::{keyboard::XkbConfig, pointer::CursorImageStatus, Seat, SeatState},
     reexports::{
-        calloop::{generic::Generic, EventLoop, Interest, LoopSignal, Mode, PostAction},
+        calloop::{generic::Generic, EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction},
         wayland_server::{
             backend::{ClientData, ClientId, DisconnectReason},
             protocol::wl_surface::WlSurface,
@@ -14,6 +14,8 @@ use smithay::{
     utils::{Logical, Point, Serial, SERIAL_COUNTER},
     wayland::{
         compositor::{CompositorClientState, CompositorState},
+        cursor_shape::CursorShapeManagerState,
+        dmabuf::DmabufState,
         output::OutputManagerState,
         selection::data_device::DataDeviceState,
         shell::xdg::XdgShellState,
@@ -22,7 +24,7 @@ use smithay::{
     },
 };
 
-use crate::{config, CalloopData};
+use crate::{backend::udev::UdevData, config, cursor::Cursor, settings::Settings, CalloopData};
 
 /// Всё состояние композитора.
 pub struct Shell {
@@ -34,6 +36,8 @@ pub struct Shell {
     /// ней — порядок наложения: последнее поднятое — сверху.
     pub space: Space<Window>,
     pub loop_signal: LoopSignal,
+    pub loop_handle: LoopHandle<'static, CalloopData>,
+    pub settings: Settings,
 
     // состояния протоколов Smithay
     pub compositor_state: CompositorState,
@@ -42,15 +46,24 @@ pub struct Shell {
     pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<Shell>,
     pub data_device_state: DataDeviceState,
+    pub dmabuf_state: DmabufState,
+    pub cursor_shape_state: CursorShapeManagerState,
     pub popups: PopupManager,
 
     pub seat: Seat<Self>,
     /// сколько окон уже поставлено каскадом (сдвиг следующего)
     pub cascade: i32,
+
+    /// какой курсор просит программа под мышью (или своя стрелка)
+    pub cursor_status: CursorImageStatus,
+    /// тема курсора — рисуем сами только в настоящей сессии
+    pub cursor: Cursor,
+    /// настоящая сессия (DRM, libinput, libseat); в окне отладки — None
+    pub udev: Option<UdevData>,
 }
 
 impl Shell {
-    pub fn new(event_loop: &mut EventLoop<CalloopData>, display: Display<Self>) -> Self {
+    pub fn new(event_loop: &mut EventLoop<'static, CalloopData>, display: Display<Self>) -> Self {
         let dh = display.handle();
 
         let compositor_state = CompositorState::new::<Self>(&dh);
@@ -59,11 +72,23 @@ impl Shell {
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let data_device_state = DataDeviceState::new::<Self>(&dh);
+        let cursor_shape_state = CursorShapeManagerState::new::<Self>(&dh);
+        let settings = Settings::load();
 
-        // место (seat) — клавиатура и мышь одного пользователя. В окне отладки
-        // они есть всегда; в настоящей сессии их подключение отслеживает libinput
+        // место (seat) — клавиатура и мышь одного пользователя. Раскладки и
+        // повтор — из «Клавиатуры» Delta; переключение раскладки (Alt+Shift и
+        // т. п.) делает сама xkb по опции switchKeys
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
-        seat.add_keyboard(Default::default(), 300, 30).expect("клавиатура");
+        let layout = settings.input.xkb_layout();
+        let options = Some(settings.input.switch_keys.clone()).filter(|o| !o.is_empty());
+        let (delay, rate) = settings.input.repeat();
+        let xkb = XkbConfig { layout: &layout, options: options.clone(), ..Default::default() };
+        if seat.add_keyboard(xkb, delay, rate).is_ok() {
+            tracing::info!(layout, ?options, delay, rate, "клавиатура");
+        } else {
+            tracing::warn!(layout, ?options, "раскладки из настроек не подошли, беру us");
+            seat.add_keyboard(XkbConfig::default(), delay, rate).expect("клавиатура");
+        }
         seat.add_pointer();
 
         let socket_name = Self::init_wayland_listener(display, event_loop);
@@ -73,6 +98,8 @@ impl Shell {
             display_handle: dh,
             space: Space::default(),
             loop_signal: event_loop.get_signal(),
+            loop_handle: event_loop.handle(),
+            settings,
             socket_name,
             compositor_state,
             xdg_shell_state,
@@ -80,14 +107,19 @@ impl Shell {
             output_manager_state,
             seat_state,
             data_device_state,
+            dmabuf_state: DmabufState::new(),
+            cursor_shape_state,
             popups: PopupManager::default(),
             seat,
             cascade: 0,
+            cursor_status: CursorImageStatus::default_named(),
+            cursor: Cursor::load(),
+            udev: None,
         }
     }
 
     /// Сокет wayland-N для программ и сам Display — в цикл событий.
-    fn init_wayland_listener(display: Display<Shell>, event_loop: &mut EventLoop<CalloopData>) -> OsString {
+    fn init_wayland_listener(display: Display<Shell>, event_loop: &mut EventLoop<'static, CalloopData>) -> OsString {
         let listening_socket = ListeningSocketSource::new_auto().expect("сокет Wayland");
         let socket_name = listening_socket.socket_name().to_os_string();
         let handle = event_loop.handle();
@@ -118,7 +150,19 @@ impl Shell {
 
     /// Запустить программу внутри оболочки (через sh -c: можно с аргументами).
     pub fn spawn(&self, command: &str) {
-        let r = std::process::Command::new("sh")
+        use std::os::unix::process::CommandExt;
+        let mut cmd = std::process::Command::new("sh");
+        // SIGTERM и SIGINT оболочка ловит сама (main.rs) и держит их
+        // заблокированными; программе это не передаём, иначе её не закрыть kill
+        unsafe {
+            cmd.pre_exec(|| {
+                let mut set = std::mem::MaybeUninit::<libc::sigset_t>::uninit();
+                libc::sigemptyset(set.as_mut_ptr());
+                libc::pthread_sigmask(libc::SIG_SETMASK, set.as_ptr(), std::ptr::null_mut());
+                Ok(())
+            });
+        }
+        let r = cmd
             .arg("-c")
             .arg(command)
             .env("WAYLAND_DISPLAY", &self.socket_name)
@@ -190,6 +234,49 @@ impl Shell {
     pub fn focused_window(&self) -> Option<Window> {
         let focus = self.seat.get_keyboard()?.current_focus()?;
         self.window_for_surface(&focus)
+    }
+
+    /// Точка, ближайшая к pos, на каком-нибудь мониторе: мышь не уходит за край.
+    pub fn clamp_to_outputs(&self, pos: Point<f64, Logical>) -> Point<f64, Logical> {
+        let mut best: Option<(f64, Point<f64, Logical>)> = None;
+        for output in self.space.outputs() {
+            let Some(geo) = self.space.output_geometry(output) else { continue };
+            let geo = geo.to_f64();
+            let x = pos.x.clamp(geo.loc.x, geo.loc.x + geo.size.w - 1.0);
+            let y = pos.y.clamp(geo.loc.y, geo.loc.y + geo.size.h - 1.0);
+            let d = (x - pos.x).powi(2) + (y - pos.y).powi(2);
+            if best.map_or(true, |(bd, _)| d < bd) {
+                best = Some((d, (x, y).into()));
+            }
+        }
+        best.map(|(_, p)| p).unwrap_or(pos)
+    }
+
+    /// Монитор отключили: окна, которые оказались вне всех мониторов, —
+    /// на первый, по центру. Мышь — туда же, если тоже осталась в пустоте.
+    pub fn fixup_windows(&mut self) {
+        let Some(first) = self.space.outputs().next().and_then(|o| self.space.output_geometry(o)) else { return };
+        let lost: Vec<Window> = self
+            .space
+            .elements()
+            .filter(|w| {
+                let Some(loc) = self.space.element_location(w) else { return false };
+                !self.space.outputs().any(|o| self.space.output_geometry(o).map_or(false, |g| g.contains(loc)))
+            })
+            .cloned()
+            .collect();
+        for w in lost {
+            let size = w.geometry().size;
+            let loc = first.loc + Point::from(((first.size.w - size.w).max(0) / 2, (first.size.h - size.h).max(0) / 2));
+            self.space.map_element(w, loc, false);
+        }
+        if let Some(pointer) = self.seat.get_pointer() {
+            let pos = pointer.current_location();
+            let clamped = self.clamp_to_outputs(pos);
+            if clamped != pos {
+                pointer.set_location(clamped);
+            }
+        }
     }
 }
 

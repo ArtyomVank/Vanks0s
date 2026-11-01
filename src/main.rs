@@ -1,22 +1,28 @@
 //! Vanks Shell — своя графическая оболочка Vanks OS на Wayland.
 //!
-//! Сейчас это фундамент композитора: протокол Wayland, окна xdg-shell,
-//! клавиатура и мышь, перемещение и изменение размера окон, фокус по щелчку.
-//! Запускается окном внутри текущей сессии (бэкенд winit) — так его удобно
-//! отлаживать, не выходя из Hyprland. Вход в настоящую сессию (DRM, libinput)
-//! и всё, что нужно до 1.0, — в docs/ROADMAP.md.
+//! Композитор: протокол Wayland, окна xdg-shell, клавиатура и мышь,
+//! перемещение и размер окон, фокус по щелчку. Внутри графической сессии
+//! открывается окном отладки (winit), с текстовой консоли или экрана входа —
+//! настоящей сессией (DRM/KMS, libinput, libseat). План до 1.0 — docs/ROADMAP.md.
 //!
-//!     vanks-shell                  окно отладки, внутри — терминал
-//!     vanks-shell -c <команда>     окно отладки, внутри — эта команда
+//!     vanks-shell                      окно отладки или настоящая сессия — по месту запуска
+//!     vanks-shell -c <команда>         внутри — эта команда, а не терминал
+//!     vanks-shell --backend winit|tty  выбрать явно
+//!     vanks-shell --probe              видеокарты, мониторы, доступ — ничего не захватывая
 //!     vanks-shell --version
 
 #![allow(irrefutable_let_patterns)]
 
 mod backend;
 mod config;
+mod cursor;
+mod edid;
 mod grabs;
 mod handlers;
 mod input;
+mod probe;
+mod render;
+mod settings;
 mod state;
 
 use smithay::reexports::{
@@ -34,15 +40,27 @@ pub struct CalloopData {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
     let mut command: Option<String> = None;
+    let mut kind = backend::Kind::detect();
     while let Some(a) = args.next() {
         match a.as_str() {
             "-c" | "--command" => command = args.next(),
+            "--backend" => match args.next().as_deref().and_then(backend::Kind::parse) {
+                Some(k) => kind = k,
+                None => {
+                    eprintln!("vanks-shell: --backend winit или tty");
+                    std::process::exit(2);
+                }
+            },
+            "--probe" => {
+                probe::run();
+                return Ok(());
+            }
             "--version" | "-V" => {
                 println!("vanks-shell {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             "-h" | "--help" => {
-                println!("vanks-shell [-c <команда>] — композитор Vanks OS в окне отладки");
+                println!("vanks-shell [-c <команда>] [--backend winit|tty] [--probe] — композитор Vanks OS");
                 return Ok(());
             }
             other => {
@@ -59,19 +77,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing_subscriber::fmt().with_env_filter("vanks_shell=info,smithay=warn").init();
     }
 
-    let mut event_loop: EventLoop<CalloopData> = EventLoop::try_new()?;
+    // видеокарту и ввод уже ведёт другая сессия: захват сломал бы её
+    if kind == backend::Kind::Udev && backend::inside_session() && std::env::var_os("VANKS_FORCE_TTY").is_none() {
+        eprintln!("vanks-shell: уже идёт графическая сессия — настоящая сессия запускается с консоли (Ctrl+Alt+F3).");
+        eprintln!("Окно отладки: vanks-shell --backend winit");
+        std::process::exit(1);
+    }
+
+    let mut event_loop: EventLoop<'static, CalloopData> = EventLoop::try_new()?;
+    // kill, выход из системы, Ctrl+C в консоли — штатный выход: сокет убран,
+    // видеокарта и консоль возвращены. Раньше всех потоков (EGL, winit):
+    // сигналы блокируются в потоке и наследуются новыми
+    let signals = calloop::signals::Signals::new(&[calloop::signals::Signal::SIGTERM, calloop::signals::Signal::SIGINT])?;
+    event_loop.handle().insert_source(signals, |event, _, data| {
+        tracing::info!(signal = ?event.signal(), "выход по сигналу");
+        data.state.loop_signal.stop();
+    })?;
+
     let display: Display<Shell> = Display::new()?;
     let display_handle = display.handle();
     let state = Shell::new(&mut event_loop, display);
     let mut data = CalloopData { state, display_handle };
 
-    backend::winit::init(&mut event_loop, &mut data)?;
-    tracing::info!(socket = ?data.state.socket_name, "vanks-shell запущен");
+    match kind {
+        backend::Kind::Winit => backend::winit::init(&mut event_loop, &mut data)?,
+        backend::Kind::Udev => backend::udev::init(&mut event_loop, &mut data)?,
+    }
+    tracing::info!(socket = ?data.state.socket_name, backend = ?kind, "vanks-shell запущен");
 
     // программы внутри — на нашем сокете, а не на сессии вокруг
     let command = command.unwrap_or_else(|| config::terminal());
     data.state.spawn(&command);
 
-    event_loop.run(None, &mut data, |_| {})?;
+    // ответы программам — после каждого прохода цикла, а не только с кадром:
+    // монитор может спать (или окно отладки быть скрыто), а программы ждут
+    event_loop.run(None, &mut data, |data| {
+        data.state.space.refresh();
+        data.state.popups.cleanup();
+        let _ = data.display_handle.flush_clients();
+    })?;
     Ok(())
 }

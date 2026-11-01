@@ -5,6 +5,7 @@ use smithay::{
         renderer::{damage::OutputDamageTracker, element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
         winit::{self, WinitEvent},
     },
+    input::pointer::{CursorIcon, CursorImageStatus},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::EventLoop,
     utils::{Rectangle, Transform},
@@ -34,6 +35,8 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     data.state.space.map_output(&output, (0, 0));
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
+    // курсор рисует сессия вокруг; мы только меняем его фигуру, когда просит программа
+    let mut shown_cursor: Option<CursorIcon> = Some(CursorIcon::Default);
 
     event_loop.handle().insert_source(winit, move |event, _, data| {
         let state = &mut data.state;
@@ -43,6 +46,21 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
             }
             WinitEvent::Input(event) => state.process_input_event(event),
             WinitEvent::Redraw => {
+                let want = match &state.cursor_status {
+                    CursorImageStatus::Named(icon) => Some(*icon),
+                    CursorImageStatus::Hidden => None,
+                    // своя картинка программы — пока обычная стрелка
+                    CursorImageStatus::Surface(_) => Some(CursorIcon::Default),
+                };
+                if want != shown_cursor {
+                    let window = backend.window();
+                    window.set_cursor_visible(want.is_some());
+                    if let Some(icon) = want {
+                        window.set_cursor(icon);
+                    }
+                    shown_cursor = want;
+                }
+
                 let size = backend.window_size();
                 let damage = Rectangle::from_size(size);
                 {

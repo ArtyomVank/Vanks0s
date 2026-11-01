@@ -6,7 +6,8 @@
 #   VANKS_TERMINAL=foot tools/run-nested.sh  другой терминал
 #
 # Окно открывается в той сессии, что в WAYLAND_DISPLAY (или DISPLAY).
+# Настоящая сессия — с консоли или экрана входа, см. docs/TESTING.md.
 set -eu
 cd "$(dirname "$0")/.."
 cargo build
-exec target/debug/vanks-shell "$@"
+exec target/debug/vanks-shell --backend winit "$@"

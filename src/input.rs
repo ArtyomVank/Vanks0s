@@ -1,7 +1,7 @@
 use smithay::{
     backend::input::{
         AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent, KeyState,
-        KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
+        KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
     },
     input::{
         keyboard::{FilterResult, Keysym, ModifiersState},
@@ -23,9 +23,21 @@ pub enum Action {
     Terminal,
     CloseWindow,
     Quit,
+    /// Ctrl+Alt+F1…F12 — другая консоль (только в настоящей сессии)
+    Vt(i32),
 }
 
-fn binding(mods: &ModifiersState, sym: Keysym) -> Option<Action> {
+/// sym — латинская клавиша (для сочетаний), modified — что даёт xkb с учётом
+/// модификаторов (для Ctrl+Alt+Fn это XF86Switch_VT_n).
+fn binding(mods: &ModifiersState, sym: Keysym, modified: Keysym) -> Option<Action> {
+    let vt = modified.raw().wrapping_sub(Keysym::XF86_Switch_VT_1.raw());
+    if vt < 12 {
+        return Some(Action::Vt(vt as i32 + 1));
+    }
+    // аварийный выход, если оболочка «зависла» для программ: Ctrl+Alt+Backspace
+    if mods.ctrl && mods.alt && sym == Keysym::BackSpace {
+        return Some(Action::Quit);
+    }
     if !mods.logo {
         return None;
     }
@@ -50,7 +62,11 @@ impl Shell {
                     event.state(),
                     serial,
                     time,
-                    |_, mods, handle| match binding(mods, handle.raw_latin_sym_or_raw_current_sym().unwrap_or(Keysym::NoSymbol)) {
+                    |_, mods, handle| match binding(
+                        mods,
+                        handle.raw_latin_sym_or_raw_current_sym().unwrap_or(Keysym::NoSymbol),
+                        handle.modified_sym(),
+                    ) {
                         // нажатие — действие, отпускание той же клавиши программе тоже не нужно
                         Some(a) if pressed => FilterResult::Intercept(a),
                         _ => FilterResult::Forward,
@@ -60,16 +76,18 @@ impl Shell {
                     self.run_action(action);
                 }
             }
-            InputEvent::PointerMotion { .. } => {}
+            // мышь и тачпад в настоящей сессии: сдвиг, а не точка
+            InputEvent::PointerMotion { event, .. } => {
+                let pointer = self.seat.get_pointer().unwrap();
+                let pos = self.clamp_to_outputs(pointer.current_location() + event.delta());
+                self.pointer_moved(pos, event.time_msec());
+            }
+            // окно отладки, планшет, виртуальная машина: точка на экране
             InputEvent::PointerMotionAbsolute { event, .. } => {
                 let Some(output) = self.space.outputs().next() else { return };
                 let output_geo = self.space.output_geometry(output).unwrap();
                 let pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
-                let serial = SERIAL_COUNTER.next_serial();
-                let pointer = self.seat.get_pointer().unwrap();
-                let under = self.surface_under(pos);
-                pointer.motion(self, under, &MotionEvent { location: pos, serial, time: event.time_msec() });
-                pointer.frame(self);
+                self.pointer_moved(pos, event.time_msec());
             }
             InputEvent::PointerButton { event, .. } => {
                 let pointer = self.seat.get_pointer().unwrap();
@@ -144,6 +162,14 @@ impl Shell {
         }
     }
 
+    fn pointer_moved(&mut self, pos: smithay::utils::Point<f64, smithay::utils::Logical>, time: u32) {
+        let serial = SERIAL_COUNTER.next_serial();
+        let pointer = self.seat.get_pointer().unwrap();
+        let under = self.surface_under(pos);
+        pointer.motion(self, under, &MotionEvent { location: pos, serial, time });
+        pointer.frame(self);
+    }
+
     fn run_action(&mut self, action: Action) {
         tracing::debug!(?action, "сочетание");
         match action {
@@ -154,6 +180,7 @@ impl Shell {
                 }
             }
             Action::Quit => self.loop_signal.stop(),
+            Action::Vt(vt) => self.change_vt(vt),
         }
     }
 }
