@@ -107,5 +107,9 @@ commit. Протокол это разрешает, а Quickshell так и де
 `guard_removed_lock` (`lock.rs`). Если в журнале есть «программа отключена за
 ошибку протокола» — смотреть сюда в первую очередь.
 
+`Space::render_elements_for_output` не учитывает место слоя: всё, что прижато к
+нижнему или правому краю, рисуется сверху, хотя ввод и `layers` видят его на месте.
+Поэтому кадр собирает `space_render_elements` (`render.rs`).
+
 `IdleNotifierState` из Smithay требует, чтобы цикл событий работал с тем же типом,
 что и Wayland; у нас там `CalloopData`, поэтому `idle_notify.rs` свой.

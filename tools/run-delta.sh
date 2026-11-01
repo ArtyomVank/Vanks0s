@@ -18,8 +18,10 @@ if [ "${1:-}" = --tty ]; then
     shift
 fi
 cargo build
-mkdir -p build/delta-home
-export HOME=${PWD}/build/delta-home
+# своя папка на копию: VANKS_DELTA_HOME=build/другая, когда их запущено несколько
+home=${VANKS_DELTA_HOME:-build/delta-home}
+mkdir -p "${home}"
+export HOME=$(realpath "${home}")
 export DELTA_NESTED=1 DELTA_DATA=${src}/delta DELTA_WALLPAPERS=${src}/wallpapers
 export PATH=${src}/delta/bin:${PATH}
 # XDG_*_HOME вели бы в настоящий ~/.config — пусть берутся от HOME

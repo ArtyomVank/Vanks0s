@@ -266,6 +266,15 @@ impl Shell {
             tracing::warn!(name, "у монитора нет режимов");
             return;
         };
+        // родное разрешение, но самая высокая частота: «предпочтительный» режим
+        // в EDID часто 60 Гц даже у игровых мониторов (200 Гц у разработчика)
+        let mode = connector
+            .modes()
+            .iter()
+            .filter(|m| m.size() == mode.size())
+            .max_by_key(|m| m.vrefresh())
+            .copied()
+            .unwrap_or(mode);
 
         let x = self.space.outputs().filter_map(|o| self.space.output_geometry(o)).map(|g| g.loc.x + g.size.w).max().unwrap_or(0);
         let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).expect("gpu");

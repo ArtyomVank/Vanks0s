@@ -12,7 +12,7 @@ use smithay::{
         },
         gles::GlesRenderer,
     },
-    desktop::space::SpaceRenderElements,
+    desktop::space::{space_render_elements, SpaceRenderElements},
     input::pointer::{CursorImageAttributes, CursorImageStatus},
     output::Output,
     render_elements,
@@ -87,7 +87,9 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, dra
         return elements;
     }
 
-    match shell.space.render_elements_for_output(renderer, output, 1.0) {
+    // не Space::render_elements_for_output: в Smithay 0.7 она не учитывает место
+    // слоя и рисует сверху экрана всё, что прижато к другому краю (нижний док)
+    match space_render_elements(renderer, [&shell.space], output, 1.0) {
         Ok(space) => elements.extend(space.into_iter().map(OutputElement::Space)),
         Err(e) => tracing::warn!("окна для {}: {e:?}", output.name()),
     }
