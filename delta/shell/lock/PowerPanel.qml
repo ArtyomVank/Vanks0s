@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.lock.parts
@@ -9,7 +10,7 @@ import qs.lock.parts
 // Содержимое меню питания — общее для выпадающего меню дока (menus/PowerMenu.qml)
 // и окна по центру (Super+Escape, PowerOverlay.qml). Как в концепте:
 // аккаунт, «Уведомления» с последними сообщениями, сетка кнопок 3×2.
-// Перезагрузка, выключение и выход — с подтверждением.
+// Перезагрузку и выключение нужно зажать и держать, выход — с подтверждением.
 ColumnLayout {
     id: root
 
@@ -25,6 +26,22 @@ ColumnLayout {
     function run(action) {
         root.close();
         PowerActions.run(action);
+    }
+
+    // значок с подписью на плитке
+    component Face: Column {
+        property string glyph
+        property string text
+        property color tint
+        spacing: 6
+        Sym { anchors.horizontalCenter: parent.horizontalCenter; name: parent.glyph; size: 22; color: parent.tint }
+        Label {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: parent.text
+            size: "caption"
+            font.weight: Font.DemiBold
+            color: parent.tint
+        }
     }
 
     // ---------- аккаунт ----------
@@ -118,41 +135,58 @@ ColumnLayout {
         Repeater {
             model: ["lock", "logout", "suspend", "hibernate", "reboot", "poweroff"]
                 .filter(a => a !== "hibernate" || PowerActions.canHibernate)
-            delegate: Rectangle {
+            delegate: ClippingRectangle {
                 id: pw
                 required property string modelData
                 readonly property bool danger: modelData === "poweroff"
+                readonly property bool hold: PowerActions.needsHold(modelData)
+                readonly property color tint: danger ? "#ff6b6b" : Theme.fg
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 70
                 radius: 14
                 color: hover.hovered ? Theme.soft2 : Theme.soft
-                scale: tap.pressed ? 0.95 : 1
+                scale: (tap.pressed ? 0.95 : 1) + charge.level * 0.04
                 Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
                 Behavior on scale { NumberAnimation { duration: Theme.anim.fast } }
 
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Sym {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        name: pw.modelData === "suspend" ? "sleep" : pw.modelData === "reboot" ? "restart"
-                            : pw.modelData === "poweroff" ? "power" : pw.modelData
-                        size: 22
-                        color: pw.danger ? "#ff6b6b" : Theme.fg
-                    }
-                    Label {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: PowerActions.labels[pw.modelData]
-                        size: "caption"
-                        font.weight: Font.DemiBold
-                        color: pw.danger ? "#ff6b6b" : Theme.fg
-                    }
+                // перезагрузку и выключение нужно зажать: снизу поднимается жидкость
+                HoldCharge {
+                    id: charge
+                    holdTime: 1200
+                    onCompleted: { root.run(pw.modelData); refill.start(); }
                 }
+                Timer { id: refill; interval: 700; onTriggered: charge.reset() }
+                Liquid {
+                    id: liquid
+                    anchors.fill: parent
+                    level: charge.level
+                    still: charge.done
+                    color: pw.danger ? "#e5484d" : Theme.accent
+                    waveHeight: 4
+                }
+
+                readonly property string glyph: modelData === "suspend" ? "sleep" : modelData === "reboot" ? "restart"
+                    : modelData === "poweroff" ? "power" : modelData
+                // пока держат — подсказка, что держать и надо
+                readonly property string caption: hold && (charge.active || tap.pressed) ? I18n.tr("Удерживайте") : I18n.tr(PowerActions.labels[modelData])
+                Face { id: face; anchors.centerIn: parent; glyph: pw.glyph; text: pw.caption; tint: pw.tint }
+                // та же надпись под уровнем жидкости — белая
+                Item {
+                    y: Math.max(0, liquid.surface)
+                    width: pw.width
+                    height: Math.max(0, pw.height - y)
+                    clip: true
+                    visible: liquid.visible
+                    Face { x: face.x; y: face.y - parent.y; glyph: pw.glyph; text: pw.caption; tint: pw.danger ? "#ffffff" : Theme.onAccent }
+                }
+
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     id: tap
+                    onPressedChanged: if (pw.hold) { if (pressed) charge.begin(); else charge.cancel(); }
                     onTapped: {
+                        if (pw.hold) return;
                         if (PowerActions.needsConfirm(pw.modelData)) root.confirm = pw.modelData;
                         else root.run(pw.modelData);
                     }
@@ -172,9 +206,7 @@ ColumnLayout {
         border.color: Theme.line
 
         readonly property var questions: ({
-            logout: ["Выйти из системы?", "Все программы будут закрыты."],
-            reboot: ["Перезагрузить компьютер?", "Несохранённые данные в программах пропадут."],
-            poweroff: ["Выключить компьютер?", "Несохранённые данные в программах пропадут."]
+            logout: ["Выйти из системы?", "Все программы будут закрыты."]
         })
         readonly property var q: questions[root.confirm] || ["", ""]
 
@@ -189,8 +221,8 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignRight
                 Btn { text: I18n.tr("Отмена"); onClicked: root.confirm = "" }
                 Btn {
-                    text: PowerActions.labels[root.confirm] || ""
-                    kind: root.confirm === "poweroff" ? "danger" : "accent"
+                    text: I18n.tr(PowerActions.labels[root.confirm] || "")
+                    kind: "accent"
                     onClicked: root.run(root.confirm)
                 }
             }

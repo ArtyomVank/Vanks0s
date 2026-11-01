@@ -28,8 +28,11 @@ Singleton {
         reboot: "Перезагрузка", poweroff: "Выключение"
     })
     // для этих действий спрашиваем подтверждение
-    readonly property var destructive: ["logout", "reboot", "poweroff"]
+    readonly property var destructive: ["logout"]
     function needsConfirm(action) { return destructive.indexOf(action) !== -1; }
+    // а эти кнопки нужно зажать и держать, пока не заполнятся (common/ui/HoldCharge)
+    readonly property var holding: ["reboot", "poweroff"]
+    function needsHold(action) { return holding.indexOf(action) !== -1; }
 
     function commandFor(action) {
         switch (action) {

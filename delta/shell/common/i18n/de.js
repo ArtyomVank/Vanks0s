@@ -1022,5 +1022,7 @@ var strings = {
     "Темп.": "Temp.",
     "метрические (км, кг, °C)": "metrisch (km, kg, °C)",
     "имперские (мили, фунты, °F)": "imperial (Meilen, Pfund, °F)",
+    "Перезагрузка": "Neustart",
+    "Удерживайте": "Gedrückt halten",
     "": ""
 };

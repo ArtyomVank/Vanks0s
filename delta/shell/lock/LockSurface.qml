@@ -291,8 +291,10 @@ Item {
             delegate: GlassBtn {
                 required property string modelData
                 icon: modelData === "suspend" ? "sleep" : modelData === "reboot" ? "restart" : modelData === "poweroff" ? "power" : modelData
-                label: PowerActions.labels[modelData] || ""
+                label: I18n.tr(PowerActions.labels[modelData] || "")
                 active: root.confirm === modelData
+                hold: PowerActions.needsHold(modelData)
+                holdColor: modelData === "poweroff" ? "#e5484d" : Theme.accent
                 onClicked: {
                     if (PowerActions.needsConfirm(modelData)) root.confirm = root.confirm === modelData ? "" : modelData;
                     else { root.confirm = ""; root.power(modelData); }
@@ -343,7 +345,7 @@ Item {
                 spacing: 8
                 GlassBtn { text: I18n.tr("Отмена"); onClicked: root.confirm = "" }
                 GlassBtn {
-                    text: PowerActions.labels[root.confirm] || ""
+                    text: I18n.tr(PowerActions.labels[root.confirm] || "")
                     active: true
                     onClicked: { const a = root.confirm; root.confirm = ""; root.power(a); }
                 }
