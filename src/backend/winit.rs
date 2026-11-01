@@ -6,12 +6,14 @@ use smithay::{
     },
     input::pointer::{CursorIcon, CursorImageStatus},
     output::{Mode, Output, PhysicalProperties, Subpixel},
-    reexports::calloop::EventLoop,
+    reexports::{
+        calloop::EventLoop, wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
+    },
     utils::{Rectangle, Transform},
-    wayland::dmabuf::DmabufFeedbackBuilder,
+    wayland::{dmabuf::DmabufFeedbackBuilder, presentation::Refresh},
 };
 
-use crate::{config, render::output_elements, CalloopData, Shell};
+use crate::{config, render::{output_elements, take_feedback}, CalloopData, Shell};
 
 /// Окно отладки: один выход размером с окно, ввод — из него же.
 pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> Result<(), Box<dyn std::error::Error>> {
@@ -87,11 +89,13 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
 
                 let size = backend.window_size();
                 let damage = Rectangle::from_size(size);
+                let mut feedback = None;
                 let bound = match backend.bind() {
                     Ok((renderer, mut framebuffer)) => {
                         let elements = output_elements(renderer, state, &output, false);
-                        if let Err(e) = damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND) {
-                            tracing::warn!("ошибка отрисовки: {e:?}");
+                        match damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND) {
+                            Ok(result) => feedback = Some(take_feedback(state, &output, &result.states)),
+                            Err(e) => tracing::warn!("ошибка отрисовки: {e:?}"),
                         }
                         true
                     }
@@ -103,6 +107,10 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
                 if bound {
                     if let Err(e) = backend.submit(Some(&[damage])) {
                         tracing::warn!("кадр не показан: {e}");
+                    }
+                    // когда окно вокруг покажет кадр, нам не сообщают: считаем, что сейчас
+                    if let Some(mut feedback) = feedback.take() {
+                        feedback.presented(state.clock.now(), Refresh::Unknown, 0, wp_presentation_feedback::Kind::empty());
                     }
                     state.lock_frame_drawn(&output);
                     // программам — «рисуйте следующий кадр»

@@ -22,7 +22,7 @@ use smithay::{
             compositor::FrameFlags,
             exporter::gbm::GbmFramebufferExporter,
             output::{DrmOutput, DrmOutputManager, DrmOutputRenderElements},
-            DrmDevice, DrmDeviceFd, DrmError, DrmEvent, DrmNode, NodeType,
+            DrmDevice, DrmDeviceFd, DrmError, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
         },
         egl::{EGLContext, EGLDevice, EGLDisplay},
         input::InputEvent,
@@ -32,6 +32,7 @@ use smithay::{
         udev::{all_gpus, primary_gpu, UdevBackend, UdevEvent},
         SwapBuffersError,
     },
+    desktop::utils::OutputPresentationFeedback,
     output::{Mode as WlMode, Output, PhysicalProperties},
     reexports::{
         calloop::{
@@ -41,21 +42,25 @@ use smithay::{
         drm::control::{connector, crtc, Device as _, ModeTypeFlags},
         input::{DeviceCapability, Libinput},
         rustix::fs::OFlags,
+        wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
         wayland_server::backend::GlobalId,
     },
-    utils::DeviceFd,
-    wayland::dmabuf::{DmabufFeedbackBuilder, DmabufGlobal},
+    utils::{DeviceFd, Monotonic, Time},
+    wayland::{
+        dmabuf::{DmabufFeedbackBuilder, DmabufGlobal},
+        presentation::Refresh,
+    },
 };
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 
-use crate::{config, edid, render::{output_elements, OutputElement}, CalloopData, Shell};
+use crate::{config, edid, render::{output_elements, take_feedback, OutputElement}, CalloopData, Shell};
 
 /// Форматы кадра на мониторе: 8 бит на канал — их понимают все.
 const COLOR_FORMATS: &[Fourcc] = &[Fourcc::Argb8888, Fourcc::Abgr8888];
 
 type Allocator = GbmAllocator<DrmDeviceFd>;
 type Exporter = GbmFramebufferExporter<DrmDeviceFd>;
-type OutputManager = DrmOutputManager<Allocator, Exporter, (), DrmDeviceFd>;
+type OutputManager = DrmOutputManager<Allocator, Exporter, OutputPresentationFeedback, DrmDeviceFd>;
 
 /// Всё, что есть только в настоящей сессии.
 pub struct UdevData {
@@ -83,7 +88,7 @@ struct Gpu {
 struct Screen {
     output: Output,
     global: GlobalId,
-    drm_output: DrmOutput<Allocator, Exporter, (), DrmDeviceFd>,
+    drm_output: DrmOutput<Allocator, Exporter, OutputPresentationFeedback, DrmDeviceFd>,
     /// кадр отдан монитору, ждём VBlank
     queued: bool,
     /// следующая попытка кадра уже назначена
@@ -223,8 +228,8 @@ impl Shell {
         let feedback = DmabufFeedbackBuilder::new(render_node.dev_id(), renderer.dmabuf_formats()).build()?;
         let global = self.dmabuf_state.create_global_with_default_feedback::<Shell>(&self.display_handle, &feedback);
 
-        let token = self.loop_handle.insert_source(notifier, move |event, _, data| match event {
-            DrmEvent::VBlank(crtc) => data.state.frame_shown(node, crtc),
+        let token = self.loop_handle.insert_source(notifier, move |event, metadata, data| match event {
+            DrmEvent::VBlank(crtc) => data.state.frame_shown(node, crtc, metadata.take()),
             DrmEvent::Error(e) => tracing::error!("видеокарта: {e:?}"),
         })?;
 
@@ -362,12 +367,34 @@ impl Shell {
 
     /// VBlank: монитор показал наш кадр. Программам — «рисуйте дальше»,
     /// себе — следующий кадр.
-    fn frame_shown(&mut self, node: DrmNode, crtc: crtc::Handle) {
+    fn frame_shown(&mut self, node: DrmNode, crtc: crtc::Handle, metadata: Option<DrmEventMetadata>) {
+        let now = self.clock.now();
         let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).filter(|g| g.node == node) else { return };
         let Some(screen) = gpu.screens.get_mut(&crtc) else { return };
         screen.queued = false;
-        if let Err(e) = screen.drm_output.frame_submitted() {
-            tracing::warn!("кадр: {e:?}");
+        match screen.drm_output.frame_submitted() {
+            Ok(Some(mut feedback)) => {
+                let refresh = screen.output.current_mode().map_or(Refresh::Unknown, |m| {
+                    Refresh::fixed(Duration::from_secs_f64(1000.0 / m.refresh.max(1) as f64))
+                });
+                // время от самой видеокарты, если оно по тем же часам
+                let hw = metadata.as_ref().and_then(|m| match m.time {
+                    DrmEventTime::Monotonic(t) if !t.is_zero() => Some((t, m.sequence as u64)),
+                    _ => None,
+                });
+                let vsync = wp_presentation_feedback::Kind::Vsync;
+                match hw {
+                    Some((t, seq)) => feedback.presented(
+                        Time::<Monotonic>::from(t),
+                        refresh,
+                        seq,
+                        vsync | wp_presentation_feedback::Kind::HwClock | wp_presentation_feedback::Kind::HwCompletion,
+                    ),
+                    None => feedback.presented(now, refresh, 0, vsync),
+                }
+            }
+            Ok(None) => {}
+            Err(e) => tracing::warn!("кадр: {e:?}"),
         }
         self.schedule_render(crtc, Duration::ZERO);
     }
@@ -450,7 +477,8 @@ impl Shell {
         if result.is_empty {
             return Ok(false);
         }
-        screen.drm_output.queue_frame(()).map_err(SwapBuffersError::from)?;
+        let feedback = take_feedback(self, &screen.output, &result.states);
+        screen.drm_output.queue_frame(feedback).map_err(SwapBuffersError::from)?;
         screen.queued = true;
         Ok(true)
     }

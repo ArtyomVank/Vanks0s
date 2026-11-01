@@ -12,21 +12,32 @@ use smithay::{
             Display, DisplayHandle,
         },
     },
-    utils::{Logical, Point, Serial, SERIAL_COUNTER},
+    utils::{Clock, Logical, Monotonic, Point, Serial, SERIAL_COUNTER},
     wayland::{
         compositor::{CompositorClientState, CompositorState},
+        content_type::ContentTypeState,
         cursor_shape::CursorShapeManagerState,
         dmabuf::DmabufState,
+        fractional_scale::{with_fractional_scale, FractionalScaleManagerState},
         idle_inhibit::IdleInhibitManagerState,
         output::OutputManagerState,
-        selection::data_device::DataDeviceState,
+        pointer_constraints::PointerConstraintsState,
+        pointer_gestures::PointerGesturesState,
+        presentation::PresentationState,
+        relative_pointer::RelativePointerManagerState,
+        selection::{
+            data_device::DataDeviceState, primary_selection::PrimarySelectionState, wlr_data_control::DataControlState,
+        },
         session_lock::SessionLockManagerState,
         shell::{
             wlr_layer::{Layer, WlrLayerShellState},
             xdg::{decoration::XdgDecorationState, XdgShellState},
         },
         shm::ShmState,
+        single_pixel_buffer::SinglePixelBufferState,
         socket::ListeningSocketSource,
+        viewporter::ViewporterState,
+        xdg_activation::XdgActivationState,
     },
 };
 
@@ -40,6 +51,8 @@ use crate::{
 /// Всё состояние композитора.
 pub struct Shell {
     pub start_time: std::time::Instant,
+    /// те же часы, что у wp_presentation
+    pub clock: Clock<Monotonic>,
     pub socket_name: OsString,
     pub display_handle: DisplayHandle,
 
@@ -62,6 +75,9 @@ pub struct Shell {
     pub dmabuf_state: DmabufState,
     pub cursor_shape_state: CursorShapeManagerState,
     pub session_lock_state: SessionLockManagerState,
+    pub primary_selection_state: PrimarySelectionState,
+    pub data_control_state: DataControlState,
+    pub xdg_activation_state: XdgActivationState,
     pub popups: PopupManager,
 
     pub seat: Seat<Self>,
@@ -81,6 +97,8 @@ pub struct Shell {
     pub idle_inhibitors: Vec<WlSurface>,
     /// Super нажат и пока ни с чем не сочетался (отпустят — меню Delta)
     pub super_alone: bool,
+    /// идёт смахивание тремя пальцами: сколько уже прошли по горизонтали
+    pub swipe: Option<f64>,
     /// блокировка экрана (lock.rs)
     pub lock: Lock,
     pub lock_surfaces: Vec<LockSurfaceOn>,
@@ -115,6 +133,19 @@ impl Shell {
         let foreign_toplevels = ForeignToplevelState::new(&dh);
         let idle_notify = IdleNotifyState::new(&dh, &event_loop.handle());
         let idle_inhibit_state = IdleInhibitManagerState::new::<Self>(&dh);
+        let primary_selection_state = PrimarySelectionState::new::<Self>(&dh);
+        // привилегированных программ у нас нет: буфер обмена без окна доступен всем, как в Hyprland
+        let data_control_state = DataControlState::new::<Self, _>(&dh, Some(&primary_selection_state), |_| true);
+        let xdg_activation_state = XdgActivationState::new::<Self>(&dh);
+        // живут вместе с Display, состояния хранить незачем
+        ViewporterState::new::<Self>(&dh);
+        SinglePixelBufferState::new::<Self>(&dh);
+        ContentTypeState::new::<Self>(&dh);
+        FractionalScaleManagerState::new::<Self>(&dh);
+        PresentationState::new::<Self>(&dh, libc::CLOCK_MONOTONIC as u32);
+        RelativePointerManagerState::new::<Self>(&dh);
+        PointerConstraintsState::new::<Self>(&dh);
+        PointerGesturesState::new::<Self>(&dh);
         let settings = Settings::load();
 
         // место (seat) — клавиатура и мышь одного пользователя. Раскладки и
@@ -137,6 +168,7 @@ impl Shell {
 
         Self {
             start_time: std::time::Instant::now(),
+            clock: Clock::new(),
             display_handle: dh,
             space: Space::default(),
             loop_signal: event_loop.get_signal(),
@@ -154,6 +186,9 @@ impl Shell {
             dmabuf_state: DmabufState::new(),
             cursor_shape_state,
             session_lock_state,
+            primary_selection_state,
+            data_control_state,
+            xdg_activation_state,
             popups: PopupManager::default(),
             seat,
             cascade: 0,
@@ -167,6 +202,7 @@ impl Shell {
             idle_inhibit_state,
             idle_inhibitors: Vec::new(),
             super_alone: false,
+            swipe: None,
             lock: Lock::default(),
             lock_surfaces: Vec::new(),
             lock_retry: None,
@@ -279,11 +315,19 @@ impl Shell {
             }
             return;
         }
+        let scale = output.current_scale().fractional_scale();
         for window in self.space.elements() {
+            // окно на другом мониторе рисует под его кадры (и его масштаб)
+            let on = self.space.outputs_for_element(window);
+            if !on.is_empty() && !on.contains(output) {
+                continue;
+            }
             window.send_frame(output, time, throttle, |_, _| Some(output.clone()));
+            window.with_surfaces(|_, states| with_fractional_scale(states, |f| f.set_preferred_scale(scale)));
         }
         for layer in layer_map_for_output(output).layers() {
             layer.send_frame(output, time, throttle, |_, _| Some(output.clone()));
+            layer.with_surfaces(|_, states| with_fractional_scale(states, |f| f.set_preferred_scale(scale)));
         }
     }
 

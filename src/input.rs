@@ -1,14 +1,20 @@
 use smithay::{
     backend::input::{
-        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent, KeyState,
+        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, GestureBeginEvent, GestureEndEvent,
+        GesturePinchUpdateEvent as _, GestureSwipeUpdateEvent as _, InputBackend, InputEvent, KeyState,
         KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
     },
     input::{
         keyboard::{FilterResult, Keysym, ModifiersState},
-        pointer::{AxisFrame, ButtonEvent, Focus, GrabStartData, MotionEvent},
+        pointer::{
+            AxisFrame, ButtonEvent, Focus, GestureHoldBeginEvent, GestureHoldEndEvent, GesturePinchBeginEvent,
+            GesturePinchEndEvent, GesturePinchUpdateEvent, GestureSwipeBeginEvent, GestureSwipeEndEvent,
+            GestureSwipeUpdateEvent, GrabStartData, MotionEvent, RelativeMotionEvent,
+        },
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::SERIAL_COUNTER,
+    utils::{Logical, Point, SERIAL_COUNTER},
+    wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
 
 use smithay::wayland::shell::wlr_layer::Layer;
@@ -17,6 +23,8 @@ use crate::{config, grabs::MoveSurfaceGrab, state::Shell};
 
 /// левая кнопка мыши (linux/input-event-codes.h)
 const BTN_LEFT: u32 = 0x110;
+/// смахивание тремя пальцами на столько точек — соседний стол (как hl.gesture в Delta)
+const SWIPE_DISTANCE: f64 = 120.0;
 
 /// Сочетания оболочки — те же, что у Delta в hyprland.lua, чтобы руки не
 /// переучивать. Ищутся по латинской клавише, так что работают и в русской
@@ -180,9 +188,7 @@ impl Shell {
             }
             // мышь и тачпад в настоящей сессии: сдвиг, а не точка
             InputEvent::PointerMotion { event, .. } => {
-                let pointer = self.seat.get_pointer().unwrap();
-                let pos = self.clamp_to_outputs(pointer.current_location() + event.delta());
-                self.pointer_moved(pos, event.time_msec());
+                self.pointer_motion_relative(event.delta(), event.delta_unaccel(), event.time(), event.time_msec());
             }
             // окно отладки, планшет, виртуальная машина: точка на экране
             InputEvent::PointerMotionAbsolute { event, .. } => {
@@ -301,16 +307,128 @@ impl Shell {
                 pointer.axis(self, frame);
                 pointer.frame(self);
             }
+            InputEvent::GestureSwipeBegin { event, .. } => {
+                // три пальца — столы, остальное программе
+                if event.fingers() == 3 && !self.is_locked() {
+                    self.swipe = Some(0.0);
+                    return;
+                }
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_swipe_begin(self, &GestureSwipeBeginEvent { serial, time: event.time_msec(), fingers: event.fingers() });
+            }
+            InputEvent::GestureSwipeUpdate { event, .. } => {
+                if let Some(dx) = self.swipe.as_mut() {
+                    *dx += event.delta().x;
+                    return;
+                }
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_swipe_update(self, &GestureSwipeUpdateEvent { time: event.time_msec(), delta: event.delta() });
+            }
+            InputEvent::GestureSwipeEnd { event, .. } => {
+                if let Some(dx) = self.swipe.take() {
+                    if !event.cancelled() && dx.abs() >= SWIPE_DISTANCE {
+                        // пальцы влево — следующий стол, как перелистывание
+                        if let Some(id) = self.resolve_ws(if dx < 0.0 { "e+1" } else { "e-1" }) {
+                            self.switch_workspace(id);
+                        }
+                    }
+                    return;
+                }
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_swipe_end(self, &GestureSwipeEndEvent { serial, time: event.time_msec(), cancelled: event.cancelled() });
+            }
+            InputEvent::GesturePinchBegin { event, .. } => {
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_pinch_begin(self, &GesturePinchBeginEvent { serial, time: event.time_msec(), fingers: event.fingers() });
+            }
+            InputEvent::GesturePinchUpdate { event, .. } => {
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_pinch_update(
+                    self,
+                    &GesturePinchUpdateEvent { time: event.time_msec(), delta: event.delta(), scale: event.scale(), rotation: event.rotation() },
+                );
+            }
+            InputEvent::GesturePinchEnd { event, .. } => {
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_pinch_end(self, &GesturePinchEndEvent { serial, time: event.time_msec(), cancelled: event.cancelled() });
+            }
+            InputEvent::GestureHoldBegin { event, .. } => {
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_hold_begin(self, &GestureHoldBeginEvent { serial, time: event.time_msec(), fingers: event.fingers() });
+            }
+            InputEvent::GestureHoldEnd { event, .. } => {
+                let serial = SERIAL_COUNTER.next_serial();
+                let pointer = self.seat.get_pointer().unwrap();
+                pointer.gesture_hold_end(self, &GestureHoldEndEvent { serial, time: event.time_msec(), cancelled: event.cancelled() });
+            }
             _ => {}
         }
     }
 
-    fn pointer_moved(&mut self, pos: smithay::utils::Point<f64, smithay::utils::Logical>, time: u32) {
+    /// Сдвиг мыши: сначала программе как есть (игры с захватом смотрят только
+    /// на него), затем курсор — если его не держит захват.
+    fn pointer_motion_relative(&mut self, delta: Point<f64, Logical>, delta_unaccel: Point<f64, Logical>, utime: u64, time: u32) {
+        let pointer = self.seat.get_pointer().unwrap();
+        let pos = pointer.current_location();
+        let under = self.surface_under(pos);
+
+        let mut locked = false;
+        let mut confined = None;
+        if let Some((surface, origin)) = &under {
+            with_pointer_constraint(surface, &pointer, |c| {
+                let Some(c) = c.filter(|c| c.is_active()) else { return };
+                // курсор вышел из области захвата — захват не действует
+                if !c.region().is_none_or(|r| r.contains((pos - *origin).to_i32_round())) {
+                    return;
+                }
+                match &*c {
+                    PointerConstraint::Locked(_) => locked = true,
+                    PointerConstraint::Confined(_) => confined = Some((surface.clone(), *origin, c.region().cloned())),
+                }
+            });
+        }
+
+        pointer.relative_motion(self, under, &RelativeMotionEvent { delta, delta_unaccel, utime });
+        if locked {
+            pointer.frame(self);
+            return;
+        }
+
+        let new = self.clamp_to_outputs(pos + delta);
+        if let Some((surface, origin, region)) = confined {
+            // курсор остаётся внутри области: шаг наружу не делаем
+            let inside = self.surface_under(new).is_some_and(|(s, _)| s == surface)
+                && region.is_none_or(|r| r.contains((new - origin).to_i32_round()));
+            if !inside {
+                pointer.frame(self);
+                return;
+            }
+        }
+        self.pointer_moved(new, time);
+    }
+
+    fn pointer_moved(&mut self, pos: Point<f64, Logical>, time: u32) {
         let serial = SERIAL_COUNTER.next_serial();
         let pointer = self.seat.get_pointer().unwrap();
         let under = self.surface_under(pos);
-        pointer.motion(self, under, &MotionEvent { location: pos, serial, time });
+        pointer.motion(self, under.clone(), &MotionEvent { location: pos, serial, time });
         pointer.frame(self);
+
+        // курсор вошёл в область захвата — захват начинает действовать
+        if let Some((surface, origin)) = under {
+            with_pointer_constraint(&surface, &pointer, |c| {
+                if let Some(c) = c.filter(|c| !c.is_active()) {
+                    if c.region().is_none_or(|r| r.contains((pos - origin).to_i32_round())) {
+                        c.activate();
+                    }
+                }
+            });
+        }
     }
 
     fn run_action(&mut self, action: Action) {

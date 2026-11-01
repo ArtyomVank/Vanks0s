@@ -8,11 +8,15 @@ use smithay::{
         element::{
             memory::MemoryRenderBufferRenderElement,
             surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement},
-            Kind,
+            Kind, RenderElementStates,
         },
         gles::GlesRenderer,
     },
-    desktop::space::{space_render_elements, SpaceRenderElements},
+    desktop::{
+        layer_map_for_output,
+        space::{space_render_elements, SpaceRenderElements},
+        utils::{surface_presentation_feedback_flags_from_states, OutputPresentationFeedback},
+    },
     input::pointer::{CursorImageAttributes, CursorImageStatus},
     output::Output,
     render_elements,
@@ -94,4 +98,21 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, dra
         Err(e) => tracing::warn!("окна для {}: {e:?}", output.name()),
     }
     elements
+}
+
+/// Кому сообщить, что этот кадр показан (wp_presentation): Vulkan и видео
+/// сверяют по этому время следующего кадра.
+pub fn take_feedback(shell: &Shell, output: &Output, states: &RenderElementStates) -> OutputPresentationFeedback {
+    let mut feedback = OutputPresentationFeedback::new(output);
+    let primary = |_: &_, _: &_| Some(output.clone());
+    let flags = |surface: &_, _: &_| surface_presentation_feedback_flags_from_states(surface, states);
+    for window in shell.space.elements() {
+        if shell.space.outputs_for_element(window).contains(output) {
+            window.take_presentation_feedback(&mut feedback, primary, flags);
+        }
+    }
+    for layer in layer_map_for_output(output).layers() {
+        layer.take_presentation_feedback(&mut feedback, primary, flags);
+    }
+    feedback
 }
