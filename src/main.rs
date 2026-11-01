@@ -24,6 +24,7 @@ mod handlers;
 mod input;
 mod ipc;
 mod lock;
+mod monitors;
 mod probe;
 mod protocols;
 mod render;

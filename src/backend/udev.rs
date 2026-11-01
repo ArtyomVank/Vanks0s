@@ -32,14 +32,14 @@ use smithay::{
         udev::{all_gpus, primary_gpu, UdevBackend, UdevEvent},
         SwapBuffersError,
     },
-    desktop::utils::OutputPresentationFeedback,
-    output::{Mode as WlMode, Output, PhysicalProperties},
+    desktop::{layer_map_for_output, utils::OutputPresentationFeedback},
+    output::{Mode as WlMode, Output, PhysicalProperties, Scale},
     reexports::{
         calloop::{
             timer::{TimeoutAction, Timer},
             EventLoop, RegistrationToken,
         },
-        drm::control::{connector, crtc, Device as _, ModeTypeFlags},
+        drm::control::{self, connector, crtc, Device as _, ModeTypeFlags},
         input::{DeviceCapability, Libinput},
         rustix::fs::OFlags,
         wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
@@ -53,7 +53,13 @@ use smithay::{
 };
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 
-use crate::{config, edid, render::{output_elements, take_feedback, OutputElement}, CalloopData, Shell};
+use crate::{
+    config, edid,
+    monitors::{transform_from, MonitorRule},
+    render::{output_elements, take_feedback, OutputElement},
+    workspaces::OutputSerial,
+    CalloopData, Shell,
+};
 
 /// Форматы кадра на мониторе: 8 бит на канал — их понимают все.
 const COLOR_FORMATS: &[Fourcc] = &[Fourcc::Argb8888, Fourcc::Abgr8888];
@@ -81,18 +87,40 @@ struct Gpu {
     manager: OutputManager,
     scanner: DrmScanner,
     screens: HashMap<crtc::Handle, Screen>,
+    /// подключены, но выключены в настройках
+    disabled: HashMap<crtc::Handle, (connector::Info, Output)>,
     token: RegistrationToken,
 }
 
 /// Один монитор: его выход Wayland и кадры на него.
 struct Screen {
     output: Output,
+    connector: connector::Info,
     global: GlobalId,
     drm_output: DrmOutput<Allocator, Exporter, OutputPresentationFeedback, DrmDeviceFd>,
     /// кадр отдан монитору, ждём VBlank
     queued: bool,
     /// следующая попытка кадра уже назначена
     timer: Option<RegistrationToken>,
+}
+
+/// Родное разрешение, но самая высокая частота: «предпочтительный» режим в EDID
+/// часто 60 Гц даже у игровых мониторов (200 Гц у разработчика).
+fn best_mode(connector: &connector::Info) -> Option<control::Mode> {
+    let modes = connector.modes();
+    let native = modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED)).or_else(|| modes.first())?;
+    modes.iter().filter(|m| m.size() == native.size()).max_by_key(|m| m.vrefresh()).copied()
+}
+
+/// Режим с этим разрешением и ближайшей частотой (59,94 и 60 — разные режимы);
+/// частота 0 — самая высокая.
+fn nearest_mode(connector: &connector::Info, (w, h, hz): (i32, i32, f64)) -> Option<control::Mode> {
+    let same = connector.modes().iter().filter(|m| m.size() == (w as u16, h as u16));
+    let rate = |m: &control::Mode| WlMode::from(*m).refresh as f64 / 1000.0;
+    if hz <= 0.0 {
+        return same.max_by_key(|m| WlMode::from(**m).refresh).copied();
+    }
+    same.min_by(|a, b| (rate(a) - hz).abs().total_cmp(&(rate(b) - hz).abs())).copied()
 }
 
 pub fn init(event_loop: &mut EventLoop<'static, CalloopData>, data: &mut CalloopData) -> Result<(), Box<dyn std::error::Error>> {
@@ -235,7 +263,7 @@ impl Shell {
 
         let udev = self.udev.as_mut().expect("udev");
         udev.dmabuf_global = Some(global);
-        udev.gpu = Some(Gpu { node, renderer, manager, scanner: DrmScanner::new(), screens: HashMap::new(), token });
+        udev.gpu = Some(Gpu { node, renderer, manager, scanner: DrmScanner::new(), screens: HashMap::new(), disabled: HashMap::new(), token });
         Ok(())
     }
 
@@ -257,49 +285,73 @@ impl Shell {
                 _ => {}
             }
         }
+        // в настройках выключены все, что подключены сейчас: экран не должен остаться чёрным
+        if self.space.outputs().count() == 0 {
+            if let Some(output) = self.disabled_outputs().first() {
+                tracing::warn!(name = output.name(), "других экранов нет — включаю выключенный");
+                if let Err(e) = self.enable_output(output, None) {
+                    tracing::warn!(name = output.name(), "{e}");
+                }
+            }
+        }
         self.fixup_windows();
     }
 
     fn connector_connected(&mut self, connector: connector::Info, crtc: crtc::Handle) {
         let name = format!("{}-{}", connector.interface().as_str(), connector.interface_id());
-        let Some(&mode) = connector
-            .modes()
-            .iter()
-            .find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
-            .or_else(|| connector.modes().first())
-        else {
+        if connector.modes().is_empty() {
             tracing::warn!(name, "у монитора нет режимов");
             return;
-        };
-        // родное разрешение, но самая высокая частота: «предпочтительный» режим
-        // в EDID часто 60 Гц даже у игровых мониторов (200 Гц у разработчика)
-        let mode = connector
-            .modes()
-            .iter()
-            .filter(|m| m.size() == mode.size())
-            .max_by_key(|m| m.vrefresh())
-            .copied()
-            .unwrap_or(mode);
-
-        let x = self.space.outputs().filter_map(|o| self.space.output_geometry(o)).map(|g| g.loc.x + g.size.w).max().unwrap_or(0);
+        }
         let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).expect("gpu");
-        let device = gpu.manager.device();
-
-        let info = edid_blob(device, connector.handle()).and_then(|b| edid::parse(&b));
-        let (make, model) = info.map(|i| (i.make, i.model)).unwrap_or_else(|| ("Unknown".into(), "Unknown".into()));
+        let info = edid_blob(gpu.manager.device(), connector.handle()).and_then(|b| edid::parse(&b));
+        let (make, model, serial) = info.map(|i| (i.make, i.model, i.serial)).unwrap_or_else(|| ("Unknown".into(), "Unknown".into(), String::new()));
         let (w, h) = connector.size().unwrap_or((0, 0));
         let output = Output::new(
             name.clone(),
             PhysicalProperties { size: (w as i32, h as i32).into(), subpixel: connector.subpixel().into(), make, model },
         );
+        output.user_data().insert_if_missing(|| OutputSerial(serial));
+        for mode in connector.modes() {
+            output.add_mode(WlMode::from(*mode));
+        }
+
+        let rule = self.rule_for(&output);
+        if rule.as_ref().is_some_and(|r| r.disabled) {
+            tracing::info!(name, "монитор выключен в настройках");
+            let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).expect("gpu");
+            gpu.disabled.insert(crtc, (connector, output));
+            return;
+        }
+        if let Err(e) = self.start_screen(connector, crtc, output, rule.as_ref()) {
+            tracing::warn!(name, "{e}");
+        }
+    }
+
+    /// Запустить монитор: при подключении и когда его включают снова.
+    fn start_screen(&mut self, connector: connector::Info, crtc: crtc::Handle, output: Output, rule: Option<&MonitorRule>) -> Result<(), String> {
+        let name = output.name();
+        let mode = rule
+            .and_then(|r| r.mode)
+            .and_then(|want| nearest_mode(&connector, want))
+            .or_else(|| best_mode(&connector))
+            .ok_or("у монитора нет режимов")?;
+        let x = self.space.outputs().filter_map(|o| self.space.output_geometry(o)).map(|g| g.loc.x + g.size.w).max().unwrap_or(0);
+        let loc = rule.and_then(|r| r.position).unwrap_or((x, 0));
         let wl_mode = WlMode::from(mode);
         output.set_preferred(wl_mode);
-        output.change_current_state(Some(wl_mode), None, None, Some((x, 0).into()));
+        output.change_current_state(
+            Some(wl_mode),
+            rule.and_then(|r| r.transform).map(transform_from),
+            rule.and_then(|r| r.scale).map(Scale::Fractional),
+            Some(loc.into()),
+        );
         let global = output.create_global::<Shell>(&self.display_handle);
 
+        let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).expect("gpu");
         // накладные плоскости пока не трогаем (на некоторых драйверах, NVIDIA,
         // с ними мерцает); курсор — на своей плоскости, если она есть
-        let planes = device.planes(&crtc).ok().map(|mut p| {
+        let planes = gpu.manager.device().planes(&crtc).ok().map(|mut p| {
             p.overlay.clear();
             p
         });
@@ -314,37 +366,85 @@ impl Shell {
         ) {
             Ok(o) => o,
             Err(e) => {
-                tracing::warn!(name, "монитор не запустился: {e}");
                 self.display_handle.remove_global::<Shell>(global);
-                return;
+                return Err(format!("монитор не запустился: {e}"));
             }
         };
-        tracing::info!(name, size = ?wl_mode.size, refresh = wl_mode.refresh, "монитор подключён");
+        tracing::info!(name, size = ?wl_mode.size, refresh = wl_mode.refresh, ?loc, "монитор подключён");
 
-        gpu.screens.insert(crtc, Screen { output: output.clone(), global, drm_output, queued: false, timer: None });
-        self.space.map_output(&output, (x, 0));
+        gpu.screens.insert(crtc, Screen { output: output.clone(), connector, global, drm_output, queued: false, timer: None });
+        self.space.map_output(&output, loc);
         self.output_added(&output);
+        layer_map_for_output(&output).arrange();
 
         // первый монитор — мышь в его центр
         if self.space.outputs().count() == 1 {
-            if let Some(pointer) = self.seat.get_pointer() {
-                let center = (wl_mode.size.w as f64 / 2.0 + x as f64, wl_mode.size.h as f64 / 2.0);
-                pointer.set_location(center.into());
+            if let (Some(pointer), Some(geo)) = (self.seat.get_pointer(), self.space.output_geometry(&output)) {
+                pointer.set_location(geo.to_f64().loc + geo.to_f64().size.downscale(2.0));
             }
         }
         self.schedule_render(crtc, Duration::ZERO);
+        Ok(())
+    }
+
+    fn stop_screen(&mut self, screen: Screen) {
+        if let Some(t) = screen.timer {
+            self.loop_handle.remove(t);
+        }
+        self.space.unmap_output(&screen.output);
+        self.output_removed(&screen.output);
+        self.display_handle.remove_global::<Shell>(screen.global);
     }
 
     fn connector_disconnected(&mut self, crtc: crtc::Handle) {
         let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()) else { return };
+        gpu.disabled.remove(&crtc);
         let Some(screen) = gpu.screens.remove(&crtc) else { return };
-        if let Some(t) = screen.timer {
-            self.loop_handle.remove(t);
-        }
         tracing::info!(name = screen.output.name(), "монитор отключён");
-        self.space.unmap_output(&screen.output);
-        self.output_removed(&screen.output);
-        self.display_handle.remove_global::<Shell>(screen.global);
+        self.stop_screen(screen);
+    }
+
+    /// Выключенные в настройках мониторы: подключены, но не работают.
+    pub fn disabled_outputs(&self) -> Vec<Output> {
+        let gpu = self.udev.as_ref().and_then(|u| u.gpu.as_ref());
+        gpu.map(|g| g.disabled.values().map(|(_, o)| o.clone()).collect()).unwrap_or_default()
+    }
+
+    pub fn disable_output(&mut self, output: &Output) -> Result<(), String> {
+        let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).ok_or("окно отладки не выключается")?;
+        let crtc = gpu.screens.iter().find(|(_, s)| s.output == *output).map(|(c, _)| *c).ok_or("монитор уже выключен")?;
+        let screen = gpu.screens.remove(&crtc).expect("монитор найден выше");
+        if let Err(e) = screen.drm_output.with_compositor(|c| c.surface().clear()) {
+            tracing::warn!(name = output.name(), "монитор не погас: {e}");
+        }
+        tracing::info!(name = output.name(), "монитор выключен");
+        gpu.disabled.insert(crtc, (screen.connector.clone(), output.clone()));
+        self.stop_screen(screen);
+        Ok(())
+    }
+
+    pub fn enable_output(&mut self, output: &Output, rule: Option<&MonitorRule>) -> Result<(), String> {
+        let gpu = self.udev.as_mut().and_then(|u| u.gpu.as_mut()).ok_or("нет видеокарты")?;
+        let crtc = gpu.disabled.iter().find(|(_, (_, o))| o == output).map(|(c, _)| *c).ok_or("монитор уже включён")?;
+        let (connector, output) = gpu.disabled.remove(&crtc).expect("монитор найден выше");
+        self.start_screen(connector, crtc, output, rule)
+    }
+
+    /// Новый режим монитора. None — менять нечего: он уже такой или это окно отладки.
+    pub fn set_output_mode(&mut self, output: &Output, want: (i32, i32, f64)) -> Result<Option<WlMode>, String> {
+        let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()) else { return Ok(None) };
+        let Gpu { renderer, screens, .. } = gpu;
+        let screen = screens.values_mut().find(|s| s.output == *output).ok_or("монитор выключен")?;
+        let mode = nearest_mode(&screen.connector, want).ok_or_else(|| format!("нет режима {}x{}", want.0, want.1))?;
+        let wl_mode = WlMode::from(mode);
+        if output.current_mode() == Some(wl_mode) {
+            return Ok(None);
+        }
+        screen
+            .drm_output
+            .use_mode(mode, renderer, &DrmOutputRenderElements::<_, OutputElement>::default())
+            .map_err(|e| format!("режим не включился: {e}"))?;
+        Ok(Some(wl_mode))
     }
 
     fn device_removed(&mut self, node: DrmNode) {
@@ -419,7 +519,7 @@ impl Shell {
         }
     }
 
-    fn schedule_all(&mut self) {
+    pub fn schedule_all(&mut self) {
         let crtcs: Vec<_> = self.udev.as_ref().and_then(|u| u.gpu.as_ref()).map(|g| g.screens.keys().copied().collect()).unwrap_or_default();
         for crtc in crtcs {
             self.schedule_render(crtc, Duration::ZERO);

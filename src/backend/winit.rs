@@ -56,6 +56,7 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     data.state.space.map_output(&output, (0, 0));
     data.state.output_added(&output);
     data.state.winit = Some(backend);
+    data.state.reload_monitors();
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
     // курсор рисует сессия вокруг; мы только меняем его фигуру, когда просит программа

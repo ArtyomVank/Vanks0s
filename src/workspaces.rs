@@ -470,7 +470,12 @@ impl Shell {
 }
 
 /// «Производитель Модель (Разъём)» — как description у Hyprland.
+/// Серийный номер из EDID: у Output своего поля для него нет.
+pub struct OutputSerial(pub String);
+
+/// Как у Hyprland: «MKG MJF24F200 005TR9QT8YU». По этой строке Delta узнаёт монитор.
 pub fn output_description(output: &Output) -> String {
     let p = output.physical_properties();
-    format!("{} {} ({})", p.make, p.model, output.name())
+    let serial = output.user_data().get::<OutputSerial>().map(|s| s.0.as_str()).unwrap_or("");
+    [p.make.as_str(), p.model.as_str(), serial].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join(" ")
 }

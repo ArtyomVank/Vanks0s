@@ -76,6 +76,7 @@ impl Default for Windows {
 pub struct Settings {
     pub input: Input,
     pub windows: Windows,
+    pub monitors: Vec<crate::monitors::MonitorRule>,
 }
 
 fn data_dir() -> PathBuf {
@@ -126,6 +127,11 @@ impl Settings {
         if let Some(user) = config_dir().and_then(|d| read_json(d.join("settings.json"))) {
             merge(&mut merged, user);
         }
-        Settings { input: section(&merged, "input"), windows: section(&merged, "windows") }
+        let monitors = merged
+            .get("monitors")
+            .and_then(Value::as_array)
+            .map(|list| list.iter().filter_map(crate::monitors::MonitorRule::from_value).collect())
+            .unwrap_or_default();
+        Settings { input: section(&merged, "input"), windows: section(&merged, "windows"), monitors }
     }
 }

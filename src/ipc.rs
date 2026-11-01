@@ -196,10 +196,19 @@ impl Shell {
             // delta-apply после записи settings.json зовёт hyprctl reload
             "reload" => {
                 self.settings = crate::settings::Settings::load();
+                self.reload_monitors();
                 return "ok".into();
             }
+            // из Lua понимаем только мониторы: раздел «Экран» применяет их на лету
+            "eval" => {
+                let rules = crate::monitors::parse_lua(args);
+                return match self.apply_monitor_rules(&rules) {
+                    Ok(()) => "ok".into(),
+                    Err(e) => format!("error: {e}"),
+                };
+            }
             // настройки оболочки берутся из Delta напрямую; keyword — «ок»
-            "keyword" | "seterror" | "notify" | "dismissnotify" | "plugin" | "eval" => return "ok".into(),
+            "keyword" | "seterror" | "notify" | "dismissnotify" | "plugin" => return "ok".into(),
             "setcursor" => {
                 let mut it = args.split_whitespace();
                 if let (Some(theme), Some(size)) = (it.next(), it.next().and_then(|s| s.parse().ok())) {
@@ -221,9 +230,12 @@ impl Shell {
         }
     }
 
-    fn monitors_json(&self, _all: bool) -> Value {
+    fn monitors_json(&self, all: bool) -> Value {
         let focused = self.focused_output_name();
-        let outputs: Vec<_> = self.space.outputs().cloned().collect();
+        let mut outputs: Vec<_> = self.space.outputs().cloned().collect();
+        if all {
+            outputs.extend(self.disabled_outputs());
+        }
         let list: Vec<Value> = outputs
             .iter()
             .enumerate()
@@ -246,7 +258,7 @@ impl Shell {
                     "description": output_description(o),
                     "make": p.make,
                     "model": p.model,
-                    "serial": "",
+                    "serial": o.user_data().get::<crate::workspaces::OutputSerial>().map(|s| s.0.as_str()).unwrap_or(""),
                     "width": size.w,
                     "height": size.h,
                     "physicalWidth": p.size.w,
@@ -262,14 +274,14 @@ impl Shell {
                     },
                     "reserved": reserved,
                     "scale": o.current_scale().fractional_scale(),
-                    "transform": 0,
+                    "transform": if self.udev.is_some() { crate::monitors::transform_number(o.current_transform()) } else { 0 },
                     "focused": o.name() == focused,
                     "dpmsStatus": true,
                     "vrr": false,
                     "solitary": "0",
                     "activelyTearing": false,
                     "directScanoutTo": "0",
-                    "disabled": false,
+                    "disabled": self.space.output_geometry(o).is_none(),
                     "currentFormat": "XRGB8888",
                     "mirrorOf": "none",
                     "availableModes": modes,
