@@ -34,11 +34,20 @@ case "${1:-}" in
         # сессия Wayland ещё жива?
         alive() { [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-0}" ]; }
         restarts=()
+        # первая копия за запуск Hyprland начинает сессию: показывает
+        # «Добро пожаловать» и потом запускает автозапуск (lock/StartCover.qml);
+        # после падения заставки уже не нужно
+        mark=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/delta-session-${HYPRLAND_INSTANCE_SIGNATURE:-0}
+        if [ ! -e "${mark}" ]; then
+            : > "${mark}"
+            export DELTA_SESSION_START=1
+        fi
         while :; do
             started=$(date +%s)
             # -n: не запускать вторую копию поверх работающей (тогда выход 0)
             qs -p "${SHELL_DIR}" -n &
             pid=$!
+            unset DELTA_SESSION_START
             wait "${pid}"
             code=$?
             [ "${code}" -eq 0 ] && exit 0

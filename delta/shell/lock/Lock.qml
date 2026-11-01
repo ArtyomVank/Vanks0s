@@ -41,6 +41,9 @@ Scope {
     // заставка лежит поверх экрана блокировки, гаснет, и он въезжает. После
     // входа паролем на экране входа заставки нет — сразу рабочий стол.
     property bool welcome: false
+    // проверка при запуске закончена: блокировать или нет, уже решено
+    // (её ждёт заставка запуска, lock/StartCover.qml)
+    property bool startChecked: false
     Timer {
         interval: 1600
         running: root.welcome && Settings.ready
@@ -316,6 +319,7 @@ Scope {
                     root.welcome = true;
                     root.lock(true);
                 }
+                root.startChecked = true;
             }
         }
     }

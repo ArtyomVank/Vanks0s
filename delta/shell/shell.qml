@@ -58,6 +58,7 @@ ShellRoot {
     Notifications { id: notifications }
     Osd { id: osd }
     Lock { id: lock }          // показывает и окно питания (overlay "power")
+    StartCover { lock: lock }  // «Добро пожаловать» при запуске сессии и автозапуск после него
     Launcher { id: appLauncher }
     Wallpapers {}
     DesktopMenu {}         // правый щелчок по рабочему столу: виджеты, обои, настройки

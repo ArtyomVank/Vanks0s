@@ -162,10 +162,11 @@ hl.layer_rule({
     no_anim = true,
 })
 
--- кнопки окна: прозрачный слой во весь экран, размытие ему не нужно
+-- кнопки окна: прозрачный слой во весь экран, размытие ему не нужно;
+-- заставке запуска тоже — она непрозрачная
 hl.layer_rule({
     name  = "delta-window-controls",
-    match = { namespace = "^delta-window-controls$" },
+    match = { namespace = "^delta-(window-controls|start)$" },
     blur    = false,
     no_anim = true,
 })
@@ -592,9 +593,10 @@ hl.on("hyprland.start", function()
     if not nested then
         -- порталы и службы systemd --user должны знать про эту сессию
         hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME")
-        -- Hyprland сам не запускает XDG-автозапуск (~/.config/autostart, /etc/xdg/autostart)
-        hl.exec_cmd("dex -a")
     end
+    -- XDG-автозапуск (~/.config/autostart, /etc/xdg/autostart) запускает
+    -- оболочка, когда уйдёт заставка «Добро пожаловать» (lock/StartCover.qml):
+    -- отсюда программы всплывали раньше неё, поверх собирающегося стола
     hl.exec_cmd("delta-shell")
     -- помощник первого запуска: после того как стол проявился; сам решает,
     -- нужно ли показываться (закрывали, live-ISO, вложенная сессия)
