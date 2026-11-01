@@ -518,15 +518,18 @@ link_target() {
     t=${t:3}
     printf '%s/%s\n' "${c}" "${t//\\//}"
 }
-# значок из .exe (icoutils): самый большой PNG; нет — значок Wine
+# значок из .exe (icoutils): самый большой PNG; нет — значок Wine.
+# Печатает только путь: её вывод идёт в строку Icon= ярлыка. Раньше -o стоял
+# после «--» и считался файлом — wrestool писал сам значок в вывод, в Icon=
+# попадали сотни КБ двоичных данных, и оболочка падала, читая такой ярлык.
 exe_icon() {
     local exe=$1 id=$2 out tmp best
     command -v wrestool >/dev/null && command -v icotool >/dev/null || { echo wine; return; }
     mkdir -p "${ICONS}"
     out=${ICONS}/${id}.png
     tmp=$(mktemp -d) || { echo wine; return; }
-    wrestool -x -t 14 -- "${exe}" -o "${tmp}" 2>/dev/null
-    for f in "${tmp}"/*.ico; do [ -f "${f}" ] && icotool -x -o "${tmp}" -- "${f}" 2>/dev/null; done
+    wrestool -x -t 14 -o "${tmp}" -- "${exe}" >/dev/null 2>&1
+    for f in "${tmp}"/*.ico; do [ -f "${f}" ] && icotool -x -o "${tmp}" -- "${f}" >/dev/null 2>&1; done
     best=$(ls -S "${tmp}"/*.png 2>/dev/null | head -n1)
     if [ -n "${best}" ]; then mv -f -- "${best}" "${out}"; echo "${out}"; else echo wine; fi
     rm -rf "${tmp}"
@@ -535,14 +538,20 @@ exe_icon() {
 desktop_quote() { local v=$1; v=${v//\\/\\\\}; v=${v//\"/\\\"}; v=${v//\`/\\\`}; v=${v//\$/\\\$}; printf '"%s"' "${v}"; }
 
 add_app() {  # префикс, имя префикса, ярлык или пусто, exe[, название]
-    local prefix=$1 pname=$2 lnk=$3 exe=$4 title=${5:-} id file
+    local prefix=$1 pname=$2 lnk=$3 exe=$4 title=${5:-} id file icon
     [ -n "${title}" ] || title=$([ -n "${lnk}" ] && basename -- "${lnk}" .lnk || basename -- "${exe}" .exe)
+    # в строке .desktop — ни переводов строки, ни управляющих символов
+    title=$(printf '%s' "${title}" | tr -d '\000-\037\177' | cut -c1-120)
+    [ -n "${title}" ] || title=$(basename -- "${exe}" .exe)
     # название без латиницы (кириллица) — slug пуст: имя ярлыка по пути exe
     id=$(slug "${title}")
     [ -n "${id}" ] || id=$(printf '%s' "${exe}" | md5sum | cut -c1-10)
     id=delta-exe-${pname}-${id}
     file=${APPS}/${id}.desktop
     mkdir -p "${APPS}"
+    # значок — одной строкой-путём; что-то другое (ошибка инструмента) — значок Wine
+    icon=$(exe_icon "${exe}" "${id}" | head -n1)
+    case "${icon}" in wine|/*.png) ;; *) icon=wine ;; esac
     {
         echo '[Desktop Entry]'
         echo 'Type=Application'
@@ -550,7 +559,7 @@ add_app() {  # префикс, имя префикса, ярлык или пус
         echo "Comment=Программа Windows (${pname})"
         echo "Exec=delta-exe --app ${pname} $(desktop_quote "${exe}")"
         echo "Path=$(dirname -- "${exe}")"
-        echo "Icon=$(exe_icon "${exe}" "${id}")"
+        echo "Icon=${icon}"
         echo 'Categories=Wine;'
         echo 'StartupNotify=true'
         echo "X-Delta-Prefix=${pname}"
