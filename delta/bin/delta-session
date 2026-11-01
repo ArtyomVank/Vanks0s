@@ -56,7 +56,7 @@ if [ ! -e "${EXE_MARK}" ] && command -v xdg-mime >/dev/null; then
     esac
     : > "${EXE_MARK}"
 fi
-# ярлыки .lnk, .bat/.cmd и .reg — тоже им, как двойной щелчок в Windows (с 0.7)
+# ярлыки .lnk, .bat/.cmd и .reg — тоже им, как двойной щелчок в Windows (с 0.6.5)
 EXE_MARK2=${STATE}/exe-mime2
 if [ ! -e "${EXE_MARK2}" ] && command -v xdg-mime >/dev/null; then
     for t in application/x-ms-shortcut application/x-bat text/x-msdos-batch text/x-ms-regedit; do
