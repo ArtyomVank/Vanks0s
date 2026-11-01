@@ -10,7 +10,7 @@ use smithay::{
         PointerInnerHandle, RelativeMotionEvent,
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{Logical, Point},
+    utils::{Logical, Point, Rectangle},
 };
 
 pub struct MoveSurfaceGrab {
@@ -31,9 +31,12 @@ impl PointerGrab<Shell> for MoveSurfaceGrab {
         handle.motion(data, None, event);
 
         let delta = event.location - self.start_data.location;
-        let new_location = self.initial_window_location.to_f64() + delta;
-        data.space
-            .map_element(self.window.clone(), new_location.to_i32_round(), true);
+        let new_location = (self.initial_window_location.to_f64() + delta).to_i32_round();
+        data.space.map_element(self.window.clone(), new_location, true);
+        // окно X11 должно знать своё место: от него считают меню и курсор
+        if let Some(x11) = self.window.x11_surface() {
+            let _ = x11.configure(Rectangle::new(new_location, x11.geometry().size));
+        }
     }
 
     fn relative_motion(

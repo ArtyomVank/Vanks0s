@@ -64,7 +64,7 @@ impl Shell {
     /// Снять все захваты (меню закроются). Клавиатура была у них — верхнему окну.
     pub fn clear_focus_grabs(&mut self) {
         let focus = self.seat.get_keyboard().and_then(|k| k.current_focus());
-        let had_focus = focus.is_some_and(|f| self.grab_contains(&f));
+        let had_focus = focus.and_then(|f| f.surface()).is_some_and(|f| self.grab_contains(&f));
         for grab in &mut self.focus_grabs.grabs {
             if !grab.active.is_empty() {
                 grab.active.clear();
@@ -94,6 +94,7 @@ impl Shell {
     fn commit_grab(&mut self, resource: &HyprlandFocusGrabV1) {
         let Some(i) = self.focus_grabs.grabs.iter().position(|g| &g.resource == resource) else { return };
         let focus = self.seat.get_keyboard().and_then(|k| k.current_focus());
+        let focus = focus.and_then(|f| f.surface());
         let had_focus = focus.as_ref().is_some_and(|f| self.grab_contains(f));
         let grab = &mut self.focus_grabs.grabs[i];
         grab.pending.retain(Resource::is_alive);
@@ -119,7 +120,7 @@ impl Shell {
             Some(first) => {
                 if !focus.is_some_and(|f| self.grab_contains(&f)) {
                     if let Some(kb) = self.seat.get_keyboard() {
-                        kb.set_focus(self, Some(first), SERIAL_COUNTER.next_serial());
+                        kb.set_focus(self, Some(first.into()), SERIAL_COUNTER.next_serial());
                     }
                 }
             }
@@ -199,7 +200,7 @@ impl Dispatch<HyprlandFocusGrabV1, ()> for Shell {
 fn end_grab(state: &mut Shell, resource: &HyprlandFocusGrabV1) {
     let Some(i) = state.focus_grabs.grabs.iter().position(|g| &g.resource == resource) else { return };
     let focus = state.seat.get_keyboard().and_then(|k| k.current_focus());
-    let had_focus = !state.focus_grabs.grabs[i].active.is_empty() && focus.is_some_and(|f| state.grab_contains(&f));
+    let had_focus = !state.focus_grabs.grabs[i].active.is_empty() && focus.and_then(|f| f.surface()).is_some_and(|f| state.grab_contains(&f));
     state.focus_grabs.grabs.remove(i);
     if had_focus {
         state.focus_top();

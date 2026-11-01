@@ -319,12 +319,15 @@ impl Shell {
             .get(&d.workspace)
             .and_then(|m| self.space.outputs().position(|o| o.name() == *m))
             .unwrap_or(0);
-        let pid = window
-            .toplevel()
-            .and_then(|t| self.display_handle.get_client(t.wl_surface().id()).ok())
-            .and_then(|c| c.get_credentials(&self.display_handle).ok())
-            .map(|c| c.pid)
-            .unwrap_or(-1);
+        let pid = match window.x11_surface() {
+            Some(x11) => x11.pid().map(|p| p as i32).unwrap_or(-1),
+            None => window
+                .toplevel()
+                .and_then(|t| self.display_handle.get_client(t.wl_surface().id()).ok())
+                .and_then(|c| c.get_credentials(&self.display_handle).ok())
+                .map(|c| c.pid)
+                .unwrap_or(-1),
+        };
         let focus_order = self.windows.iter().rev().position(|w| w == window).unwrap_or(0);
         json!({
             "address": format!("0x{:x}", d.address),
@@ -341,7 +344,7 @@ impl Shell {
             "initialClass": class,
             "initialTitle": title,
             "pid": pid,
-            "xwayland": false,
+            "xwayland": window.is_x11(),
             "pinned": false,
             "fullscreen": match d.mode { Mode::Normal => 0, Mode::Maximized => 1, Mode::Fullscreen => 2 },
             "fullscreenClient": 0,

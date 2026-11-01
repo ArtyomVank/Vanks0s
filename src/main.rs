@@ -18,6 +18,7 @@ mod config;
 mod cursor;
 mod dispatch;
 mod edid;
+mod focus;
 mod grabs;
 mod handlers;
 mod input;
@@ -125,10 +126,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // программы внутри — на нашем сокете, а не на сессии вокруг. Без -c —
     // Delta (или терминал, если Delta нет)
     let nested = std::env::var_os("DELTA_NESTED").is_some() || kind == backend::Kind::Winit;
-    match command {
-        Some(c) => data.state.spawn(&c),
-        None => config::autostart(nested).iter().for_each(|c| data.state.spawn(c)),
-    }
+    let commands = match command {
+        Some(c) => vec![c],
+        None => config::autostart(nested),
+    };
+    data.state.start_xwayland(commands);
 
     // ответы программам — после каждого прохода цикла, а не только с кадром:
     // монитор может спать (или окно отладки быть скрыто), а программы ждут

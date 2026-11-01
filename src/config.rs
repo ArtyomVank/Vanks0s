@@ -32,7 +32,7 @@ pub fn autostart(nested: bool) -> Vec<String> {
     // вложенной сессии разработчика, иначе они переедут к ней
     if !nested {
         list.push(
-            "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP \
+            "dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP \
              XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME"
                 .into(),
         );

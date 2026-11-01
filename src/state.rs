@@ -3,6 +3,7 @@ use std::{ffi::OsString, sync::Arc};
 use smithay::{
     backend::{renderer::gles::GlesRenderer, winit::WinitGraphicsBackend},
     desktop::{layer_map_for_output, utils::send_frames_surface_tree, PopupManager, Space, Window, WindowSurfaceType},
+    wayland::seat::WaylandFocus,
     input::{keyboard::XkbConfig, pointer::CursorImageStatus, Seat, SeatState},
     reexports::{
         calloop::{generic::Generic, EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction},
@@ -38,11 +39,13 @@ use smithay::{
         socket::ListeningSocketSource,
         viewporter::ViewporterState,
         xdg_activation::XdgActivationState,
+        xwayland_shell::XWaylandShellState,
     },
+    xwayland::X11Wm,
 };
 
 use crate::{
-    backend::udev::UdevData, config, cursor::Cursor, ipc::Ipc, protocols::global_shortcuts::GlobalShortcutsState,
+    backend::udev::UdevData, config, cursor::Cursor, focus::KeyFocus, ipc::Ipc, protocols::global_shortcuts::GlobalShortcutsState,
     lock::{Lock, LockSurfaceOn},
     protocols::{focus_grab::FocusGrabState, foreign_toplevel::ForeignToplevelState, idle_notify::IdleNotifyState},
     settings::Settings, workspaces::Workspaces, CalloopData,
@@ -106,6 +109,10 @@ pub struct Shell {
 
     /// какой курсор просит программа под мышью (или своя стрелка)
     pub cursor_status: CursorImageStatus,
+    /// оконный менеджер Xwayland и номер его дисплея, когда он готов
+    pub xwm: Option<X11Wm>,
+    pub xdisplay: Option<u32>,
+    pub xwayland_shell_state: XWaylandShellState,
     /// тема курсора — рисуем сами только в настоящей сессии
     pub cursor: Cursor,
     /// настоящая сессия (DRM, libinput, libseat); в окне отладки — None
@@ -165,6 +172,7 @@ impl Shell {
         seat.add_pointer();
 
         let socket_name = Self::init_wayland_listener(display, event_loop);
+        let dh_x = dh.clone();
 
         Self {
             start_time: std::time::Instant::now(),
@@ -207,6 +215,9 @@ impl Shell {
             lock_surfaces: Vec::new(),
             lock_retry: None,
             cursor_status: CursorImageStatus::default_named(),
+            xwm: None,
+            xdisplay: None,
+            xwayland_shell_state: XWaylandShellState::new::<Self>(&dh_x),
             cursor: Cursor::load(),
             udev: None,
             winit: None,
@@ -257,7 +268,7 @@ impl Shell {
                 Ok(())
             });
         }
-        let r = cmd
+        cmd
             .arg("-c")
             .arg(command)
             .env("WAYLAND_DISPLAY", &self.socket_name)
@@ -267,9 +278,13 @@ impl Shell {
             .env("XDG_CURRENT_DESKTOP", "Vanks:Delta")
             .env("XDG_SESSION_DESKTOP", "vanks")
             .env("XDG_SESSION_TYPE", "wayland")
-            // X11 вокруг нам не нужен: программа должна прийти к нам по Wayland
-            .env_remove("DISPLAY")
-            .spawn();
+            ;
+        // X11 вокруг нам не нужен: только свой Xwayland
+        match self.xdisplay {
+            Some(n) => cmd.env("DISPLAY", format!(":{n}")),
+            None => cmd.env_remove("DISPLAY"),
+        };
+        let r = cmd.spawn();
         match r {
             // завершившуюся программу надо забрать, иначе останется зомби
             Ok(mut child) => {
@@ -334,7 +349,7 @@ impl Shell {
     pub fn window_for_surface(&self, surface: &WlSurface) -> Option<Window> {
         self.windows
             .iter()
-            .find(|w| w.toplevel().map(|t| t.wl_surface() == surface).unwrap_or(false))
+            .find(|w| w.wl_surface().as_deref() == Some(surface))
             .cloned()
     }
 
@@ -356,16 +371,24 @@ impl Shell {
     pub fn focus_window(&mut self, window: &Window, serial: Serial) {
         self.space.raise_element(window, true);
         self.raise_in_stack(window);
+        if let (Some(xwm), Some(x11)) = (self.xwm.as_mut(), window.x11_surface()) {
+            if let Err(e) = xwm.raise_window(x11) {
+                tracing::debug!("окно X11 не поднялось: {e}");
+            }
+        }
         // при блокировке клавиатура только у замка
         if self.is_locked() {
             return;
         }
-        let surface = window.toplevel().map(|t| t.wl_surface().clone());
-        if let Some(s) = &surface {
-            self.focus_grab_window(s);
+        if let Some(s) = window.wl_surface() {
+            self.focus_grab_window(&s);
         }
+        let target = match window.x11_surface() {
+            Some(x11) => Some(KeyFocus::X11(x11.clone())),
+            None => window.wl_surface().map(|s| KeyFocus::Surface(s.into_owned())),
+        };
         if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, surface, serial);
+            keyboard.set_focus(self, target, serial);
         }
         self.space.elements().for_each(|w| {
             if let Some(t) = w.toplevel() {
@@ -384,14 +407,21 @@ impl Shell {
         if let Some(top) = top {
             self.focus_window(&top, serial);
         } else if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, Option::<WlSurface>::None, serial);
+            keyboard.set_focus(self, None, serial);
         }
     }
 
     /// Окно с фокусом клавиатуры.
     pub fn focused_window(&self) -> Option<Window> {
         let focus = self.seat.get_keyboard()?.current_focus()?;
-        self.window_for_surface(&focus)
+        self.window_for_focus(&focus)
+    }
+
+    pub fn window_for_focus(&self, focus: &KeyFocus) -> Option<Window> {
+        match focus {
+            KeyFocus::Surface(s) => self.window_for_surface(s),
+            KeyFocus::X11(x) => self.windows.iter().find(|w| w.x11_surface() == Some(x)).cloned(),
+        }
     }
 
     /// Точка, ближайшая к pos, на каком-нибудь мониторе: мышь не уходит за край.

@@ -207,15 +207,14 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for Shell {
     ) {
         use zwlr_foreign_toplevel_handle_v1::Request;
         let Some(window) = state.window_of_handle(handle) else { return };
-        let Some(toplevel) = window.toplevel().cloned() else { return };
         match request {
-            Request::SetMaximized => state.toplevel_mode(&toplevel, Mode::Maximized, true),
-            Request::UnsetMaximized => state.toplevel_mode(&toplevel, Mode::Maximized, false),
-            Request::SetFullscreen { .. } => state.toplevel_mode(&toplevel, Mode::Fullscreen, true),
-            Request::UnsetFullscreen => state.toplevel_mode(&toplevel, Mode::Fullscreen, false),
+            Request::SetMaximized => state.window_mode(&window, Mode::Maximized, true),
+            Request::UnsetMaximized => state.window_mode(&window, Mode::Maximized, false),
+            Request::SetFullscreen { .. } => state.window_mode(&window, Mode::Fullscreen, true),
+            Request::UnsetFullscreen => state.window_mode(&window, Mode::Fullscreen, false),
             Request::SetMinimized => state.move_to_workspace(&window, SPECIAL, false),
             Request::UnsetMinimized | Request::Activate { .. } => state.activate_window(&window, SERIAL_COUNTER.next_serial()),
-            Request::Close => toplevel.send_close(),
+            Request::Close => crate::workspaces::close(&window),
             _ => {}
         }
     }

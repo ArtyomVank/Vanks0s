@@ -53,6 +53,9 @@ pub fn data(window: &Window) -> RefMut<'_, WinData> {
 
 /// app_id и заголовок окна.
 pub fn class_title(window: &Window) -> (String, String) {
+    if let Some(x11) = window.x11_surface() {
+        return (x11.class(), x11.title());
+    }
     let Some(t) = window.toplevel() else { return Default::default() };
     with_states(t.wl_surface(), |states| {
         states
@@ -64,6 +67,15 @@ pub fn class_title(window: &Window) -> (String, String) {
             })
             .unwrap_or_default()
     })
+}
+
+/// Попросить окно закрыться.
+pub fn close(window: &Window) {
+    if let Some(t) = window.toplevel() {
+        t.send_close();
+    } else if let Some(x11) = window.x11_surface() {
+        let _ = x11.close();
+    }
 }
 
 pub fn ws_name(id: i32) -> String {
@@ -322,7 +334,6 @@ impl Shell {
 
     /// Развернуть / во весь экран / обратно. Повтор того же — возврат.
     pub fn set_mode(&mut self, window: &Window, mode: Mode) {
-        let Some(toplevel) = window.toplevel().cloned() else { return };
         let Some(output) = self.output_of(window) else { return };
         let current = data(window).mode;
         let target = if current == mode { Mode::Normal } else { mode };
@@ -338,7 +349,15 @@ impl Shell {
         }
         data(window).mode = target;
 
-        toplevel.with_pending_state(|s| {
+        if let Some(x11) = window.x11_surface() {
+            let _ = x11.set_maximized(target == Mode::Maximized);
+            let _ = x11.set_fullscreen(target == Mode::Fullscreen);
+            if let Some(g) = geo {
+                let _ = x11.configure(g);
+            }
+        }
+        if let Some(toplevel) = window.toplevel() {
+            toplevel.with_pending_state(|s| {
             s.states.unset(xdg_toplevel::State::Maximized);
             s.states.unset(xdg_toplevel::State::Fullscreen);
             match target {
@@ -356,8 +375,9 @@ impl Shell {
                 (_, g) => g.map(|g| g.size),
             };
             s.fullscreen_output = None;
-        });
-        toplevel.send_pending_configure();
+            });
+            toplevel.send_pending_configure();
+        }
         if let Some(g) = geo {
             self.space.map_element(window.clone(), g.loc, true);
         }
@@ -377,6 +397,8 @@ impl Shell {
             if let Some(t) = window.toplevel() {
                 t.with_pending_state(|s| s.size = Some(area.size));
                 t.send_pending_configure();
+            } else if let Some(x11) = window.x11_surface() {
+                let _ = x11.configure(area);
             }
             if self.space.element_location(&window).is_some() {
                 self.space.map_element(window.clone(), area.loc, false);

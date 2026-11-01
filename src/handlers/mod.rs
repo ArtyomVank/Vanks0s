@@ -4,6 +4,9 @@
 mod compositor;
 pub mod layer_shell;
 pub mod xdg_shell;
+mod xwayland;
+
+use std::os::fd::OwnedFd;
 
 use smithay::{
     backend::allocator::dmabuf::Dmabuf,
@@ -29,17 +32,17 @@ use smithay::{
             data_device::{set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler},
             primary_selection::{set_primary_focus, PrimarySelectionHandler, PrimarySelectionState},
             wlr_data_control::{DataControlHandler, DataControlState},
-            SelectionHandler,
+            SelectionHandler, SelectionSource, SelectionTarget,
         },
         xdg_activation::{XdgActivationHandler, XdgActivationState, XdgActivationToken, XdgActivationTokenData},
     },
 };
 
-use crate::Shell;
+use crate::{focus::KeyFocus, Shell};
 
 // --- wl_seat: клавиатура, мышь, касания ---
 impl SeatHandler for Shell {
-    type KeyboardFocus = WlSurface;
+    type KeyboardFocus = KeyFocus;
     type PointerFocus = WlSurface;
     type TouchFocus = WlSurface;
 
@@ -58,14 +61,14 @@ impl SeatHandler for Shell {
     }
 
     // буфер обмена — у программы с фокусом клавиатуры; Delta — какое окно активно
-    fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&WlSurface>) {
+    fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&KeyFocus>) {
         let dh = &self.display_handle;
-        let client = focused.and_then(|s| dh.get_client(s.id()).ok());
+        let client = focused.and_then(KeyFocus::surface).and_then(|s| dh.get_client(s.id()).ok());
         set_data_device_focus(dh, seat, client.clone());
         set_primary_focus(dh, seat, client);
 
         // фокус ушёл на панель Delta — активное окно для неё не меняется
-        let window = focused.and_then(|s| self.window_for_surface(s));
+        let window = focused.and_then(|f| self.window_for_focus(f));
         if focused.is_some() && window.is_none() {
             return;
         }
@@ -89,6 +92,23 @@ delegate_cursor_shape!(Shell);
 // --- буфер обмена и перетаскивание между программами ---
 impl SelectionHandler for Shell {
     type SelectionUserData = ();
+
+    // буфер обмена из Wayland — и окнам X11
+    fn new_selection(&mut self, ty: SelectionTarget, source: Option<SelectionSource>, _seat: Seat<Self>) {
+        if let Some(xwm) = self.xwm.as_mut() {
+            if let Err(e) = xwm.new_selection(ty, source.map(|s| s.mime_types())) {
+                tracing::debug!("буфер обмена для X11: {e}");
+            }
+        }
+    }
+
+    fn send_selection(&mut self, ty: SelectionTarget, mime_type: String, fd: OwnedFd, _seat: Seat<Self>, _user_data: &()) {
+        if let Some(xwm) = self.xwm.as_mut() {
+            if let Err(e) = xwm.send_selection(ty, mime_type, fd, self.loop_handle.clone()) {
+                tracing::debug!("буфер обмена из X11: {e}");
+            }
+        }
+    }
 }
 impl DataDeviceHandler for Shell {
     fn data_device_state(&self) -> &DataDeviceState {

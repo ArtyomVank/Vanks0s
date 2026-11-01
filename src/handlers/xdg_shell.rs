@@ -2,7 +2,10 @@ use std::cell::Cell;
 
 use smithay::{
     delegate_xdg_decoration, delegate_xdg_shell,
-    desktop::{find_popup_root_surface, get_popup_toplevel_coords, layer_map_for_output, PopupKind, Window, WindowSurfaceType},
+    desktop::{
+        find_popup_root_surface, get_popup_toplevel_coords, layer_map_for_output, PopupKeyboardGrab, PopupKind, PopupPointerGrab,
+        PopupUngrabStrategy, Window, WindowSurfaceType,
+    },
     input::{
         pointer::{Focus, GrabStartData as PointerGrabStartData},
         Seat,
@@ -27,6 +30,7 @@ use smithay::{
 };
 
 use crate::{
+    focus::KeyFocus,
     grabs::{MoveSurfaceGrab, ResizeSurfaceGrab},
     Shell,
 };
@@ -59,13 +63,8 @@ impl XdgShellHandler for Shell {
     }
 
     fn title_changed(&mut self, surface: ToplevelSurface) {
-        let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned() else { return };
-        let address = crate::workspaces::data(&window).address;
-        let (class, title) = crate::workspaces::class_title(&window);
-        self.ipc_event("windowtitle", &format!("{address:x}"));
-        self.ipc_event("windowtitlev2", &format!("{address:x},{title}"));
-        if self.focused_window().as_ref() == Some(&window) {
-            self.ipc_event("activewindow", &format!("{class},{title}"));
+        if let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(&surface)).cloned() {
+            self.window_title_changed(&window);
         }
     }
 
@@ -137,8 +136,27 @@ impl XdgShellHandler for Shell {
         seat.get_pointer().unwrap().set_grab(self, grab, serial, Focus::Clear);
     }
 
-    fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {
-        // захват ввода всплывающими меню — в плане (PopupGrab)
+    /// Меню программы забирает ввод: щелчок мимо его закрывает.
+    fn grab(&mut self, surface: PopupSurface, seat: wl_seat::WlSeat, serial: Serial) {
+        let seat = Seat::from_resource(&seat).unwrap();
+        let kind = PopupKind::Xdg(surface);
+        let Ok(root) = find_popup_root_surface(&kind) else { return };
+        let Ok(mut grab) = self.popups.grab_popup(KeyFocus::Surface(root), kind, &seat, serial) else { return };
+        if let Some(keyboard) = seat.get_keyboard() {
+            if keyboard.is_grabbed() && !(keyboard.has_grab(serial) || keyboard.has_grab(grab.previous_serial().unwrap_or(serial))) {
+                grab.ungrab(PopupUngrabStrategy::All);
+                return;
+            }
+            keyboard.set_focus(self, grab.current_grab(), serial);
+            keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
+        }
+        if let Some(pointer) = seat.get_pointer() {
+            if pointer.is_grabbed() && !(pointer.has_grab(serial) || pointer.has_grab(grab.previous_serial().unwrap_or_else(|| grab.serial()))) {
+                grab.ungrab(PopupUngrabStrategy::All);
+                return;
+            }
+            pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
+        }
     }
 }
 delegate_xdg_shell!(Shell);
@@ -159,12 +177,13 @@ fn check_grab(seat: &Seat<Shell>, surface: &WlSurface, serial: Serial) -> Option
 
 /// При каждом кадре: первая настройка окна, место для нового окна, всплывающие меню.
 pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
-    if let Some(window) = shell.window_for_surface(surface) {
+    // у окон X11 всё это делает X-сервер, а место ставит map_window_request
+    if let Some((window, toplevel)) = shell.window_for_surface(surface).and_then(|w| w.toplevel().cloned().map(|t| (w, t))) {
         let initial_configure_sent = with_states(surface, |states| {
             states.data_map.get::<XdgToplevelSurfaceData>().unwrap().lock().unwrap().initial_configure_sent
         });
         if !initial_configure_sent {
-            window.toplevel().unwrap().send_configure();
+            toplevel.send_configure();
         }
 
         let size = window.geometry().size;
@@ -188,14 +207,28 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
 impl Shell {
     /// Программа просит режим (on) или выйти из него (!on); уже так — ничего.
     pub fn toplevel_mode(&mut self, surface: &ToplevelSurface, mode: crate::workspaces::Mode, on: bool) {
-        let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(surface)).cloned() else { return };
-        let current = crate::workspaces::data(&window).mode;
+        if let Some(window) = self.windows.iter().find(|w| w.toplevel() == Some(surface)).cloned() {
+            self.window_mode(&window, mode, on);
+        }
+    }
+
+    pub fn window_mode(&mut self, window: &Window, mode: crate::workspaces::Mode, on: bool) {
+        let current = crate::workspaces::data(window).mode;
         if (current == mode) != on {
-            self.set_mode(&window, mode);
-        } else if !surface.is_initial_configure_sent() {
-            // первая настройка всё равно нужна
-        } else {
-            surface.send_configure();
+            self.set_mode(window, mode);
+        } else if let Some(t) = window.toplevel().filter(|t| t.is_initial_configure_sent()) {
+            // ответ на просьбу нужен, даже если менять нечего
+            t.send_configure();
+        }
+    }
+
+    pub fn window_title_changed(&mut self, window: &Window) {
+        let address = crate::workspaces::data(window).address;
+        let (class, title) = crate::workspaces::class_title(window);
+        self.ipc_event("windowtitle", &format!("{address:x}"));
+        self.ipc_event("windowtitlev2", &format!("{address:x},{title}"));
+        if self.focused_window().as_ref() == Some(window) {
+            self.ipc_event("activewindow", &format!("{class},{title}"));
         }
     }
 

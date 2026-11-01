@@ -88,7 +88,7 @@ impl WlrLayerShellHandler for Shell {
             .seat
             .get_keyboard()
             .and_then(|k| k.current_focus())
-            .is_some_and(|f| &f == surface.wl_surface());
+            .is_some_and(|f| f.is(surface.wl_surface()));
         for output in self.space.outputs().cloned().collect::<Vec<_>>() {
             let mut map = layer_map_for_output(&output);
             let found = map.layers().find(|l| l.layer_surface() == &surface).cloned();
@@ -134,8 +134,8 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
     let state = layer.cached_state();
     if !shell.is_locked() && state.keyboard_interactivity == KeyboardInteractivity::Exclusive && matches!(state.layer, Layer::Top | Layer::Overlay) {
         let keyboard = shell.seat.get_keyboard().unwrap();
-        if keyboard.current_focus().as_ref() != Some(layer.wl_surface()) {
-            keyboard.set_focus(shell, Some(layer.wl_surface().clone()), SERIAL_COUNTER.next_serial());
+        if !keyboard.current_focus().is_some_and(|f| f.is(layer.wl_surface())) {
+            keyboard.set_focus(shell, Some(layer.wl_surface().clone().into()), SERIAL_COUNTER.next_serial());
         }
     }
 

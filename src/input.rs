@@ -12,7 +12,6 @@ use smithay::{
             GestureSwipeUpdateEvent, GrabStartData, MotionEvent, RelativeMotionEvent,
         },
     },
-    reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Logical, Point, SERIAL_COUNTER},
     wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
@@ -212,7 +211,7 @@ impl Shell {
                 if self.is_locked() {
                     if button_state == ButtonState::Pressed {
                         if let Some((surface, _)) = self.lock_surface_under(location) {
-                            keyboard.set_focus(self, Some(surface), serial);
+                            keyboard.set_focus(self, Some(surface.into()), serial);
                         }
                     }
                     pointer.button(self, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
@@ -230,7 +229,7 @@ impl Shell {
                     // щелчок по панели Delta: клавиатура — ей, если она её берёт
                     let (_, _, layer) = top_layer.unwrap();
                     if layer.can_receive_keyboard_focus() {
-                        keyboard.set_focus(self, Some(layer.wl_surface().clone()), serial);
+                        keyboard.set_focus(self, Some(layer.wl_surface().clone().into()), serial);
                     }
                 } else if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
                     if let Some((window, _)) = self.space.element_under(location).map(|(w, l)| (w.clone(), l)) {
@@ -246,7 +245,7 @@ impl Shell {
                         }
                     } else if let Some((_, _, layer)) = bottom_layer().filter(|(_, _, l)| l.can_receive_keyboard_focus()) {
                         // виджеты Delta на столе
-                        keyboard.set_focus(self, Some(layer.wl_surface().clone()), serial);
+                        keyboard.set_focus(self, Some(layer.wl_surface().clone().into()), serial);
                     } else {
                         // щелчок по пустому столу — ни одно окно не активно
                         self.space.elements().for_each(|w| {
@@ -255,7 +254,7 @@ impl Shell {
                                 t.send_pending_configure();
                             }
                         });
-                        keyboard.set_focus(self, Option::<WlSurface>::None, serial);
+                        keyboard.set_focus(self, None, serial);
                     }
                 }
 
@@ -448,8 +447,8 @@ impl Shell {
             }
             Action::Terminal => self.spawn(&config::terminal()),
             Action::CloseWindow => {
-                if let Some(t) = self.focused_window().and_then(|w| w.toplevel().cloned()) {
-                    t.send_close();
+                if let Some(w) = self.focused_window() {
+                    crate::workspaces::close(&w);
                 }
             }
             Action::Quit => self.loop_signal.stop(),

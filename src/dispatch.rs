@@ -136,9 +136,7 @@ impl Shell {
             }
             "window.close" | "window.kill" => {
                 let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
-                if let Some(t) = window.toplevel() {
-                    t.send_close();
-                }
+                crate::workspaces::close(&window);
                 true
             }
             "workspace.toggle_special" => {
@@ -190,16 +188,14 @@ impl Shell {
                 true
             }
             "killactive" => {
-                if let Some(t) = self.focused_window().and_then(|w| w.toplevel().cloned()) {
-                    t.send_close();
+                if let Some(w) = self.focused_window() {
+                    crate::workspaces::close(&w);
                 }
                 true
             }
             "closewindow" => {
                 let Some(window) = self.select_window(arg) else { return false };
-                if let Some(t) = window.toplevel() {
-                    t.send_close();
-                }
+                crate::workspaces::close(&window);
                 true
             }
             "focuswindow" => self.focus_selector(arg),
