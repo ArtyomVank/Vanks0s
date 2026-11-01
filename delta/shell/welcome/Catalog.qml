@@ -8,12 +8,13 @@ import Quickshell.Io
 
 // Что предлагает помощник «Добро пожаловать»: библиотеки, драйверы под
 // видеокарту этого компьютера и приложения. Здесь же — что уже стоит и что
-// отмечено. Пункт: { id, icon, title, text, pkgs, aur?, on, steam? }.
+// отмечено. Пункт: { id, icon, title, text, pkgs, aur?, on, steam?, setting? }.
 //   pkgs  — пакеты Arch (ставит delta-setup install);
 //   aur   — рецепты AUR (только драйвер NVIDIA 580, см. delta-setup);
 //   on    — отмечен по умолчанию;
 //   steam — нужен Vulkan для 32-битных игр (Steam, Wine): к нему добавятся
-//           драйверы Vulkan этой видеокарты, иначе pacman выберет любой.
+//           драйверы Vulkan этой видеокарты, иначе pacman выберет любой;
+//   setting — не пакет, а настройка: переключается сразу, без установки.
 Singleton {
     id: root
 
@@ -34,6 +35,8 @@ Singleton {
 
     // ---------- библиотеки ----------
     readonly property var libs: [
+        { id: "fps", icon: "gauge", title: I18n.tr("Больше кадров в играх"), on: true, setting: "games.tearing",
+          text: I18n.tr("Игра на весь экран показывает кадр сразу, не дожидаясь монитора: больше FPS и меньше задержка. В движении иногда заметны разрывы кадра") },
         { id: "vulkan", icon: "layers", title: "Vulkan", on: true,
           text: I18n.tr("Основа современных игр и DXVK: через него Steam запускает игры для Windows"),
           pkgs: ["vulkan-icd-loader", "lib32-vulkan-icd-loader", "vulkan-tools"] },
@@ -161,11 +164,13 @@ Singleton {
         const n = names(it);
         return n.length > 0 && n.every(p => installed[p] === true);
     }
+    function settingOn(it) { return Settings.get(it.setting, it.on) !== false; }
     function isOn(it) {
-        if (isInstalled(it)) return false;
+        if (it.setting || isInstalled(it)) return false;
         return picked[it.id] !== undefined ? picked[it.id] : it.on;
     }
     function toggle(it) {
+        if (it.setting) { Settings.set(it.setting, !settingOn(it)); return; }
         const p = Object.assign({}, picked);
         p[it.id] = !isOn(it);
         picked = p;

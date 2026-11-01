@@ -227,7 +227,7 @@ FloatingWindow {
                                 Layout.fillWidth: true
                                 Label { text: tabCard.modelData.title; size: "title"; Layout.fillWidth: true }
                                 Label {
-                                    text: tabCard.n > 0 ? "Выбрано: " + tabCard.n : tabCard.modelData.items.every(it => Catalog.isInstalled(it)) ? "Всё на месте" : "Ничего не выбрано"
+                                    text: tabCard.n > 0 ? "Выбрано: " + tabCard.n : tabCard.modelData.items.every(it => it.setting || Catalog.isInstalled(it)) ? "Всё на месте" : "Ничего не выбрано"
                                     tone: 3; size: "small"; Layout.fillWidth: true
                                 }
                             }

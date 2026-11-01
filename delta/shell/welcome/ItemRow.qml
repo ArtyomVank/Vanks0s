@@ -14,7 +14,7 @@ Rectangle {
     property bool busy: false
 
     readonly property bool done: Catalog.isInstalled(item)
-    readonly property bool on: { void Catalog.picked; void Catalog.installed; return Catalog.isOn(item); }
+    readonly property bool on: { void Catalog.picked; void Catalog.installed; return item.setting ? Catalog.settingOn(item) : Catalog.isOn(item); }
 
     implicitHeight: Math.max(72, col.implicitHeight + 28)
     radius: 18

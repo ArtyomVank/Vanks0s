@@ -24,7 +24,7 @@ Singleton {
     property bool ready: false
 
     // Разделы, которые влияют на Hyprland: после записи нужно delta-apply.
-    readonly property var hyprSections: ["monitors", "display", "windows", "input", "appearance"]
+    readonly property var hyprSections: ["monitors", "display", "windows", "input", "appearance", "games"]
     property bool pendingApply: false
 
     function isObject(v) {

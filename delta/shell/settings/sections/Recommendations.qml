@@ -18,7 +18,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Рекомендации")
     property string icon: "gamepad"
-    property string keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс"
+    property string keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс фпс fps кадры cs2 разрывы tearing"
     spacing: 18
 
     // .exe: запомненные «всегда обычно» и «всегда через лаунчер»
@@ -158,6 +158,16 @@ ColumnLayout {
                 subtitle: I18n.tr("Steam, Chromium, Discord и магазин приложений")
                 Btn { text: I18n.tr("Открыть"); onClicked: root.openWelcome("apps") }
             }
+        }
+    }
+
+    Card {
+        title: I18n.tr("Игры")
+        SettingRow {
+            icon: "gauge"
+            title: I18n.tr("Больше кадров в играх")
+            subtitle: I18n.tr("Игра на весь экран показывает кадр сразу, не дожидаясь монитора: больше FPS и меньше задержка. В движении иногда заметны разрывы кадра")
+            Toggle { checked: Settings.get("games.tearing", true) !== false; onToggled: v => Settings.set("games.tearing", v) }
         }
     }
 

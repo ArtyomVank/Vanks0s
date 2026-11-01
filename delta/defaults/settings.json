@@ -159,6 +159,9 @@
   "language": {
     "ui": "ru"
   },
+  "games": {
+    "tearing": true
+  },
   "exe": {
     "enabled": true,
     "deps": true,

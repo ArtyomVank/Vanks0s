@@ -97,6 +97,7 @@ lua=$(jq -r '
   "        gaps_out    = \(.windows.gapsOut | int(14) | clamp(0; 120)),",
   "        border_size = \(.windows.border | int(2) | clamp(0; 10)),",
   "        col = { active_border = \"rgba(\(accent)ee)\" },",
+  "        allow_tearing = \(.games.tearing | bool(true)),",
   "    },",
   "    decoration = {",
   "        rounding = \(.windows.rounding | int(16) | clamp(0; 40)),",

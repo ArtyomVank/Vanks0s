@@ -1045,6 +1045,8 @@ var strings = {
     "Это часть системы — её удалять нельзя": "Teil des Systems — kann nicht entfernt werden",
     "Нужна другим программам": "Wird von anderen Programmen benötigt",
     "Ставить библиотеки для игр": "Bibliotheken für Spiele installieren",
+    "Больше кадров в играх": "Mehr Bilder pro Sekunde in Spielen",
+    "Игра на весь экран показывает кадр сразу, не дожидаясь монитора: больше FPS и меньше задержка. В движении иногда заметны разрывы кадра": "Ein Spiel im Vollbild zeigt jedes Bild sofort, ohne auf den Monitor zu warten: mehr FPS und weniger Verzögerung. In Bewegung kann leichtes Tearing sichtbar sein",
     "Перед первым запуском через лаунчер Delta смотрит, какие DLL нужны игре, и сама ставит Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA — как на Windows": "Vor dem ersten Start über den Launcher prüft Delta, welche DLLs das Spiel braucht, und installiert Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA selbst — wie unter Windows",
     "раздел": "Bereich",
     "Эта настройка сейчас недоступна": "Diese Einstellung ist gerade nicht verfügbar",

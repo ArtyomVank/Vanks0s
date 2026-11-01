@@ -55,6 +55,8 @@ hl.config({
         },
         resize_on_border = true,
         layout = "dwindle",
+        -- для игр, см. раздел «Игры»; выключает «Настройки → Рекомендации»
+        allow_tearing = true,
     },
 
     decoration = {
@@ -169,6 +171,31 @@ hl.layer_rule({
     match = { namespace = "^delta-(window-controls|start)$" },
     blur    = false,
     no_anim = true,
+})
+
+--------------
+---- ИГРЫ ----
+--------------
+
+-- Игра на весь экран показывает кадр сразу, не дожидаясь монитора. Иначе кадры
+-- привязаны к обновлениям экрана: на 200 Гц игра, которая не успевает, теряет
+-- кадры целыми обновлениями, а не понемногу. Обычные окна и видео не затронуты:
+-- так Hyprland работает только с окнами из этих правил и только на весь экран.
+hl.window_rule({
+    name  = "delta-games",
+    match = { class = "^(cs2|dota2|hl2_linux|gamescope|steam_app_.*|.*\\.exe)$" },
+    immediate = true,
+})
+hl.window_rule({
+    name  = "delta-games-content",
+    match = { content = "game" },
+    immediate = true,
+})
+-- CS2 без рамки: всегда настоящий весь экран, иначе останутся и обои, и ожидание монитора
+hl.window_rule({
+    name  = "delta-cs2",
+    match = { class = "^cs2$" },
+    fullscreen_state = "2 2",
 })
 
 ---------------
