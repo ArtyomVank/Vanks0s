@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Vanks Shell — запуск настоящей сессии. Вызывается экраном входа
+# (greetd, Delta) из vanks-shell.desktop или вручную с текстовой консоли.
+#
+# Журнал — в systemd (journalctl -t vanks-shell -b), а если его нет —
+# в ~/.local/state/vanks-shell/session.log (прошлый — session.log.old).
+
+export XDG_CURRENT_DESKTOP=Vanks:Delta
+export XDG_SESSION_DESKTOP=vanks
+export XDG_SESSION_TYPE=wayland
+# графической сессии ещё нет: оболочка сама ведёт видеокарту и ввод
+unset DISPLAY WAYLAND_DISPLAY
+
+if command -v systemd-cat >/dev/null 2>&1 && [ -z "${VANKS_LOG_FILE:-}" ]; then
+    exec > >(exec systemd-cat -t vanks-shell) 2>&1
+else
+    log_dir=${XDG_STATE_HOME:-$HOME/.local/state}/vanks-shell
+    mkdir -p "${log_dir}"
+    [ -f "${log_dir}/session.log" ] && mv -f "${log_dir}/session.log" "${log_dir}/session.log.old"
+    exec >"${log_dir}/session.log" 2>&1
+fi
+
+# своя шина D-Bus на сессию, если её не дал экран входа
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
+    exec dbus-run-session -- vanks-shell --backend tty "$@"
+fi
+exec vanks-shell --backend tty "$@"

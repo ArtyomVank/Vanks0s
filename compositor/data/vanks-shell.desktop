@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Vanks Shell (разработка)
+Comment=Своя оболочка Vanks OS — ранняя версия, только для проверки
+Exec=/usr/local/bin/vanks-shell-session
+Type=Application
+DesktopNames=Vanks
+Keywords=vanks;wayland;

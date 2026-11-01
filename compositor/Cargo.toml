@@ -1,0 +1,52 @@
+[package]
+name = "vanks-shell"
+version = "0.4.0"
+edition = "2021"
+description = "Vanks Shell — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
+publish = false
+
+[dependencies]
+tracing = "0.1"
+bitflags = "2.2"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+# настройки Delta (~/.config/delta/settings.json)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# выход по SIGTERM/SIGINT через цикл событий (та же calloop, что в Smithay)
+calloop = { version = "0.14", features = ["signals"] }
+# сброс маски сигналов у запускаемых программ
+libc = "0.2"
+# протоколы Hyprland (protocols/*.xml) — код генерируется при сборке
+wayland-scanner = "0.31"
+wayland-server = "0.31"
+wayland-backend = "0.3"
+# темы курсора
+xcursor = "0.3"
+# какие мониторы подключены и к каким CRTC их вести (только сканер, без libdisplay-info)
+smithay-drm-extras = { version = "0.1.0", default-features = false }
+
+# Smithay — библиотека для Wayland-композиторов (на ней COSMIC и niri).
+# winit — окно отладки; drm/gbm/egl/udev/libinput/libseat — настоящая сессия.
+[dependencies.smithay]
+version = "0.7.0"
+default-features = false
+features = [
+    "backend_winit",
+    "backend_drm",
+    "backend_gbm",
+    "backend_egl",
+    "backend_udev",
+    "backend_libinput",
+    "backend_session_libseat",
+    "renderer_gl",
+    "wayland_frontend",
+    "desktop",
+    "xwayland",
+]
+
+[profile.dev]
+# композитор в отладке без оптимизаций заметно подтормаживает
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
