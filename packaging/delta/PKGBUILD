@@ -10,6 +10,8 @@
 pkgname=delta
 pkgver=0.6.5
 pkgrel=1
+# название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith)
+_codename=Zenith
 pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
 arch=('any')
 url="https://github.com/ArtyomVank/Vanks0s"
@@ -101,6 +103,10 @@ package() {
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
     # откуда приходят обновления Delta (delta-update); своё значение — /etc/delta/update.conf
     install -Dm644 "${_src}/defaults/update.conf"    "${d}/update.conf"
+    # выпуск Vanks OS для «О системе»: на системах, обновлённых по воздуху,
+    # /etc/os-release остаётся от образа установки (и показывал бы старый)
+    printf '%s\n' "${pkgver%.*} (${_codename})" > "${d}/RELEASE"
+    chmod 644 "${d}/RELEASE"
 
     # оболочка: QML, иконки и прочие ресурсы; отладочные dev-*.qml и заметки не ставим
     # исходники шейдеров (*.vert/*.frag) тоже не нужны — ставятся собранные .qsb

@@ -7,9 +7,15 @@ osr() { sed -n "s/^$1=//p" /etc/os-release 2>/dev/null | head -n1 | sed 's/^"//;
 os_name=$(osr NAME); os_ver=$(osr VERSION); [ -n "${os_ver}" ] || os_ver=$(osr VERSION_ID)
 [ -n "${os_ver}" ] || os_ver=$(osr BUILD_ID)
 pretty=$(osr PRETTY_NAME)
+# Vanks OS обновляется пакетом Delta, а os-release — от образа установки:
+# выпуск («0.6 (Zenith)») берём из пакета
+data=${DELTA_DATA:-/usr/share/delta}
+if [ "$(osr ID)" = vankos ] && [ -s "${data}/RELEASE" ]; then
+    os_ver=$(head -n1 "${data}/RELEASE")
+    pretty="${os_name:-Vanks OS} ${os_ver}"
+fi
 
 # версия Delta: файл пакета, затем pacman, иначе «разработка»
-data=${DELTA_DATA:-/usr/share/delta}
 delta=$(cat "${data}/VERSION" 2>/dev/null || pacman -Q delta 2>/dev/null | awk '{print $2}')
 [ -n "${delta}" ] || delta="0.4 (разработка)"
 
