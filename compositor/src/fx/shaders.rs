@@ -225,7 +225,7 @@ void main() {
 "#;
 
 /// Вершины в координатах монитора через матрицу кадра.
-const QUAD_VERT: &str = r#"#version 100
+pub const QUAD_VERT: &str = r#"#version 100
 attribute vec2 a_pos;
 uniform mat3 proj;
 uniform vec4 rect;
@@ -236,10 +236,6 @@ void main() {
     gl_Position = vec4(p.xy, 0.0, 1.0);
 }
 "#;
-
-pub const fn quad_vert() -> &'static str {
-    QUAD_VERT
-}
 
 /// Размытый фон под окном со скруглёнными углами.
 pub const BACKDROP: &str = concat!(

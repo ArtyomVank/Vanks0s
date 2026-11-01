@@ -29,6 +29,7 @@ mod monitors;
 mod probe;
 mod protocols;
 mod render;
+mod rules;
 mod settings;
 mod state;
 mod workspaces;

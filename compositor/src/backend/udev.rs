@@ -98,6 +98,8 @@ struct Screen {
     connector: connector::Info,
     global: GlobalId,
     drm_output: DrmOutput<Allocator, Exporter, OutputPresentationFeedback, DrmDeviceFd>,
+    /// экран выключен (DPMS): кадры не рисуются
+    off: bool,
     /// кадр отдан монитору, ждём VBlank
     queued: bool,
     /// следующая попытка кадра уже назначена
@@ -372,7 +374,7 @@ impl Shell {
         };
         tracing::info!(name, size = ?wl_mode.size, refresh = wl_mode.refresh, ?loc, "монитор подключён");
 
-        gpu.screens.insert(crtc, Screen { output: output.clone(), connector, global, drm_output, queued: false, timer: None });
+        gpu.screens.insert(crtc, Screen { off: false, output: output.clone(), connector, global, drm_output, queued: false, timer: None });
         self.space.map_output(&output, loc);
         self.output_added(&output);
         layer_map_for_output(&output).arrange();
@@ -533,8 +535,9 @@ impl Shell {
         let result = udev.gpu.as_mut().and_then(|gpu| {
             let screen = gpu.screens.get_mut(&crtc)?;
             let output = screen.output.clone();
-            let drawn = active.then(|| self.draw(&mut gpu.renderer, screen));
-            if active {
+            let shown = active && !screen.off;
+            let drawn = shown.then(|| self.draw(&mut gpu.renderer, screen));
+            if shown {
                 self.run_copies(&mut gpu.renderer, &output);
             }
             Some((output, drawn))
@@ -614,6 +617,26 @@ impl Shell {
             }
             InputEvent::DeviceRemoved { device } => udev.keyboards.retain(|d| d != device),
             _ => {}
+        }
+    }
+
+    /// Выключить или включить экраны (простой, «Выключить экран»).
+    pub fn set_dpms(&mut self, on: bool) {
+        let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()) else { return };
+        let mut wake = Vec::new();
+        for (crtc, screen) in gpu.screens.iter_mut() {
+            if screen.off == !on {
+                continue;
+            }
+            screen.off = !on;
+            if on {
+                wake.push(*crtc);
+            } else if let Err(e) = screen.drm_output.with_compositor(|c| c.clear()) {
+                tracing::warn!("экран не выключился: {e:?}");
+            }
+        }
+        for crtc in wake {
+            self.schedule_render(crtc, Duration::ZERO);
         }
     }
 

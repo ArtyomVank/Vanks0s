@@ -94,10 +94,10 @@ impl Programs {
                 Ok::<_, String>((
                     Raw::new(gl, shaders::PASS_VERT, shaders::BLUR_DOWN, &pass)?,
                     Raw::new(gl, shaders::PASS_VERT, shaders::BLUR_UP, &pass)?,
-                    Raw::new(gl, shaders::quad_vert(), shaders::BACKDROP, &list(&["proj", "rect", "radius", "saturation", "alpha"]))?,
+                    Raw::new(gl, shaders::QUAD_VERT, shaders::BACKDROP, &list(&["proj", "rect", "radius", "saturation", "alpha"]))?,
                     Raw::new(
                         gl,
-                        shaders::quad_vert(),
+                        shaders::QUAD_VERT,
                         shaders::REVEAL,
                         &list(&[
                             "proj", "rect", "tex", "blur_on", "content", "shape_c", "win", "win_radius", "shape_r", "ball",

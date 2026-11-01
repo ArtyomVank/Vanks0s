@@ -184,6 +184,10 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
             states.data_map.get::<XdgToplevelSurfaceData>().unwrap().lock().unwrap().initial_configure_sent
         });
         if !initial_configure_sent {
+            // окна Delta открываются своего размера (как правила для Hyprland)
+            if let Some((w, h)) = crate::rules::for_class(&crate::workspaces::class_title(&window).0).size {
+                toplevel.with_pending_state(|s| s.size = Some((w, h).into()));
+            }
             toplevel.send_configure();
         }
 
@@ -194,6 +198,9 @@ pub fn handle_commit(shell: &mut Shell, surface: &WlSurface) {
             crate::workspaces::data(&window).fx.opening = true;
             let loc = shell.initial_position((size.w, size.h));
             shell.space.map_element(window.clone(), loc, false);
+            if crate::rules::for_class(&crate::workspaces::class_title(&window).0).fullscreen {
+                shell.set_mode(&window, crate::workspaces::Mode::Fullscreen);
+            }
         }
     }
 

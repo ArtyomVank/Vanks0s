@@ -129,7 +129,7 @@ impl XwmHandler for Shell {
         self.space.map_element(window.clone(), loc, true);
         self.focus_window(&window, SERIAL_COUNTER.next_serial());
         // игра могла попросить весь экран ещё до показа
-        if surface.is_fullscreen() {
+        if surface.is_fullscreen() || crate::rules::for_class(&surface.class()).fullscreen {
             self.set_mode(&window, Mode::Fullscreen);
         } else if surface.is_maximized() {
             self.set_mode(&window, Mode::Maximized);

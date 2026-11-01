@@ -195,6 +195,11 @@ impl Shell {
             }
             // окна и так плавающие, а тащит их сам захват мыши
             "window.float" | "window.drag" | "layout" => true,
+            "dpms" => {
+                let action = a.get("action").or(a.positional.first().map(String::as_str)).unwrap_or("toggle");
+                self.set_dpms(action != "off");
+                true
+            }
             _ => false,
         }
     }
@@ -271,7 +276,11 @@ impl Shell {
                 }
                 true
             }
-            "togglefloating" | "setprop" | "movefocus" | "layoutmsg" | "dpms" => true,
+            "togglefloating" | "setprop" | "movefocus" | "layoutmsg" => true,
+            "dpms" => {
+                self.set_dpms(!arg.trim().starts_with("off"));
+                true
+            }
             _ => false,
         }
     }
