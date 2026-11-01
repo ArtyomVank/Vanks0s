@@ -181,6 +181,12 @@ ColumnLayout {
                 Toggle { checked: Settings.get("exe.enabled", true) !== false; onToggled: v => Settings.set("exe.enabled", v) }
             }
             SettingRow {
+                icon: "download"
+                title: I18n.tr("Ставить библиотеки для игр")
+                subtitle: I18n.tr("Перед первым запуском через лаунчер Delta смотрит, какие DLL нужны игре, и сама ставит Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA — как на Windows")
+                Toggle { checked: Settings.get("exe.deps", true) !== false; onToggled: v => Settings.set("exe.deps", v) }
+            }
+            SettingRow {
                 icon: "file"
                 title: I18n.tr("Всегда открывать обычно")
                 subtitle: root.excluded.length ? I18n.tr("Эти программы открываются без вопроса, через Wine системы") : I18n.tr("Пока пусто — добавьте имя файла, например setup.exe")

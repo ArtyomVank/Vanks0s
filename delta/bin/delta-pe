@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""Delta — что нужно программе Windows, чтобы запуститься «как на Windows».
+
+    delta-pe deps <exe> [--root <папка игры>] [--have <папка с dll>]…
+
+Смотрит exe и все .exe/.dll в папке игры (до 6 уровней):
+  - таблицы импорта (обычная и отложенная): какие DLL они просят;
+  - имена DLL в самих файлах: многие игры грузят d3dx9, XAudio, PhysX
+    и рантаймы Visual C++ по имени (LoadLibrary), в импорте их нет;
+  - .NET: версия среды и XNA;
+  - папки с распространяемыми пакетами (_CommonRedist, Redist, DirectX…):
+    что разработчик сам просит поставить.
+Ответ — JSON: пакеты winetricks (verbs) с причинами, разрядность exe и
+DLL, которых нет ни у игры, ни среди --have (встроенные Wine/Proton), —
+их стоит искать, если программа не запускается. DLL, которые игра принесла
+с собой, не просим: она грузит свои.
+"""
+
+import json
+import mmap
+import os
+import re
+import struct
+import sys
+
+MAX_FILES = 400
+MAX_SCAN = 256 << 20          # строки ищем в файлах до 256 МБ
+SKIP_DIRS = {"__macosx", "$recycle.bin", "shadercache", "logs", "saves", "screenshots"}
+
+# DLL → пакет winetricks. Разрядность для xact решается по exe.
+RULES = [
+    (r"(msvcp140|vcruntime140|concrt140|vcomp140|vccorlib140|mfc140|mfcm140)(_\w+)?", "vcrun2022"),
+    (r"(msvcp120|msvcr120|vcomp120|mfc120|mfcm120)(_\w+)?", "vcrun2013"),
+    (r"(msvcp110|msvcr110|vcomp110|mfc110|mfcm110)(_\w+)?", "vcrun2012"),
+    (r"(msvcp100|msvcr100|vcomp100|mfc100|mfcm100)(_\w+)?", "vcrun2010"),
+    (r"(msvcp90|msvcr90|vcomp90|mfc90|mfcm90)", "vcrun2008"),
+    (r"(msvcp80|msvcr80|vcomp|mfc80|mfcm80)", "vcrun2005"),
+    (r"(msvcp71|msvcr71|mfc71)", "vcrun2003"),
+    (r"mfc42u?", "mfc42"),
+    (r"msvbvm60", "vb6run"),
+    (r"d3dx9_\d+", "d3dx9"),
+    (r"d3dx10(_\d+)?", "d3dx10_43"),
+    (r"d3dx11_\d+", "d3dx11_43"),
+    (r"d3dcompiler_4[0-3]|d3dx9_4[0-3]_shader", "d3dcompiler_43"),
+    (r"d3dcompiler_4[67]", "d3dcompiler_47"),
+    (r"xaudio2_[0-7]|x3daudio1_\d|xapofx1_\d|xactengine\d_\d", "xact"),
+    (r"physxloader|physxcore|physxcooking|physx3\w*|physxdevice\w*|nxcooking", "physx"),
+    (r"openal32|wrap_oal", "openal"),
+    (r"msxml3", "msxml3"),
+    (r"msxml6", "msxml6"),
+    (r"riched20", "riched20"),
+]
+RULES = [(re.compile(r"^(?:%s)$" % p), v) for p, v in RULES]
+# Имена DLL прямо в файле (LoadLibrary): ищем только то, чего у Wine/Proton
+# нет своего, — PhysX, OpenAL, рантаймы Visual C++. Свои d3dx9, XAudio,
+# d3dcompiler у Wine есть, а строки с ними часто лишь запасной путь
+# (Unreal Engine упоминает xaudio2_7 для Windows 7), — их берём только из
+# таблицы импорта. Быстро: ищем «.dll» простым поиском, имя перед ним —
+# коротким выражением (выражение без учёта регистра по всему файлу на
+# сотнях мегабайт шло минутами).
+NAMED_TAIL = re.compile(rb"(?:^|[^a-z0-9_])(physxloader|physx3\w{0,24}|msvcp1[0-4]0|vcruntime140|msvcr1[0-2]0|openal32)$", re.I)
+DOTS = [b".dll", b".DLL", b".Dll"]
+DOTS_W = [d.decode().encode("utf-16-le") for d in DOTS]
+CORE = {
+    "kernel32", "kernelbase", "ntdll", "user32", "gdi32", "advapi32", "shell32", "ole32", "oleaut32",
+    "comctl32", "comdlg32", "ws2_32", "winmm", "version", "shlwapi", "imm32", "setupapi", "crypt32",
+    "bcrypt", "secur32", "wininet", "winhttp", "dbghelp", "psapi", "iphlpapi", "rpcrt4", "uxtheme",
+    "dwmapi", "dinput8", "dinput", "xinput1_3", "xinput1_4", "xinput9_1_0", "dsound", "d3d9", "d3d11",
+    "d3d12", "dxgi", "d3d10", "d3d10_1", "d3d8", "ddraw", "opengl32", "glu32", "msvcrt", "ucrtbase",
+    "hid", "mf", "mfplat", "mfreadwrite", "mfuuid", "propsys", "powrprof", "wtsapi32", "userenv",
+    "normaliz", "netapi32", "mpr", "winspool", "msimg32", "usp10", "gdiplus", "wintrust", "cfgmgr32",
+}
+
+
+def pe_info(path):
+    """импорт (обычный и отложенный), разрядность, .NET — или None"""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4096)
+            if len(head) < 0x40 or head[:2] != b"MZ":
+                return None
+            f.seek(0, 2)
+            size = f.tell()
+            if size == 0:
+                return None
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    except (OSError, ValueError):
+        return None
+    try:
+        return _parse(mm)
+    except (struct.error, IndexError, ValueError):
+        return None
+    finally:
+        mm.close()
+
+
+def _parse(mm):
+    pe = struct.unpack_from("<I", mm, 0x3C)[0]
+    if mm[pe:pe + 4] != b"PE\0\0":
+        return None
+    nsec, = struct.unpack_from("<H", mm, pe + 6)
+    optsize, = struct.unpack_from("<H", mm, pe + 20)
+    opt = pe + 24
+    magic, = struct.unpack_from("<H", mm, opt)
+    is64 = magic == 0x20B
+    image_base = struct.unpack_from("<Q" if is64 else "<I", mm, opt + (24 if is64 else 28))[0]
+    nd_off = opt + (108 if is64 else 92)
+    ndirs, = struct.unpack_from("<I", mm, nd_off)
+    dirs = [struct.unpack_from("<II", mm, nd_off + 4 + 8 * i) for i in range(min(ndirs, 16))]
+    secs = []
+    so = opt + optsize
+    for i in range(nsec):
+        va_size, va, raw_size, raw = struct.unpack_from("<IIII", mm, so + 40 * i + 8)
+        secs.append((va, max(va_size, raw_size), raw))
+
+    def off(rva):
+        for va, sz, raw in secs:
+            if va <= rva < va + sz:
+                return rva - va + raw
+        return None
+
+    def cstr(rva, limit=256):
+        o = off(rva)
+        if o is None:
+            return ""
+        end = mm.find(b"\0", o, o + limit)
+        return mm[o:end if end != -1 else o + limit].decode("latin-1")
+
+    names = []
+    if len(dirs) > 1 and dirs[1][0]:
+        o = off(dirs[1][0])
+        while o is not None and len(names) < 512:
+            d = struct.unpack_from("<IIIII", mm, o)
+            if not any(d):
+                break
+            names.append(cstr(d[3]))
+            o += 20
+    if len(dirs) > 13 and dirs[13][0]:
+        o = off(dirs[13][0])
+        n = 0
+        while o is not None and n < 256:
+            attrs, name_rva = struct.unpack_from("<II", mm, o)
+            if not attrs and not name_rva:
+                break
+            # старый формат хранит адреса, а не RVA
+            names.append(cstr(name_rva if attrs & 1 else name_rva - image_base))
+            o += 32
+            n += 1
+    net = ""
+    if len(dirs) > 14 and dirs[14][0]:
+        o = off(dirs[14][0])
+        if o is not None:
+            md_rva, = struct.unpack_from("<I", mm, o + 8)
+            mo = off(md_rva)
+            if mo is not None and struct.unpack_from("<I", mm, mo)[0] == 0x424A5342:
+                ln, = struct.unpack_from("<I", mm, mo + 12)
+                net = mm[mo + 16:mo + 16 + min(ln, 32)].split(b"\0")[0].decode("latin-1") or "?"
+            else:
+                net = "?"
+    names = [n.lower().rsplit(".", 1)[0] for n in names if n]
+    return {"imports": names, "x64": is64, "net": net}
+
+
+def named_dlls(path):
+    """имена DLL, которые файл упоминает строками (грузит по имени)"""
+    out = set()
+    try:
+        if os.path.getsize(path) > MAX_SCAN:
+            return out
+        with open(path, "rb") as f:
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    except (OSError, ValueError):
+        return out
+    try:
+        for dot in DOTS:
+            i = mm.find(dot)
+            while i != -1:
+                m = NAMED_TAIL.search(mm[max(0, i - 40):i])
+                if m:
+                    out.add(m.group(1).decode("latin-1").lower())
+                i = mm.find(dot, i + 4)
+        for dot in DOTS_W:
+            i = mm.find(dot)
+            while i != -1:
+                raw = mm[max(0, i - 80):i]
+                if len(raw) % 2:
+                    raw = raw[1:]
+                m = NAMED_TAIL.search(raw.decode("utf-16-le", "replace").encode("latin-1", "replace"))
+                if m:
+                    out.add(m.group(1).decode("latin-1").lower())
+                i = mm.find(dot, i + 8)
+        if mm.find(b"Microsoft.Xna.Framework") != -1:
+            out.add("@xna")
+    finally:
+        mm.close()
+    return out
+
+
+def walk(root):
+    files = []
+    root_depth = root.rstrip(os.sep).count(os.sep)
+    for d, subdirs, names in os.walk(root):
+        if d.count(os.sep) - root_depth >= 6:
+            subdirs[:] = []
+        subdirs[:] = [s for s in subdirs if s.lower() not in SKIP_DIRS]
+        for n in names:
+            files.append(os.path.join(d, n))
+        if len(files) > 20000:
+            break
+    return files
+
+
+def redist(files, root):
+    """что просит поставить сам разработчик: папки распространяемых пакетов"""
+    want = {}
+
+    def add(v, why):
+        want.setdefault(v, set()).add(why)
+    for p in files:
+        rel = os.path.relpath(p, root).replace(os.sep, "/").lower()
+        n = rel.rsplit("/", 1)[-1]
+        if not re.search(r"(^|/)(_commonredist|redist|redistributables?|directx|dx9|vcredist|support|prerequisites?|_installer)(/|$)", rel) \
+                and not n.startswith(("vcredist", "vc_redist", "dxsetup", "dotnetfx", "ndp4", "physx", "xnafx", "oalinst")):
+            continue
+        year = re.search(r"(20\d\d)", rel)
+        if n.startswith(("vc_redist", "vcredist")) or "/vcredist/" in rel or "/vc20" in rel:
+            y = year.group(1) if year else ""
+            v = {"2005": "vcrun2005", "2008": "vcrun2008", "2010": "vcrun2010", "2012": "vcrun2012",
+                 "2013": "vcrun2013"}.get(y, "vcrun2022")
+            if n.endswith((".exe", ".msi")):
+                add(v, rel)
+        elif n == "dxsetup.exe":
+            for v in ("d3dx9", "d3dcompiler_43", "xact"):
+                add(v, rel)
+        elif n.startswith("physx") and n.endswith((".exe", ".msi")):
+            add("physx", rel)
+        elif n.startswith("xnafx") and n.endswith(".msi"):
+            add("xna40" if "40" in n else "xna31", rel)
+        elif n.startswith("oalinst") and n.endswith(".exe"):
+            add("openal", rel)
+        elif n.startswith(("dotnetfx", "ndp4")) and n.endswith(".exe"):
+            m = re.search(r"ndp(4\d+)|dotnetfx(\d+)", n)
+            ver = (m.group(1) or m.group(2)) if m else "40"
+            add({"35": "dotnet35", "40": "dotnet40", "45": "dotnet45", "452": "dotnet452", "46": "dotnet46",
+                 "461": "dotnet461", "462": "dotnet462", "47": "dotnet471", "471": "dotnet471",
+                 "472": "dotnet472", "48": "dotnet48"}.get(ver, "dotnet40"), rel)
+    return want
+
+
+def deps(exe, root, have_dirs):
+    exe = os.path.abspath(exe)
+    root = os.path.abspath(root or os.path.dirname(exe))
+    files = walk(root) if os.path.isdir(root) else []
+    local = {os.path.basename(p).lower().rsplit(".", 1)[0] for p in files if p.lower().endswith(".dll")}
+    have = set()
+    for d in have_dirs:
+        try:
+            have |= {n.lower().rsplit(".", 1)[0] for n in os.listdir(d) if n.lower().endswith((".dll", ".drv", ".sys"))}
+        except OSError:
+            pass
+    bins = [exe] + [p for p in files if p.lower().endswith((".exe", ".dll")) and os.path.abspath(p) != exe]
+    bins = bins[:MAX_FILES]
+
+    main = pe_info(exe) or {"imports": [], "x64": True, "net": ""}
+    wanted, named, nets = set(), set(), set()
+    for i, p in enumerate(bins):
+        info = main if i == 0 else pe_info(p)
+        if not info:
+            continue
+        wanted |= set(info["imports"])
+        if info["net"]:
+            nets.add(info["net"])
+        # строки — в exe и в своих DLL игры (не в чужих рантаймах, которые
+        # она принесла: там их же имена)
+        n = os.path.basename(p).lower()
+        if i == 0 or not re.match(r"(msvc|vcruntime|concrt|mfc|d3dx|d3dcompiler|xaudio|x3daudio|physx|openal|api-ms-)", n):
+            named |= named_dlls(p)
+
+    verbs = {}
+
+    def add(v, why):
+        verbs.setdefault(v, set()).add(why)
+    for dll in sorted(wanted | named):
+        if dll.startswith("@"):
+            continue
+        if dll in local:
+            continue   # игра принесла свою
+        for rx, v in RULES:
+            if rx.match(dll):
+                if v == "xact" and main["x64"]:
+                    v = "xact_x64"
+                add(v, dll + ".dll")
+                break
+    if "@xna" in named and not any(n.startswith("microsoft.xna.framework") for n in local):
+        add("xna40", "Microsoft.Xna.Framework")
+    for v, why in redist(files, root).items():
+        if v == "xact" and main["x64"]:
+            v = "xact_x64"
+        for w in why:
+            add(v, w)
+
+    missing = []
+    if have:
+        for dll in sorted(wanted):
+            if dll in local or dll in have or dll in CORE or dll.startswith(("api-ms-", "ext-ms-")):
+                continue
+            if any(rx.match(dll) for rx, _ in RULES):
+                continue
+            missing.append(dll + ".dll")
+    return {
+        "exe": exe,
+        "root": root,
+        "x64": main["x64"],
+        "net": main["net"] or (sorted(nets)[0] if nets else ""),
+        "scanned": len(bins),
+        "verbs": sorted(verbs),
+        "why": {v: sorted(w)[:6] for v, w in sorted(verbs.items())},
+        "missing": missing[:40],
+    }
+
+
+def main(argv):
+    if len(argv) < 3 or argv[1] != "deps":
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    exe, root, have = argv[2], None, []
+    i = 3
+    while i < len(argv):
+        if argv[i] == "--root" and i + 1 < len(argv):
+            root = argv[i + 1]
+            i += 2
+        elif argv[i] == "--have" and i + 1 < len(argv):
+            have.append(argv[i + 1])
+            i += 2
+        else:
+            print("неизвестный ключ: " + argv[i], file=sys.stderr)
+            return 2
+    if not os.path.isfile(exe):
+        print("нет файла: " + exe, file=sys.stderr)
+        return 1
+    json.dump(deps(exe, root, have), sys.stdout, ensure_ascii=False)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

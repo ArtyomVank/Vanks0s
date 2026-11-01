@@ -1054,5 +1054,7 @@ var strings = {
     "Неизвестно, откуда это приложение": "Unknown where this app came from",
     "Это часть системы — её удалять нельзя": "It's part of the system — it can't be removed",
     "Нужна другим программам": "Needed by other programs",
+    "Ставить библиотеки для игр": "Install libraries for games",
+    "Перед первым запуском через лаунчер Delta смотрит, какие DLL нужны игре, и сама ставит Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA — как на Windows": "Before the first launch through the launcher Delta checks which DLLs the game needs and installs Visual C++, DirectX, XAudio, PhysX, OpenAL, XNA itself — like on Windows",
     "": ""
 };

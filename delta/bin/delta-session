@@ -56,6 +56,15 @@ if [ ! -e "${EXE_MARK}" ] && command -v xdg-mime >/dev/null; then
     esac
     : > "${EXE_MARK}"
 fi
+# ярлыки .lnk, .bat/.cmd и .reg — тоже им, как двойной щелчок в Windows (с 0.7)
+EXE_MARK2=${STATE}/exe-mime2
+if [ ! -e "${EXE_MARK2}" ] && command -v xdg-mime >/dev/null; then
+    for t in application/x-ms-shortcut application/x-bat text/x-msdos-batch text/x-ms-regedit; do
+        cur=$(xdg-mime query default "${t}" 2>/dev/null)
+        case "${cur}" in ""|wine.desktop|wine-*.desktop) xdg-mime default delta-exe.desktop "${t}" 2>/dev/null ;; esac
+    done
+    : > "${EXE_MARK2}"
+fi
 
 # В файле пользователя — только его изменения: значения по умолчанию
 # подмешивают Settings и delta-apply, поэтому новые умолчания доходят

@@ -50,6 +50,10 @@ depends=(
     # программы Windows (delta-exe): ссылки из них — в браузер системы
     # (xdg-open), значки установленных программ — из .exe (icoutils)
     'xdg-utils' 'icoutils'
+    # библиотеки для игр (delta-pe смотрит DLL, winetricks ставит): архивы
+    # Microsoft — cab и zip; сам winetricks — из Proton или скачивается
+    # (пакет winetricks тянет за собой Wine)
+    'cabextract' 'unzip'
     # игры: библиотеки Steam и Epic Games (delta-games; legendary для Epic
     # ставится в свой venv при первом входе)
     'python'
@@ -87,6 +91,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-welcome"   "${pkgdir}/usr/bin/delta-welcome"
     install -Dm755 "${_src}/bin/delta-setup"     "${pkgdir}/usr/bin/delta-setup"
     install -Dm755 "${_src}/bin/delta-exe"       "${pkgdir}/usr/bin/delta-exe"
+    install -Dm755 "${_src}/bin/delta-pe"        "${pkgdir}/usr/bin/delta-pe"
     install -Dm755 "${_src}/bin/delta-open-url"  "${pkgdir}/usr/bin/delta-open-url"
     install -Dm755 "${_src}/bin/delta-games"     "${pkgdir}/usr/bin/delta-games"
     install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"

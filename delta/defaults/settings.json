@@ -161,6 +161,7 @@
   },
   "exe": {
     "enabled": true,
+    "deps": true,
     "always": {},
     "excluded": []
   }

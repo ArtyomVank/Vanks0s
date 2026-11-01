@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Delta — запуск программ Windows (.exe, .msi).
+# Delta — запуск программ Windows (.exe, .msi, а ещё .bat/.cmd, .reg, .lnk —
+# как двойной щелчок в Windows).
 #
 #   delta-exe <файл>                        открыть: спросить, как (окно выбора)
 #   delta-exe --run normal <файл>           обычно — через Wine системы
@@ -23,6 +24,8 @@
 #                                           C:, ярлыки, а если система Windows
 #                                           была только её — и систему
 #   delta-exe --tidy                        убрать ярлыки удалённых программ
+#   delta-exe --deps <файл>                 какие библиотеки нужны игре (JSON
+#                                           delta-pe и что уже стоит в префиксе)
 #   delta-exe --proton         путь к самому свежему Proton CachyOS (для delta-games)
 #
 # Игре с steam_api*.dll нужен Steam. Игра из библиотеки Steam запускается
@@ -167,7 +170,8 @@ run_normal() {
     command -v wine >/dev/null || { say "Нет Wine" "Поставьте его: «Настройки» → «Рекомендации» → «Библиотеки»"; exit 1; }
     remember "$1" "${DATA}/normal"
     cd -- "$(dirname -- "$1")" || true
-    exec wine "$1"
+    open_args "$1"
+    exec wine "${ARGS[@]}"
 }
 
 # --- Steam для Linux ---
@@ -296,13 +300,28 @@ local_dlls() {
     printf '%s=n,b' "${names[*]}"
 }
 
+# путь Linux для программы Windows: Z:\home\…
+win_path() { local p=${1//\//\\}; printf 'Z:%s\n' "${p}"; }
+# Не всё, что открывается в Windows двойным щелчком, — программа: .msi
+# открывает msiexec, .bat/.cmd — cmd, .reg — regedit (путь — на диске Z:,
+# им Wine видит всю файловую систему), ярлык .lnk — start. Команда — в ARGS.
+ARGS=()
+open_args() {
+    ARGS=("$1")
+    case "${1,,}" in
+        *.msi) ARGS=(msiexec /i "$1") ;;
+        *.bat|*.cmd) ARGS=(cmd /c "$(win_path "$1")") ;;
+        *.reg) ARGS=(regedit "$(win_path "$1")") ;;
+        *.lnk) ARGS=(start /unix /wait "$1") ;;
+    esac
+}
+
 CMD=()
 prepare() {
     local runner=$1 file=$2 prefix=$3 how=${4:-} proton="" steam="" id="" args ov dlls=()
     mkdir -p "${prefix}"
-    # .msi сам не запускается — его открывает msiexec
-    args=("${file}")
-    [[ ${file,,} == *.msi ]] && args=(msiexec /i "${file}")
+    open_args "${file}"
+    args=("${ARGS[@]}")
     # Chrome и Steam для Windows: их песочница под Wine не запускается
     [[ ${file,,} == */chrome.exe ]] && args+=(--no-sandbox)
     [[ ${file,,} == */steam.exe ]] && args+=(-no-cef-sandbox)
@@ -436,10 +455,106 @@ run_in_wine_prefix() {
     command -v wine >/dev/null || { say "Нет Wine" "Программа поставлена через Wine — поставьте его: «Настройки» → «Рекомендации» → «Библиотеки»"; exit 1; }
     remember "$2" "${DATA}/normal"
     cd -- "$(dirname -- "$2")" || true
-    exec env "WINEPREFIX=$1" wine "$2"
+    open_args "$2"
+    exec env "WINEPREFIX=$1" wine "${ARGS[@]}"
 }
 # имя префикса и ярлыка: латиница, цифры, . _ - (кириллица и пробелы — в «-»)
 slug() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9._-' '-' | sed 's/^-*//; s/-*$//' | cut -c1-48; }
+
+# --- библиотеки для игр ---
+# Как Steam ставит игре её _CommonRedist: delta-pe смотрит exe и DLL игры
+# (таблицы импорта, DLL, которые она грузит по имени, папки с
+# распространяемыми пакетами) и называет пакеты winetricks — рантаймы
+# Visual C++, d3dx9, XAudio, PhysX, OpenAL, XNA… То, что игра принесла с
+# собой, не ставится. Пакеты ставятся в префикс один раз (.delta-deps),
+# скачанное остаётся в кэше winetricks (~/.cache/winetricks) для других
+# игр. Пакет не встал — помечается «!пакет» и больше не пробуется: игра
+# всё равно запускается. DLL, которых нет ни у игры, ни у Wine, — в журнал.
+# Выключается в «Настройки» → «Рекомендации» (exe.deps).
+WT_VERSION=20260125
+WT_SHA256=431f82fc74000e6c864409f1d8fb495d696c03928808e3e8acffc45179312a7b
+# winetricks: системный, из Proton (protonfixes) или официальный скрипт
+# закреплённой версии со сверкой sha256 (пакет winetricks тянет за собой Wine)
+winetricks_bin() {
+    local w
+    command -v winetricks && return 0
+    for w in "${1:-}/protonfixes/winetricks" "${1:-}/files/protonfixes/winetricks"; do
+        [ -n "${1:-}" ] && [ -x "${w}" ] && { echo "${w}"; return 0; }
+    done
+    w=${DATA}/winetricks-${WT_VERSION}
+    if [ ! -x "${w}" ]; then
+        mkdir -p "${DATA}"
+        curl -fsSL --max-time 120 -o "${w}.part" \
+            "https://raw.githubusercontent.com/Winetricks/winetricks/${WT_VERSION}/src/winetricks" 2>/dev/null &&
+            [ "$(sha256sum <"${w}.part" | cut -d' ' -f1)" = "${WT_SHA256}" ] &&
+            chmod +x "${w}.part" && mv -f -- "${w}.part" "${w}"
+        rm -f -- "${w}.part"
+    fi
+    [ -x "${w}" ] && echo "${w}"
+}
+proton_wine() {
+    local b
+    for b in "$1/files/bin/wine" "$1/dist/bin/wine"; do
+        [ -x "${b}" ] && { echo "${b}"; return 0; }
+    done
+    return 1
+}
+# встроенные DLL Wine — чтобы отличить «нет нигде» от «есть у Wine»
+wine_dll_dirs() {
+    local base d
+    if [ -n "${1:-}" ]; then base=("$1/files/lib/wine" "$1/files/lib64/wine" "$1/dist/lib/wine" "$1/dist/lib64/wine")
+    else base=(/usr/lib/wine /usr/lib32/wine); fi
+    for d in "${base[@]}"; do
+        [ -d "${d}" ] || continue
+        printf '%s\n' "${d}/x86_64-windows" "${d}/i386-windows"
+    done
+}
+# $1 раннер, $2 файл, $3 префикс
+game_deps() {
+    local runner=$1 file=$2 prefix=$3 proton="" info verbs=() v todo=() done_f=$3/.delta-deps wt wine ws have=() d code
+    [ "$(setting '.exe.deps' true)" = false ] && return 0
+    [[ ${file} == /* ]] && [[ ${file,,} == *.exe ]] || return 0
+    command -v delta-pe >/dev/null || return 0
+    case "${runner}" in
+        wine) ;;
+        proton:*) proton=${runner#proton:} ;;
+        *) proton=$(latest_proton) ;;
+    esac
+    while IFS= read -r d; do have+=(--have "${d}"); done < <(wine_dll_dirs "${proton}")
+    info=$(delta-pe deps "${file}" --root "$(game_root "${file}")" "${have[@]}" 2>/dev/null) || return 0
+    mapfile -t verbs < <(jq -r '.verbs[]' <<<"${info}")
+    for v in "${verbs[@]}"; do
+        grep -qxF -e "${v}" -e "!${v}" "${done_f}" 2>/dev/null || todo+=("${v}")
+    done
+    mkdir -p "${STATE}"
+    if [ "$(jq '.missing | length' <<<"${info}")" -gt 0 ]; then
+        printf '=== %s  нет ни у игры, ни у Wine: %s\n' "$(date '+%F %T')" "$(jq -r '.missing | join(" ")' <<<"${info}")" >>"${LOG}"
+    fi
+    [ "${#todo[@]}" -gt 0 ] || return 0
+    printf '\n=== %s  библиотеки для %s: %s (%s)\n' "$(date '+%F %T')" "$(basename -- "${file}")" "${todo[*]}" \
+        "$(jq -r '[.why | to_entries[] | "\(.key): \(.value | join(", "))"] | join("; ")' <<<"${info}")" >>"${LOG}"
+    if [ "${DELTA_DRY_RUN:-0}" = 1 ]; then
+        printf '=== (проверка) winetricks -q %s\n' "${todo[*]}" >>"${LOG}"
+        return 0
+    fi
+    command -v cabextract >/dev/null || { say "Нужен cabextract" "Без него библиотеки для игры не поставить: sudo pacman -S cabextract"; return 0; }
+    wt=$(winetricks_bin "${proton}") || { say "Библиотеки не поставлены" "Не удалось получить winetricks — игра запустится без них"; return 0; }
+    if [ -n "${proton}" ]; then
+        wine=$(proton_wine "${proton}") && ws=$(proton_wineserver "${proton}") || return 0
+    else
+        wine=$(command -v wine) && ws=$(command -v wineserver) || return 0
+    fi
+    say "Первый запуск: ставлю библиотеки" "$(basename -- "$(game_root "${file}")"): ${todo[*]} — это один раз, займёт несколько минут"
+    for v in "${todo[@]}"; do
+        env WINEPREFIX="$(prefix_dir "${prefix}")" WINE="${wine}" WINESERVER="${ws}" WINEDEBUG=-all \
+            WINETRICKS_LATEST_VERSION_CHECK=disabled "${wt}" -q --unattended "${v}" >>"${LOG}" 2>&1
+        code=$?
+        if [ "${code}" = 0 ]; then printf '%s\n' "${v}" >>"${done_f}"; else printf '!%s\n' "${v}" >>"${done_f}"; fi
+        printf '=== winetricks %s: код %s\n' "${v}" "${code}" >>"${LOG}"
+    done
+    WINEPREFIX=$(prefix_dir "${prefix}") "${ws}" -w >/dev/null 2>&1
+    trim_log
+}
 
 run_launcher() {
     local runner=$1 file=$2 name=${3:-} prefix root id
@@ -467,6 +582,7 @@ run_launcher() {
     remember "${file}" "${prefix}/.delta-exe"
     cd -- "$(dirname -- "${file}")" || true
     [ "${runner}" = wine ] || browser_links "${runner}" "${prefix}"
+    game_deps "${runner}" "${file}" "${prefix}"
     prepare "${runner}" "${file}" "${prefix}"
     run_logged "${prefix}"
     exit
@@ -862,6 +978,14 @@ case "${1:-}" in
     --uninstall-info) [ -f "${2:-}" ] || exit 2; uninstall_plan "$2"; exit $? ;;
     --uninstall) [ -f "${2:-}" ] || exit 2; uninstall_app "$2"; exit 0 ;;
     --tidy)    tidy; exit 0 ;;
+    --deps)
+        [ -f "${2:-}" ] || exit 2
+        f=$(realpath -- "$2")
+        n=$(known_prefix "${f}") || { n=$(key_of "${f}"); n=${n%.*}; }
+        delta-pe deps "${f}" --root "$(game_root "${f}")" |
+            jq --arg p "$(prefix_of "${n}")" --rawfile d <(cat "$(prefix_of "${n}")/.delta-deps" 2>/dev/null) \
+                '. + { prefix: $p, installed: ($d | split("\n") | map(select(length > 0))) }'
+        exit 0 ;;
     --run)
         mode=${2:-}
         if [ "${mode}" = normal ]; then
