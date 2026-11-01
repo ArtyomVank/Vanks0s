@@ -49,6 +49,8 @@ pub struct WinData {
     pub snapped: Option<Size<i32, Logical>>,
     /// закреплено: видно на всех столах
     pub pinned: bool,
+    /// не рисовать на мониторе: поверх его живая копия («желе» Delta)
+    pub hidden: bool,
 }
 
 pub fn data(window: &Window) -> RefMut<'_, WinData> {

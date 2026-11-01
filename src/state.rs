@@ -47,7 +47,7 @@ use smithay::{
 use crate::{
     backend::udev::UdevData, config, cursor::Cursor, focus::KeyFocus, ipc::Ipc, protocols::global_shortcuts::GlobalShortcutsState,
     lock::{Lock, LockSurfaceOn},
-    protocols::{focus_grab::FocusGrabState, foreign_toplevel::ForeignToplevelState, idle_notify::IdleNotifyState},
+    protocols::{focus_grab::FocusGrabState, foreign_toplevel::ForeignToplevelState, idle_notify::IdleNotifyState, screencopy::ScreencopyState},
     settings::Settings, workspaces::Workspaces, CalloopData,
 };
 
@@ -94,6 +94,7 @@ pub struct Shell {
     pub global_shortcuts: GlobalShortcutsState,
     pub focus_grabs: FocusGrabState,
     pub foreign_toplevels: ForeignToplevelState,
+    pub screencopy: ScreencopyState,
     pub idle_notify: IdleNotifyState,
     pub idle_inhibit_state: IdleInhibitManagerState,
     /// поверхности, которые просят не считать простоем (видео, игры)
@@ -140,6 +141,7 @@ impl Shell {
         let global_shortcuts = GlobalShortcutsState::new(&dh);
         let focus_grabs = FocusGrabState::new(&dh);
         let foreign_toplevels = ForeignToplevelState::new(&dh);
+        let screencopy = ScreencopyState::new(&dh);
         let idle_notify = IdleNotifyState::new(&dh, &event_loop.handle());
         let idle_inhibit_state = IdleInhibitManagerState::new::<Self>(&dh);
         let primary_selection_state = PrimarySelectionState::new::<Self>(&dh);
@@ -208,6 +210,7 @@ impl Shell {
             global_shortcuts,
             focus_grabs,
             foreign_toplevels,
+            screencopy,
             idle_notify,
             idle_inhibit_state,
             idle_inhibitors: Vec::new(),

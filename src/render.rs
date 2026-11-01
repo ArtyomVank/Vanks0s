@@ -8,7 +8,7 @@ use smithay::{
         element::{
             memory::MemoryRenderBufferRenderElement,
             surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement},
-            Kind, RenderElementStates,
+            Element, Id, Kind, RenderElementStates,
         },
         gles::GlesRenderer,
     },
@@ -24,7 +24,7 @@ use smithay::{
     wayland::compositor,
 };
 
-use crate::Shell;
+use crate::{workspaces::data, Shell};
 
 type R = GlesRenderer;
 
@@ -93,8 +93,12 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, dra
 
     // не Space::render_elements_for_output: в Smithay 0.7 она не учитывает место
     // слоя и рисует сверху экрана всё, что прижато к другому краю (нижний док)
+    let mut hidden = Vec::new();
+    for window in shell.windows.iter().filter(|w| data(w).hidden) {
+        window.with_surfaces(|surface, _| hidden.push(Id::from_wayland_resource(surface)));
+    }
     match space_render_elements(renderer, [&shell.space], output, 1.0) {
-        Ok(space) => elements.extend(space.into_iter().map(OutputElement::Space)),
+        Ok(space) => elements.extend(space.into_iter().filter(|e| !hidden.contains(e.id())).map(OutputElement::Space)),
         Err(e) => tracing::warn!("окна для {}: {e:?}", output.name()),
     }
     elements

@@ -150,7 +150,7 @@ impl Shell {
         self.space.outputs().find(|o| o.name() == name).cloned()
     }
 
-    fn window_of_handle(&self, handle: &ZwlrForeignToplevelHandleV1) -> Option<Window> {
+    pub fn window_of_handle(&self, handle: &ZwlrForeignToplevelHandleV1) -> Option<Window> {
         self.foreign_toplevels.entries.iter().find(|e| e.handles.contains(handle)).map(|e| e.window.clone())
     }
 }

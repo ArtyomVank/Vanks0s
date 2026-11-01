@@ -114,6 +114,7 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
                         feedback.presented(state.clock.now(), Refresh::Unknown, 0, wp_presentation_feedback::Kind::empty());
                     }
                     state.lock_frame_drawn(&output);
+                    state.run_copies(backend.renderer(), &output);
                     // программам — «рисуйте следующий кадр»
                     state.send_frames(&output);
                 }

@@ -185,9 +185,16 @@ impl Shell {
                 self.toggle_pin(&window);
                 true
             }
-            // свойства окна («желе» Delta) — вместе с эффектами; окна и так
-            // плавающие, а тащит их сам захват мыши
-            "window.set_prop" | "window.float" | "window.drag" | "layout" => true,
+            // «желе» Delta прячет окно под живой копией; размытие и тени — вместе с эффектами
+            "window.set_prop" => {
+                if a.get("prop") == Some("opacity") {
+                    let Some(window) = self.select_window(a.get("window").unwrap_or("")) else { return false };
+                    crate::workspaces::data(&window).hidden = a.get("value").and_then(|v| v.parse::<f64>().ok()).is_some_and(|v| v <= 0.0);
+                }
+                true
+            }
+            // окна и так плавающие, а тащит их сам захват мыши
+            "window.float" | "window.drag" | "layout" => true,
             _ => false,
         }
     }

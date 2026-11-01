@@ -532,7 +532,12 @@ impl Shell {
         let active = udev.session.is_active();
         let result = udev.gpu.as_mut().and_then(|gpu| {
             let screen = gpu.screens.get_mut(&crtc)?;
-            Some((screen.output.clone(), active.then(|| self.draw(&mut gpu.renderer, screen))))
+            let output = screen.output.clone();
+            let drawn = active.then(|| self.draw(&mut gpu.renderer, screen));
+            if active {
+                self.run_copies(&mut gpu.renderer, &output);
+            }
+            Some((output, drawn))
         });
         self.udev = Some(udev);
 
