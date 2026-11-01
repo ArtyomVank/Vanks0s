@@ -145,16 +145,30 @@ Item {
                 asynchronous: true
             }
 
-            // кнопка «Приложения» — как значок приложения в концепте
-            Rectangle {
+            // кнопка «Приложения» — четыре скруглённых квадрата без подложки;
+            // под курсором чуть расходятся
+            Item {
+                id: quad
                 anchors.fill: parent
                 visible: root.kind === "launcher"
-                radius: 14
-                gradient: Gradient {
-                    GradientStop { position: 0; color: Qt.lighter(Theme.accent, 1.35) }
-                    GradientStop { position: 1; color: Qt.darker(Theme.accent, 1.35) }
+                property real gap: parent.width * (area.containsMouse ? 0.14 : 0.09)
+                Behavior on gap { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 2 } }
+                readonly property real cube: (width - gap) / 2
+                Repeater {
+                    model: 4
+                    delegate: Rectangle {
+                        required property int index
+                        x: (index % 2) * (quad.cube + quad.gap)
+                        y: Math.floor(index / 2) * (quad.cube + quad.gap)
+                        width: quad.cube
+                        height: quad.cube
+                        radius: quad.cube * 0.32
+                        gradient: Gradient {
+                            GradientStop { position: 0; color: Qt.lighter(Theme.accent, index === 0 ? 1.45 : 1.25) }
+                            GradientStop { position: 1; color: Qt.darker(Theme.accent, index === 3 ? 1.4 : 1.15) }
+                        }
+                    }
                 }
-                Sym { anchors.centerIn: parent; name: "apps"; size: 24; color: Theme.onAccent }
             }
 
             // ярлык, файл, «добавить»
