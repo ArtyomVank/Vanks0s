@@ -9,6 +9,7 @@ use std::{
     time::Instant,
 };
 
+use smithay::wayland::seat::WaylandFocus;
 use smithay::{
     backend::{
         allocator::Fourcc,
@@ -305,7 +306,8 @@ fn snapshot(
     let phys: Size<i32, Physical> = size.to_physical_precise_round(scale);
     let pad = (p.pad().ceil() as f64 * f).round() as i32;
     let full = (phys.w + pad * 2, phys.h + pad * 2);
-    if full.0 <= 0 || full.1 <= 0 || !window.alive() {
+    // не window.alive(): при закрытии xdg_toplevel уже мёртв, а поверхность с кадром ещё нет
+    if full.0 <= 0 || full.1 <= 0 || !window.wl_surface().is_some_and(|s| s.is_alive()) {
         return None;
     }
     let mut tex = match reuse {

@@ -86,6 +86,8 @@ run_calamares() {
 
 echo "--- пробую sudo (NOPASSWD) ---"
 if sudo -n true 2>/dev/null; then
+    # оболочка, выбранная в Vanks Setup, — первой в списке выбора
+    sudo -n /usr/local/lib/vankos/preselect-shell.sh || echo "выбор из Vanks Setup не прочитан"
     echo "sudo доступен, запускаю Calamares от root"
     run_calamares sudo -n
     rc=$?

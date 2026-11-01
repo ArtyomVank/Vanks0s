@@ -308,6 +308,35 @@ ApplicationWindow {
                         }
                     }
                 }
+                // с версии 1.0: какая оболочка будет выбрана при установке
+                Txt {
+                    visible: !!win.ver && win.ver.desktops === true
+                    text: "Графическая оболочка"
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: !!win.ver && win.ver.desktops === true
+                    spacing: 10
+                    Repeater {
+                        model: backend.desktops
+                        delegate: Choice {
+                            id: desk
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 78
+                            selected: backend.desktop === modelData.id
+                            onPicked: backend.setDesktop(modelData.id)
+                            ColumnLayout {
+                                anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+                                spacing: 2
+                                Txt { text: desk.modelData.name; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Txt { Layout.fillWidth: true; color: win.fg3; font.pixelSize: 11; text: desk.modelData.note; maximumLineCount: 2; elide: Text.ElideRight }
+                            }
+                        }
+                    }
+                }
                 RowLayout {
                     Layout.fillWidth: true
                     Txt {

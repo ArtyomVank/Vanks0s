@@ -1,25 +1,32 @@
 # Vanks OS — графическое окружение Delta.
 #
-# Исходники лежат в этом же репозитории (delta/), поэтому source=() пуст,
-# а package() берёт файлы из $_src. Сборка:
+# Исходники лежат в этом же репозитории (delta/, compositor/), поэтому source=()
+# пуст, а package() берёт файлы из $_src. Сборка:
 #   cd packaging/delta && makepkg -f
 #
 # Hyprland и Quickshell меняют API между версиями (Lua-конфиг, QML-типы),
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=0.6.8
+pkgver=1.0.0
 pkgrel=1
-# название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith)
-_codename=Zenith
-pkgdesc="Delta — графическое окружение Vanks OS поверх Hyprland"
+# название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
+_codename=Horizon
+pkgdesc="Delta — графическое окружение Vanks OS на собственном композиторе"
+# В пакете программа для x86_64, но имя файла остаётся -any: delta-update и
+# Vanks Setup уже вышедших версий ищут именно его. Других архитектур у Vanks OS нет.
 arch=('any')
+options=('!debug')
+makedepends=('cargo')
 url="https://github.com/ArtyomVank/Vanks0s"
 license=('GPL-3.0-or-later')
 # свой PAM экрана блокировки: правки администратора обновление не затирает
 backup=('etc/pam.d/delta-lock')
 
 depends=(
+    # композитор Delta (compositor/)
+    'seatd' 'libinput' 'libxkbcommon' 'mesa' 'libdrm' 'xorg-xwayland'
+    # hyprctl — оболочка говорит с композитором на его языке; и сессия «Delta на Hyprland»
     # конфиг на Lua (hl.*): проверен на 0.56.2 и 0.57.0 (Hyprland --verify-config)
     'hyprland>=0.56' 'hyprland<0.58'
     'quickshell>=0.3.2' 'quickshell<0.4'
@@ -79,9 +86,19 @@ optdepends=(
 
 _src="${startdir}/../../delta"
 
+# Готовую программу можно передать в DELTA_COMPOSITOR_BIN (tools/build-delta.sh
+# собирает её от своего пользователя: у пользователя сборки нет Rust).
+build() {
+    [ -n "${DELTA_COMPOSITOR_BIN:-}" ] && return 0
+    CARGO_TARGET_DIR="${srcdir}/target" cargo build --release --locked \
+        --manifest-path "${startdir}/../../compositor/Cargo.toml"
+}
+
 package() {
     local d="${pkgdir}/usr/share/delta"
 
+    install -Dm755 "${DELTA_COMPOSITOR_BIN:-${srcdir}/target/release/delta-compositor}" \
+        "${pkgdir}/usr/bin/delta-compositor"
     install -Dm755 "${_src}/bin/delta-session" "${pkgdir}/usr/bin/delta-session"
     install -Dm755 "${_src}/bin/delta-shell"   "${pkgdir}/usr/bin/delta-shell"
     install -Dm755 "${_src}/bin/delta-apply"   "${pkgdir}/usr/bin/delta-apply"
@@ -117,6 +134,8 @@ package() {
 
     install -Dm644 "${_src}/session/delta.desktop" \
         "${pkgdir}/usr/share/wayland-sessions/delta.desktop"
+    install -Dm644 "${_src}/session/delta-hyprland.desktop" \
+        "${pkgdir}/usr/share/wayland-sessions/delta-hyprland.desktop"
     # помощник «Добро пожаловать»: значок в доке и в списке приложений
     install -Dm644 "${_src}/session/delta-welcome.desktop" \
         "${pkgdir}/usr/share/applications/delta-welcome.desktop"

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import qs.common
 import qs.common.ui
 import qs.settings.parts
@@ -10,10 +11,12 @@ ColumnLayout {
 
     property string title: I18n.tr("Окна")
     property string icon: "windows"
-    property string keywords: "скорость анимаций быстрее медленнее отступы рамка скругление размытие анимации желе сворачивание кнопки заголовок"
+    property string keywords: "сборка изнутри появление закрытие виджеты капля пружина скорость анимаций быстрее медленнее отступы рамка скругление размытие анимации желе сворачивание кнопки заголовок"
     spacing: 18
 
     readonly property var w: Settings.s.windows || ({})
+    // сессия на своём композиторе (его анимации окон Hyprland не умеет)
+    readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
 
     Card {
         title: I18n.tr("Расположение")
@@ -102,13 +105,66 @@ ColumnLayout {
         SettingRow {
             icon: "windows"
             title: I18n.tr("Анимация открытия")
-            subtitle: I18n.tr("Как окно появляется на экране")
+            subtitle: root.ownCompositor ? I18n.tr("Сборка — окно собирается из осколков, изнутри — вырастает из капли, как кнопка «Начать»")
+                                         : I18n.tr("Как окно появляется на экране")
             Chips {
                 opacity: (root.w.animations ?? true) ? 1 : 0.45
+                visible: root.ownCompositor
+                model: [{ value: "assemble", label: I18n.tr("Сборка") }, { value: "inside", label: I18n.tr("Изнутри") }, { value: "popin", label: I18n.tr("Масштаб") }, { value: "slide", label: I18n.tr("Выезд") }, { value: "fade", label: I18n.tr("Плавно") }]
+                current: root.w.openAnim ?? "assemble"
+                onPicked: v => Settings.set("windows.openAnim", v)
+            }
+            Chips {
+                opacity: (root.w.animations ?? true) ? 1 : 0.45
+                visible: !root.ownCompositor
                 model: [{ value: "popin", label: I18n.tr("Сборка") }, { value: "slide", label: I18n.tr("Выезд") }, { value: "fade", label: I18n.tr("Плавно") }]
                 current: root.w.openAnim ?? "popin"
                 onPicked: v => Settings.set("windows.openAnim", v)
             }
+        }
+        // только в своём композиторе: Hyprland так не умеет (fx::Params)
+        SliderRow {
+            visible: root.ownCompositor
+            readonly property var speeds: [0.5, 0.75, 1, 1.5, 2]
+            icon: "gauge"
+            title: I18n.tr("Скорость появления окна")
+            subtitle: I18n.tr("Сверх общей скорости анимаций: меньше — быстрее")
+            from: 0; to: 4; step: 1
+            value: Math.max(0, speeds.indexOf(Number(Settings.get("windows.openSpeed", 1))))
+            format: v => String(speeds[Math.round(v)]).replace(".", ",") + "x"
+            onCommit: v => Settings.set("windows.openSpeed", speeds[Math.round(v)])
+        }
+        SettingRow {
+            visible: root.ownCompositor
+            icon: "windows"
+            title: I18n.tr("Анимация закрытия")
+            subtitle: I18n.tr("Как окно исчезает с экрана")
+            Chips {
+                opacity: (root.w.animations ?? true) ? 1 : 0.45
+                model: [{ value: "same", label: I18n.tr("Как открытие") }, { value: "popin", label: I18n.tr("Масштаб") }, { value: "fade", label: I18n.tr("Плавно") }]
+                current: root.w.closeAnim ?? "same"
+                onPicked: v => Settings.set("windows.closeAnim", v)
+            }
+        }
+        SettingRow {
+            icon: "grid"
+            title: I18n.tr("Анимация виджетов и настроек")
+            subtitle: I18n.tr("Меню, карточки виджетов, окно приложений и «Настройки»")
+            Chips {
+                model: [{ value: "auto", label: I18n.tr("По стилю") }, { value: "drop", label: I18n.tr("Капля") }, { value: "spring", label: I18n.tr("Пружина") }, { value: "fade", label: I18n.tr("Плавно") }]
+                current: (Settings.s.appearance || {}).panelAnim ?? "auto"
+                onPicked: v => Settings.set("appearance.panelAnim", v)
+            }
+        }
+        SliderRow {
+            readonly property var speeds: [0.5, 0.75, 1, 1.5, 2]
+            icon: "gauge"
+            title: I18n.tr("Скорость виджетов и настроек")
+            subtitle: I18n.tr("Сверх общей скорости анимаций: меньше — быстрее")
+            from: 0; to: 4; step: 1
+            value: Math.max(0, speeds.indexOf(Theme.anim.panelK))
+            format: v => String(speeds[Math.round(v)]).replace(".", ",") + "x"
+            onCommit: v => Settings.set("appearance.panelSpeed", speeds[Math.round(v)])
         }
         SettingRow {
             icon: "dock"

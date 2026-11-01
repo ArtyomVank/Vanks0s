@@ -25,7 +25,9 @@ Flow {
 
             implicitWidth: lbl.implicitWidth + 24
             implicitHeight: 30
-            radius: 15
+            // Material 3 Expressive: выбранный вариант меняет форму
+            radius: Theme.material && sel ? 9 : 15
+            Behavior on radius { SpringAnimation { spring: 8; damping: 0.45; epsilon: 0.1 } }
             color: sel ? Theme.accent : Theme.soft2
             border.width: sel ? 0 : 1
             border.color: Theme.line

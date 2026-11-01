@@ -3,12 +3,22 @@
 #
 # 1. окружение для Wayland-приложений и порталов;
 # 2. первый запуск: пустой ~/.config/delta/settings.json (умолчания подмешиваются);
-# 3. generated.lua из настроек;
-# 4. Hyprland с конфигом Delta под сторожем start-hyprland.
+# 3. generated.lua из настроек (его читает только Hyprland);
+# 4. композитор Delta, а если он не поднялся или выбрана сессия
+#    «Delta на Hyprland» (--hyprland) — Hyprland под сторожем start-hyprland.
 set -u
 
+# DELTA_BACKEND=hyprland — то же, что --hyprland (так запускает tools/delta-dev.sh)
+BACKEND=${DELTA_BACKEND:-compositor}
+[ "${1:-}" = --hyprland ] && BACKEND=hyprland
+command -v delta-compositor >/dev/null || BACKEND=hyprland
+
 export DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
-export XDG_CURRENT_DESKTOP=Delta:Hyprland
+if [ "${BACKEND}" = hyprland ]; then
+    export XDG_CURRENT_DESKTOP=Delta:Hyprland
+else
+    export XDG_CURRENT_DESKTOP=Delta
+fi
 export XDG_SESSION_DESKTOP=delta
 export XDG_SESSION_TYPE=wayland
 
@@ -77,6 +87,26 @@ fi
 # прежний generated.lua, если новый не прошёл проверку.
 delta-apply --no-reload || true
 
+# Запуск композитора Delta. Hyprland берёт это окружение из hyprland.lua
+# и generated.lua, у композитора таких файлов нет.
+run_compositor() {
+    export QT_QPA_PLATFORM="wayland;xcb" QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=qt6ct
+    export GDK_BACKEND="wayland,x11,*" ELECTRON_OZONE_PLATFORM_HINT=auto
+    local cursor size
+    cursor=$(jq -r '.appearance.cursorTheme // empty' "${CFG}/settings.json" 2>/dev/null)
+    size=$(jq -r '.appearance.cursorSize // empty' "${CFG}/settings.json" 2>/dev/null)
+    export XCURSOR_THEME=${cursor:-Adwaita} XCURSOR_SIZE=${size:-24}
+    # своя шина D-Bus на сессию, если её не дал экран входа
+    local bus=()
+    [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || ! command -v dbus-run-session >/dev/null || bus=(dbus-run-session --)
+    "${bus[@]}" delta-compositor --backend "$1"
+}
+
+if [ -n "${DELTA_NESTED:-}" ] && [ "${BACKEND}" = compositor ]; then
+    # отладка: композитор в окне внутри текущей сессии
+    run_compositor winit
+    exit
+fi
 if [ -n "${DELTA_NESTED:-}" ]; then
     # отладка: Hyprland в окне внутри текущей сессии, без сторожа
     exec Hyprland -c "${DELTA_DATA}/hypr/hyprland.lua"
@@ -86,5 +116,16 @@ fi
 # в фоне (вход не ждёт; без greetd помощник просто ничего не делает).
 if command -v delta-greeter-sync >/dev/null; then
     delta-greeter-sync -q </dev/null >/dev/null 2>&1 &
+fi
+
+if [ "${BACKEND}" = compositor ]; then
+    # Не поднялся за несколько секунд (видеокарта, права на устройства) —
+    # рабочий стол важнее: заходим в Hyprland, а не возвращаем на экран входа.
+    started=${SECONDS}
+    run_compositor tty
+    code=$?
+    [ "${code}" -eq 0 ] || [ $((SECONDS - started)) -ge 15 ] && exit "${code}"
+    echo "композитор Delta завершился с кодом ${code} сразу после запуска — открываю Hyprland"
+    export XDG_CURRENT_DESKTOP=Delta:Hyprland
 fi
 exec start-hyprland -- -c "${DELTA_DATA}/hypr/hyprland.lua"

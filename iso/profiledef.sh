@@ -30,6 +30,7 @@ file_permissions=(
   # попадают в образ с 0644, и Calamares падает с кодом 126.
   ["/usr/local/lib/vankos/bootstrap.sh"]="0:0:755"
   ["/usr/local/lib/vankos/desktop.sh"]="0:0:755"
+  ["/usr/local/lib/vankos/preselect-shell.sh"]="0:0:755"
   ["/usr/local/lib/vankos/cleanup.sh"]="0:0:755"
   # sudo игнорирует файлы с режимом шире 0440 — без этого пропадает NOPASSWD
   ["/etc/sudoers.d/10-vankos-live"]="0:0:440"

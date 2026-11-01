@@ -8,7 +8,7 @@
 Если на флешке осталось место, после образа создаётся маленький раздел
 VANKOS (FAT, 64 МиБ) с выбранной версией оболочки:
     /vankos/delta-<версия>-1-any.pkg.tar.zst
-    /vankos/choice.json   { "shell": "0.4.0", "package": …, "image": … }
+    /vankos/choice.json   { "shell": "0.4.0", "package": …, "desktop": "delta", "image": … }
 Установщик системы (iso/…/desktop.sh) ставит оболочку оттуда.
 
 Запись на устройство требует прав администратора. На Linux её делает
@@ -64,8 +64,9 @@ def blocks(paths, size=BLOCK):
         yield bytes(buf)
 
 
-def choice_json(release, image):
+def choice_json(release, image, desktop=None):
     return json.dumps({"shell": release.version, "package": release.shell.name if release.shell else None,
+                       "desktop": desktop,
                        "image": image.name, "tag": release.tag, "setup": VERSION}, ensure_ascii=False, indent=2)
 
 

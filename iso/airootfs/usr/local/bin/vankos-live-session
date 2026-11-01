@@ -49,7 +49,9 @@ case "${1:-session}" in
     session)
         safe_mode && run_safe
         started=$(date +%s)
-        /usr/bin/delta-session
+        # установщик должен открыться на любой видеокарте: live — на Hyprland,
+        # новая Delta проверяется уже на установленной системе
+        /usr/bin/delta-session --hyprland
         rc=$?
         lasted=$(( $(date +%s) - started ))
         if [ "${lasted}" -lt "${QUICK_EXIT}" ]; then

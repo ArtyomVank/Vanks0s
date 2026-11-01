@@ -47,7 +47,7 @@
     "rounding": 16,
     "blur": true,
     "animations": true,
-    "openAnim": "popin",
+    "openAnim": "assemble", "openSpeed": 1,
     "genie": true,
     "jelly": 1,
     "snap": true,

@@ -84,7 +84,8 @@ Item {
         width: root.vertical ? root.thick : row.width + (root.thick - root.dot)
         height: root.vertical ? row.height + (root.thick - root.dot) : root.thick
         radius: root.thick / 2
-        color: Theme.light ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(0, 0, 0, 0.34)
+        color: Theme.liquid ? Qt.rgba(1, 1, 1, Theme.light ? 0.22 : 0.08)
+            : Theme.light ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(0, 0, 0, 0.34)
         Behavior on width { NumberAnimation { duration: Theme.anim.normal; easing.type: Easing.OutCubic } }
         Behavior on height { NumberAnimation { duration: Theme.anim.normal; easing.type: Easing.OutCubic } }
 

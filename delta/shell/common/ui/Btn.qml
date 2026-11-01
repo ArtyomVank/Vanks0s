@@ -1,5 +1,6 @@
 import QtQuick
 import qs.common
+import qs.docks.parts
 
 // Кнопка. kind: "soft" (по умолчанию) · "accent" · "ghost" · "danger".
 // Можно только иконку (круглая), только текст или иконку с текстом.
@@ -20,7 +21,14 @@ Rectangle {
 
     implicitHeight: 36
     implicitWidth: round ? implicitHeight : row.implicitWidth + 28
-    radius: height / 2
+    // Material 3 Expressive: при нажатии круг морфит в скруглённый квадрат — резко, с перелётом
+    radius: Theme.material ? height / 2 - (height / 2 - height * 0.22) * morph.value : height / 2
+    Spring {
+        id: morph
+        stiffness: Theme.anim.spatialFast.stiffness
+        damping: Theme.anim.spatialFast.damping
+        target: tap.pressed ? 1 : 0
+    }
     opacity: enabled ? 1 : 0.45
     color: kind === "accent" || active ? Theme.accent
          : kind === "ghost" ? "transparent"
@@ -29,7 +37,7 @@ Rectangle {
     border.width: kind === "ghost" ? 1 : 0
     border.color: Theme.line
 
-    scale: tap.pressed ? 0.95 : 1
+    scale: tap.pressed ? (Theme.material ? 0.92 : 0.95) : 1
     Behavior on scale { NumberAnimation { duration: Theme.anim.fast; easing.type: Theme.anim.outCurve } }
     Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
 

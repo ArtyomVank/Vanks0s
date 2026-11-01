@@ -20,11 +20,13 @@ Rectangle {
     Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
 
     Rectangle {
-        width: parent.height - 6
+        // Material 3: ручка выключенного меньше, нажатая — больше
+        width: Theme.material ? (press.pressed ? parent.height - 2 : root.checked ? parent.height - 6 : parent.height - 12) : parent.height - 6
         height: width
         radius: width / 2
-        y: 3
-        x: root.checked ? root.width - width - 3 : 3
+        y: (parent.height - height) / 2
+        x: root.checked ? root.width - width - (parent.height - width) / 2 : (parent.height - width) / 2
+        Behavior on width { enabled: Theme.material; SpringAnimation { spring: 8; damping: 0.45; epsilon: 0.1 } }
         // на светлом акценте белая ручка пропала бы
         color: root.checked ? Theme.onAccent : "#ffffff"
         Behavior on x { NumberAnimation { duration: Theme.anim.normal; easing.type: Theme.anim.springCurve } }
@@ -32,6 +34,7 @@ Rectangle {
 
     HoverHandler { cursorShape: Qt.PointingHandCursor }
     TapHandler {
+        id: press
         enabled: root.enabled
         onTapped: {
             Sounds.play(root.checked ? "toggle-off" : "toggle-on", 40);

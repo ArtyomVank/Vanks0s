@@ -26,6 +26,7 @@ class Backend(QObject):
     _post = Signal(object)          # функция из рабочего потока → выполнить в потоке окна
 
     def __init__(self):
+        self._desktop = "delta"
         super().__init__()
         self._post.connect(lambda fn: fn())
         self.store = QSettings("Vanks", "Setup")
@@ -62,6 +63,19 @@ class Backend(QObject):
     def appVersion(self):
         return VERSION
 
+    @Property(str, notify=changed)
+    def desktop(self):
+        return self._desktop
+
+    @Slot(str)
+    def setDesktop(self, value):
+        self._desktop = value
+        self.changed.emit()
+
+    @Property("QVariantList", notify=changed)
+    def desktops(self):
+        return [{"id": i, "name": n, "note": t} for i, n, t in releases.DESKTOPS]
+
     @Property("QVariantList", notify=changed)
     def versions(self):
         out = []
@@ -70,7 +84,8 @@ class Backend(QObject):
             out.append({"version": r.version, "title": r.title, "date": r.date, "latest": i == 0,
                         "pre": r.prerelease, "notes": (r.notes or "").strip()[:400],
                         "image": img.name if img else "", "imageTag": img.tag if img else "",
-                        "imageSize": human(img.size) if img else "", "own": bool(r.image)})
+                        "imageSize": human(img.size) if img else "", "own": bool(r.image),
+                        "desktops": releases.has_desktops(r)})
         return out
 
     @Property("QVariantList", notify=changed)
@@ -197,7 +212,7 @@ class Backend(QObject):
             try:
                 parts = download.get_image(image, self._progress, self._cancel)
                 shell = download.get_shell(chosen, self._cancel) if chosen.shell else None
-                choice = writer.choice_json(chosen, image)
+                choice = writer.choice_json(chosen, image, self._desktop if releases.has_desktops(chosen) else None)
                 if kind == "folder":
                     iso = writer.to_folder(parts, image, target, shell, choice, self._progress, self._cancel)
                     msg = f"Образ сохранён: {iso}"

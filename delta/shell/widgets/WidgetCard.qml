@@ -126,9 +126,15 @@ Item {
         Rectangle {
             id: plate
             anchors.fill: parent
-            radius: root.radius
+            // виджеты под стиль: у Material You и стекла циферблат круглый,
+            // у Material You часы и календарь — в тональной плашке акцента
+            readonly property string kind: root.item ? (root.item.id || "") : ""
+            radius: (Theme.material || Theme.liquid) && kind === "analog" ? Math.min(width, height) / 2 : root.radius
             opacity: root.alpha
-            color: !root.bg ? "transparent" : root.lock ? frame.lockGlass : Theme.glass
+            color: !root.bg ? "transparent" : root.lock ? frame.lockGlass
+                : Theme.material && (kind === "clock" || kind === "analog" || kind === "calendar")
+                    ? Qt.hsla(Theme.hueOf(Theme.accent), 0.45, Theme.light ? 0.86 : 0.25, 1)
+                : Theme.glass
             border.width: root.bg || root.editing ? 1 : 0
             border.color: !root.bg ? Qt.rgba(1, 1, 1, 0.45) : root.lock ? Qt.rgba(1, 1, 1, Theme.liquid ? 0.16 : 0.10) : Theme.line
             Behavior on color { ColorAnimation { duration: Theme.anim.normal } }

@@ -103,6 +103,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="vanks-setup", description="Скачать Vanks OS и записать в папку или на флешку.")
     ap.add_argument("--list", action="store_true", help="показать версии и выйти")
     ap.add_argument("--version", dest="ver", help="версия оболочки Delta (по умолчанию — самая новая)")
+    ap.add_argument("--desktop", choices=[d[0] for d in releases.DESKTOPS],
+                    help="оболочка для установки (с версии 1.0; по умолчанию delta)")
     ap.add_argument("--folder", help="сохранить образ в папку")
     ap.add_argument("--usb", help="записать на флешку (например, /dev/sdb)")
     ap.add_argument("--disk", help="записать на диск (нужен --allow-disks)")
@@ -195,6 +197,15 @@ def main(argv=None):
                 say("Отменено.")
                 return
 
+    desktop = None
+    if releases.has_desktops(chosen):
+        desktop = a.desktop or "delta"
+        if interactive and not a.desktop:
+            say("\nГрафическая оболочка:")
+            for i, (_, name, note) in enumerate(releases.DESKTOPS, 1):
+                say(f"  {i}) {name:<9} {note}")
+            desktop = pick("Оболочка", releases.DESKTOPS)[0]
+
     # ---- загрузка ----
     bar = Bar()
     cancel = threading.Event()
@@ -203,7 +214,7 @@ def main(argv=None):
         parts = download.get_image(image, bar, cancel)
         shell = download.get_shell(chosen, cancel) if chosen.shell else None
         bar.end()
-        choice = writer.choice_json(chosen, image)
+        choice = writer.choice_json(chosen, image, desktop)
         if kind == "folder":
             iso = writer.to_folder(parts, image, folder, shell, choice, bar, cancel)
             bar.end()

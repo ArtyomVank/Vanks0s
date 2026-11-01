@@ -3,8 +3,9 @@
 #  Vanks OS — пакет окружения Delta для live-образа и офлайн-репозитория.
 #
 #  Рецепт — packaging/delta/PKGBUILD, исходники — delta/ в этом репозитории.
-#  Пакет собирается при каждом запуске: компилировать нечего (arch=any),
-#  а версия в PKGBUILD не меняется при каждой правке QML.
+#  Пакет собирается при каждом запуске: версия в PKGBUILD не меняется при
+#  каждой правке QML. Компилируется только композитор (compositor/), повторно —
+#  быстро: его сборка лежит в ${BUILD_DIR}/compositor-target.
 #  Готовый пакет кладётся в build/pkgs/ рядом с Calamares ([vankos-pkgs]).
 #
 #  Запуск:  sudo ./tools/build-delta.sh   (обычно его вызывает build.sh)
@@ -46,10 +47,22 @@ cp -r "${PROJECT_DIR}/delta" "${SRC_DIR}/delta"
 install -m 0644 "${PROJECT_DIR}/packaging/delta/PKGBUILD" "${SRC_DIR}/packaging/delta/PKGBUILD"
 chown -R "${BUILD_USER}:${BUILD_USER}" "${SRC_DIR}"
 
+# --- композитор: Rust стоит у того, кто запустил sudo, а не у пользователя сборки ---
+CARGO_USER="${SUDO_USER:-root}"
+sudo -u "${CARGO_USER}" -H bash -lc 'command -v cargo' >/dev/null \
+    || die "нет cargo у пользователя ${CARGO_USER} — установите rust"
+TARGET_DIR="${BUILD_DIR}/compositor-target"
+install -d -o "${CARGO_USER}" "${TARGET_DIR}"
+log "собираю композитор Delta (первый раз — несколько минут)"
+sudo -u "${CARGO_USER}" -H bash -lc 'CARGO_TARGET_DIR="$1" cargo build --release --locked --manifest-path "$2"' _ \
+    "${TARGET_DIR}" "${PROJECT_DIR}/compositor/Cargo.toml" \
+    || die "композитор Delta не собрался — смотрите вывод выше"
+install -m 0755 "${TARGET_DIR}/release/delta-compositor" "${SRC_DIR}/delta-compositor"
+
 log "собираю пакет delta"
 # --nodeps: зависимости (Hyprland, Quickshell…) нужны в образе, а не на сборочной машине
 if ! ( cd "${SRC_DIR}/packaging/delta" && sudo -u "${BUILD_USER}" \
-        makepkg -f --nodeps --noconfirm ); then
+        DELTA_COMPOSITOR_BIN="${SRC_DIR}/delta-compositor" makepkg -f --nodeps --noconfirm ); then
     die "makepkg не смог собрать delta — смотрите вывод выше"
 fi
 

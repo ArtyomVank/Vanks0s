@@ -40,8 +40,12 @@ Singleton {
         { id: "mint",     name: "Мята",          rgb: [228, 245, 238], light: true, accent: "#1FA67A" },
         { id: "lavender", name: "Лаванда",       rgb: [238, 234, 252], light: true, accent: "#7C5CFF" },
         { id: "sakura",   name: "Сакура",        rgb: [252, 236, 242], light: true, accent: "#E0567F" },
-        { id: "sky",      name: "Небо",          rgb: [230, 241, 252], light: true, accent: "#2F80ED" }
+        { id: "sky",      name: "Небо",          rgb: [230, 241, 252], light: true, accent: "#2F80ED" },
+        // для всех стилей: цвета берутся из обоев, как в Android
+        { id: "wallpaper",       name: "Цвет обоев",         rgb: root.rgbOf(root.wallBaseDark),  wall: true },
+        { id: "wallpaper-light", name: "Цвет обоев, светлая", rgb: root.rgbOf(root.wallBaseLight), wall: true, light: true }
     ]
+    function rgbOf(c) { return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]; }
     // свои темы пользователя (appearance.customThemes): те же поля + custom: true
     readonly property var customThemes: {
         const list = (Settings.s.appearance || {}).customThemes;
@@ -59,22 +63,24 @@ Singleton {
     //   delta  — тонированное стекло с размытием (как было);
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
     //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen);
-    //   material — Material You, как на Pixel: плотные панели, цвета из обоев.
+    //   material — Material You, как на Pixel: плотные панели, цвета от темы.
     // preset — что ставится при выборе стиля (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
-          preset: { glass: 0.62, frost: 0.5, radius: 18, rounding: 16, blur: true, border: 2 } },
+          preset: { glass: 0.62, frost: 0.5, radius: 18, rounding: 16, blur: true, border: 2, clock: "ios" } },
         { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
-          preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0 } },
+          preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0, clock: "minimal" } },
         { id: "liquid", name: "Жидкое стекло",  note: "Стекло-линза: фон у края изгибается",
-          preset: { glass: 0.4, frost: 0.5, radius: 26, rounding: 22, blur: true, border: 1 } },
-        { id: "material", name: "Material You", note: "Цвета из обоев, как на Pixel",
-          preset: { glass: 0.97, radius: 26, rounding: 20, blur: false, border: 0 } }
+          preset: { glass: 0.4, frost: 0.3, radius: 30, rounding: 24, blur: true, border: 1, clock: "tall" } },
+        { id: "material", name: "Material You", note: "Цвета от темы, резкие пружинистые анимации",
+          preset: { glass: 0.97, radius: 26, rounding: 20, blur: false, border: 0, clock: "stack" } }
     ]
     readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
     readonly property bool flat: style === "gnome"
     readonly property bool liquid: style === "liquid"
     readonly property bool material: style === "material"
+    // сессия на своём композиторе: стекло, линзу и анимации окон делает он
+    readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
     // выбрать стиль: вместе с ним — прозрачность, скругления, размытие и рамка окон
     function applyStyle(id) {
         const st = styles.find(x => x.id === id);
@@ -87,6 +93,8 @@ Singleton {
         Settings.set("windows.rounding", p.rounding);
         Settings.set("windows.blur", p.blur);
         Settings.set("windows.border", p.border);
+        // часы у каждого стиля свои; виджеты со своим видом (item.style) не меняются
+        Settings.set("clock.style", p.clock);
     }
 
     // Матовость (appearance.frost, 0…1) — сила размытия под панелями (её
@@ -99,20 +107,20 @@ Singleton {
         : liquid ? 0.12 + 0.26 * frost
         : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
 
-    // ---- Material You: цвета из обоев ----
-    // Главный цвет обоев (ColorQuantizer, самый насыщенный из восьми) — от
-    // него поверхности (тот же оттенок, почти без насыщенности) и акцент
-    // (тон 80 в тёмной теме, 40 в светлой), как динамические цвета Android.
-    // Светлая или тёмная — по выбранной теме.
+    // ---- Цвета из обоев (темы «Цвет обоев») ----
+    // Главный цвет обоев (ColorQuantizer, самый насыщенный из восьми) — от него
+    // поверхности (тот же оттенок, почти без насыщенности) и акцент (тон 80 в
+    // тёмной теме, 40 в светлой), как динамические цвета Android.
     readonly property string wallFile: {
         const w = Settings.s.wallpaper || {};
         const f = w.path || "";
         if (!f) return "";
         return Media.isVideo(f) || w.video === true ? (w.poster || "") : f;
     }
-    property color seed: /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
+    readonly property bool wallTheme: current.wall === true
+    property color wallSeed: "#7C5CFF"
     ColorQuantizer {
-        source: root.material && root.wallFile ? Media.fileUrl(root.wallFile) : ""
+        source: root.wallTheme && root.wallFile ? Media.fileUrl(root.wallFile) : ""
         depth: 3
         rescaleSize: 96
         onColorsChanged: {
@@ -122,52 +130,81 @@ Singleton {
                 const sc = c.hsvSaturation * (0.35 + c.hsvValue) * (c.hslLightness > 0.08 && c.hslLightness < 0.92 ? 1 : 0.2);
                 if (sc > score) { score = sc; best = c; }
             }
-            if (best) root.seed = best;
+            if (best) root.wallSeed = best;
         }
     }
-    readonly property real seedHue: seed.hslHue < 0 ? 0.72 : seed.hslHue
-    readonly property real seedSat: Math.max(0.35, Math.min(0.9, seed.hslSaturation))
-    readonly property color materialBase: light ? Qt.hsla(seedHue, Math.min(seedSat, 0.6) * 0.5, 0.94, 1)
-                                                : Qt.hsla(seedHue, Math.min(seedSat, 0.5) * 0.42, 0.13, 1)
-    readonly property color materialAccent: light ? Qt.hsla(seedHue, Math.max(0.5, seedSat * 0.8), 0.40, 1)
-                                                  : Qt.hsla(seedHue, Math.max(0.55, seedSat * 0.85), 0.76, 1)
-    // акцент из обоев уходит и в настройки — рамки окон Hyprland и GTK
-    // (delta-apply) берут appearance.accent; с задержкой, чтобы смена обоев
-    // не дёргала delta-apply на каждом промежуточном цвете
-    onMaterialAccentChanged: if (material) accentSync.restart()
-    onMaterialChanged: if (material) accentSync.restart()
+    function satOf(c) { return Math.max(0.35, Math.min(0.9, c.hslSaturation)); }
+    function hueOf(c) { return c.hslHue < 0 ? 0.72 : c.hslHue; }
+    function surfaceOf(c, isLight) {
+        return isLight ? Qt.hsla(hueOf(c), Math.min(satOf(c), 0.6) * 0.5, 0.94, 1)
+                       : Qt.hsla(hueOf(c), Math.min(satOf(c), 0.5) * 0.42, 0.13, 1);
+    }
+    function toneOf(c, isLight) {
+        return isLight ? Qt.hsla(hueOf(c), Math.max(0.5, satOf(c) * 0.8), 0.40, 1)
+                       : Qt.hsla(hueOf(c), Math.max(0.55, satOf(c) * 0.85), 0.76, 1);
+    }
+    readonly property color wallBaseDark: surfaceOf(wallSeed, false)
+    readonly property color wallBaseLight: surfaceOf(wallSeed, true)
+    // акцент из обоев уходит и в настройки — рамки окон и GTK (delta-apply)
+    // берут appearance.accent; с задержкой, чтобы смена обоев не дёргала
+    // delta-apply на каждом промежуточном цвете
+    readonly property color wallAccent: toneOf(wallSeed, light)
+    onWallAccentChanged: if (wallTheme) accentSync.restart()
+    onWallThemeChanged: if (wallTheme) accentSync.restart()
     Timer {
         id: accentSync
         interval: 1500
         onTriggered: {
-            const hex = String(root.materialAccent).toUpperCase();
-            if (root.material && String(root.appearance.accent || "").toUpperCase() !== hex)
+            const hex = String(root.wallAccent).toUpperCase();
+            if (root.wallTheme && String(root.appearance.accent || "").toUpperCase() !== hex)
                 Settings.set("appearance.accent", hex);
         }
     }
 
+    // ---- Material You: цвета от выбранной темы ----
+    // Оттенок поверхностей — от цвета темы (у серых тем он никакой, тогда от
+    // акцента), акцент — тот же цвет в тоне 80 или 40. Обои ни при чём.
+    readonly property color userAccent: /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
+    readonly property color themeColor: Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
+    readonly property color seed: wallTheme ? wallSeed : themeColor.hsvSaturation > 0.18 ? themeColor : userAccent
+    readonly property real seedHue: hueOf(seed)
+    readonly property color materialBase: surfaceOf(seed, light)
+    readonly property color materialAccent: toneOf(wallTheme ? wallSeed : userAccent, light)
+
     // цвет панелей «r,g,b» для программ GTK/Qt (theme-apply): у GNOME —
-    // серый, у Material You — из обоев
+    // серый, у Material You — от темы
     readonly property string baseRgb: [base.r, base.g, base.b].map(v => Math.round(v * 255)).join(",")
 
     // у GNOME панели нейтрально-серые (Adwaita), цвет темы остаётся в акценте
     readonly property color base: flat ? (light ? "#FAFAFB" : "#242428")
                                 : material ? materialBase
-                                : Qt.rgba(current.rgb[0] / 255, current.rgb[1] / 255, current.rgb[2] / 255, 1)
+                                : wallTheme ? (light ? wallBaseLight : wallBaseDark)
+                                : themeColor
     readonly property color glass: Qt.rgba(base.r, base.g, base.b, opacity)
     readonly property color glass2: flat ? (light ? "#FFFFFF" : "#303034")
                                   : material ? Qt.hsla(seedHue, base.hslSaturation, light ? 0.90 : 0.17, 1)
+                                  : glowTiles ? Qt.rgba(base.r * 0.86 + accent.r * 0.14, base.g * 0.86 + accent.g * 0.14, base.b * 0.86 + accent.b * 0.14, Math.min(0.98, opacity + 0.14))
                                   : Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
-    readonly property color accent: material ? materialAccent
-        : /^#[0-9A-Fa-f]{6}$/.test(appearance.accent || "") ? appearance.accent : "#7C5CFF"
+    readonly property color accent: material || wallTheme ? materialAccent : userAccent
 
-    readonly property color fg:    light ? "#17131F" : "#ECE9F7"
-    readonly property color fg2:   light ? "#433E57" : "#C9C3E0"
-    readonly property color fg3:   light ? "#5C576E" : "#A9A3C2"
+    // Подсветка в стиле Delta (appearance.highlight): off · text — текст ярче и
+    // со свечением акцента · tiles — плитки под текстом подкрашены акцентом.
+    readonly property string highlight: style === "delta" ? (appearance.highlight || "off") : "off"
+    readonly property bool glowText: highlight === "text"
+    readonly property bool glowTiles: highlight === "tiles"
+    readonly property color textGlow: Qt.rgba(accent.r, accent.g, accent.b, light ? 0.24 : 0.40)
+    function tint(alpha) { return Qt.rgba(accent.r, accent.g, accent.b, alpha); }
+
+    readonly property color fg:    glowText ? (light ? "#0B0812" : "#FFFFFF") : light ? "#17131F" : "#ECE9F7"
+    readonly property color fg2:   glowText ? (light ? "#201B2E" : "#EDEAF8") : light ? "#433E57" : liquid ? "#E6E3F2" : "#C9C3E0"
+    readonly property color fg3:   glowText ? (light ? "#3A354A" : "#CFCAE4") : light ? "#5C576E" : liquid ? "#D2CEE3" : "#A9A3C2"
     readonly property color line:  material ? "transparent"
+        : glowTiles ? tint(light ? 0.45 : 0.38)
         : light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
-    readonly property color soft:  light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
-    readonly property color soft2: light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.10)
+    readonly property color soft:  glowTiles ? tint(light ? 0.14 : 0.16)
+        : light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
+    readonly property color soft2: glowTiles ? tint(light ? 0.22 : 0.26)
+        : light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.10)
     readonly property color inv:   light ? "#FFFFFF" : "#140F26"
 
     // Текст и значки поверх цвета: на светлом (белый, пастельный акцент) —
@@ -202,8 +239,26 @@ Singleton {
     readonly property QtObject anim: QtObject {
         readonly property real k: {
             const v = Number(Settings.get("windows.animSpeed", 1));
-            return [0.3, 0.5, 1, 2, 4].indexOf(v) !== -1 ? v : 1;
+            const speed = [0.3, 0.5, 1, 2, 4].indexOf(v) !== -1 ? v : 1;
+            // Material 3 Expressive: движения короче и резче
+            return root.material ? speed * 0.8 : speed;
         }
+        // Анимация виджетов, меню и «Настроек» (docks/parts/Blob):
+        // drop — капля из дока, spring — карточка выпрыгивает с пружиной,
+        // fade — проявляется. auto: у Material You spring, у остальных drop.
+        readonly property string panel: {
+            const v = root.appearance.panelAnim;
+            return v === "drop" || v === "spring" || v === "fade" ? v : root.material ? "spring" : "drop";
+        }
+        readonly property real panelK: {
+            const v = Number(root.appearance.panelSpeed ?? 1);
+            return v > 0 ? v : 1;
+        }
+        // Пружины Material 3 Expressive (androidx ExpressiveMotionTokens):
+        // пространственные — с перелётом, эффекты (цвет, прозрачность) — без.
+        readonly property var spatialFast: ({ stiffness: 800, damping: 2 * 0.6 * Math.sqrt(800) })
+        readonly property var spatial: ({ stiffness: 380, damping: 2 * 0.8 * Math.sqrt(380) })
+        readonly property var spatialSlow: ({ stiffness: 200, damping: 2 * 0.8 * Math.sqrt(200) })
         readonly property int fast: Math.round(160 * k)
         readonly property int normal: Math.round(280 * k)
         readonly property int slow: Math.round(460 * k)
@@ -211,7 +266,8 @@ Singleton {
         readonly property int drop: Math.round(220 * k)
         // круг растягивается в панель
         readonly property int stretch: Math.round(420 * k)
-        readonly property int outCurve: Easing.OutCubic
+        // Emphasized из Material 3 ближе всего к OutExpo: резкий старт, долгий хвост
+        readonly property int outCurve: root.material ? Easing.OutExpo : Easing.OutCubic
         readonly property int inOutCurve: Easing.InOutCubic
         readonly property int springCurve: Easing.OutBack
     }

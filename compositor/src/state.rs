@@ -282,9 +282,10 @@ impl Shell {
             .env("WAYLAND_DISPLAY", &self.socket_name)
             // Delta и hyprctl находят нас как Hyprland (ipc.rs)
             .env("HYPRLAND_INSTANCE_SIGNATURE", self.ipc.as_ref().map(|i| i.signature.as_str()).unwrap_or(""))
-            // Delta — рабочий стол поверх композитор Delta
-            .env("XDG_CURRENT_DESKTOP", "Vanks:Delta")
-            .env("XDG_SESSION_DESKTOP", "vanks")
+            // оболочка выключает то, что здесь делает сам композитор (Jelly.qml)
+            .env("DELTA_COMPOSITOR", "1")
+            .env("XDG_CURRENT_DESKTOP", "Delta")
+            .env("XDG_SESSION_DESKTOP", "delta")
             .env("XDG_SESSION_TYPE", "wayland")
             ;
         // X11 вокруг нам не нужен: только свой Xwayland

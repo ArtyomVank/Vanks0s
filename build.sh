@@ -360,7 +360,7 @@ done
 log "скрипты установщика исполняемые — ок"
 
 # Live-сессия — это Delta через greetd: без них образ загрузится в чёрный экран.
-for f in usr/bin/delta-session usr/bin/qs usr/bin/start-hyprland usr/bin/greetd usr/bin/cage \
+for f in usr/bin/delta-session usr/bin/delta-compositor usr/bin/qs usr/bin/start-hyprland usr/bin/greetd usr/bin/cage \
          usr/share/delta/shell/shell.qml etc/systemd/system/display-manager.service; do
     # -L: абсолютные симлинки (display-manager.service) указывают внутрь образа, не хоста
     [[ -e "${calamares_root}/${f}" || -L "${calamares_root}/${f}" ]] \

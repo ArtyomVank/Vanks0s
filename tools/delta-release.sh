@@ -53,8 +53,13 @@ trap 'rm -rf "${tmp}"' EXIT
 install -d "${tmp}/packaging/delta" "${DIST}"
 cp -r "${PROJECT_DIR}/delta" "${tmp}/delta"
 cp "${PKGBUILD}" "${tmp}/packaging/delta/PKGBUILD"
+log "собираю композитор"
+cargo build --release --locked --manifest-path "${PROJECT_DIR}/compositor/Cargo.toml" \
+    || die "композитор Delta не собрался"
+cargo_target=$(cargo metadata --format-version 1 --no-deps --manifest-path "${PROJECT_DIR}/compositor/Cargo.toml" | jq -r .target_directory)
 log "собираю пакет"
-( cd "${tmp}/packaging/delta" && PKGDEST="${tmp}/out" makepkg -f --nodeps --noconfirm >/dev/null ) \
+( cd "${tmp}/packaging/delta" && DELTA_COMPOSITOR_BIN="${cargo_target}/release/delta-compositor" \
+    PKGDEST="${tmp}/out" makepkg -f --nodeps --noconfirm >/dev/null ) \
     || die "makepkg не смог собрать delta"
 
 name="delta-${ver}-${rel}-any.pkg.tar.zst"

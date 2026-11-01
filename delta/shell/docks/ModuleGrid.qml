@@ -295,16 +295,19 @@ Item {
                     radius: Math.min(width, height) / 2
                     visible: slot.tiles && !slot.grouped
                     color: DockService.topGlass
-                    border.width: 1
+                    border.width: Theme.liquid ? 0 : 1
                     border.color: Theme.line
+                    Sheen { radius: parent.radius; strength: 0.9 }
                 }
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: slot.grouped ? 3 : 0
                     radius: Math.min(width, height) / 2
-                    color: Theme.soft2
+                    // у жидкого стекла под курсором — светлая бусина с бликом
+                    color: Theme.liquid ? Qt.rgba(1, 1, 1, Theme.light ? 0.30 : 0.14) : Theme.soft2
                     opacity: slot.menuOpen || (area.containsMouse && !grid.editing) ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 200 * Theme.anim.k } }
+                    Sheen { radius: parent.radius; strength: 0.8 }
                 }
 
                 Loader {

@@ -125,10 +125,11 @@ Item {
         Rectangle {
             anchors.fill: parent
             visible: root.tiles
-            radius: 20
+            radius: Theme.liquid ? width * 0.42 : 20
             color: DockService.appsGlass
-            border.width: 1
+            border.width: Theme.liquid ? 0 : 1
             border.color: Theme.line
+            Sheen { radius: parent.radius; strength: 0.9 }
         }
 
         Item {
@@ -174,7 +175,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 visible: root.kind === "cmd" || root.kind === "path" || root.kind === "add"
-                radius: 14
+                radius: Theme.liquid ? width * 0.42 : Theme.material ? width * 0.36 : 14
                 color: root.kind === "add" ? "transparent" : Theme.soft2
                 border.width: 1.5
                 border.color: root.kind === "add" ? Theme.fg3 : Theme.line

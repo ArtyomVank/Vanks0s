@@ -94,7 +94,7 @@ void main() {
     vec2 toLight = normalize(vec2(-0.3, -1.0));
     float facing = dot(n, toLight);
     float line = smoothstep(-1.7, -0.5, d) * (1.0 - smoothstep(-0.5, 0.4, d));
-    float spec = line * (0.22 + 1.1 * pow(max(facing, 0.0), 2.0) + 0.55 * pow(max(-facing, 0.0), 3.0));
+    float spec = line * (0.18 + 1.25 * pow(max(facing, 0.0), 2.0) + 0.85 * pow(max(-facing, 0.0), 2.5));
     float sheen = pow(e, 3.0) * (0.05 + 0.16 * max(facing, 0.0)) + pow(e, 8.0) * 0.06;
 
     vec3 col;
@@ -112,7 +112,10 @@ void main() {
             col.b = mix(col.b, texture(source, wallUv(sp + off * 0.88), lod).b, kk);
         }
         float luma = dot(col, vec3(0.299, 0.587, 0.114));
-        col = mix(vec3(luma), col, 1.12) * 1.04 + 0.015;
+        // как у Liquid Glass: сочнее фона, яркий фон приглушён ради текста, тёмный — чуть светлее
+        col = mix(vec3(luma), col, 1.35) * mix(1.08, 0.86, smoothstep(0.45, 0.85, luma)) + 0.015;
+        // толщина: у кромки со стороны от света стекло темнеет
+        col *= 1.0 - 0.22 * pow(e, 5.0) * (1.0 - max(facing, 0.0));
         col = mix(col, fill.rgb, fill.a);
         col = mix(col, vec3(1.0), frost * mix(0.06, 0.12, lightBg));
         col += vec3(spec * 0.85 + sheen);

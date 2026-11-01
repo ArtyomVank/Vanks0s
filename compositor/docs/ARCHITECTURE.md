@@ -1,4 +1,4 @@
-# Как устроена композитор Delta
+# Как устроен композитор Delta
 
 Один процесс, один цикл событий ([calloop](https://github.com/Smithay/calloop)).
 Источники событий — сокет Wayland (новые программы), сам Display (сообщения
@@ -79,7 +79,7 @@ DRM на паузе, кадров нет. Вернулась — ActivateSession
 
 ## Связь с Delta
 
-С 0.3 Delta работает на композитор Delta без правок в самой Delta: оболочка
+С 0.3 Delta работает на композиторе Delta без правок в самой Delta: оболочка
 отвечает ей как Hyprland 0.57 с конфигом на Lua.
 
 ```
@@ -94,8 +94,8 @@ Delta (Quickshell) ── Quickshell.Hyprland ──→ сокеты hypr/<по�
 
 `j/status` сообщает `configProvider: "lua"`: так Quickshell шлёт команды в виде
 `hl.dsp.focus({workspace=2})`, а их разбирает `dispatch.rs`. Подпись
-`vanks_<время>_<pid>` передаётся программам в `HYPRLAND_INSTANCE_SIGNATURE`,
-поэтому и обычный `hyprctl` работает с композитор Delta.
+`delta_<время>_<pid>` передаётся программам в `HYPRLAND_INSTANCE_SIGNATURE`,
+поэтому и обычный `hyprctl` работает с композитором Delta.
 
 Дальше — перенос эффектов (стекло, «желе», анимации) в сам композитор. Подробно
 — в ROADMAP.

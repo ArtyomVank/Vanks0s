@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vanks OS — шаг 2 установки: выбранный рабочий стол + службы.
-# Аргументы: ${ROOT} и выбор пользователя (delta|gnome).
+# Аргументы: ${ROOT} и выбор пользователя (delta|delta-hyprland|gnome).
 set -euo pipefail
 export LC_ALL=C
 
@@ -18,6 +18,8 @@ fail() { printf '[vankos/desktop] ОШИБКА: %s\n' "$*" >&2; exit 1; }
 CHOICE=$(printf '%s' "${CHOICE}" | tr '[:upper:]' '[:lower:]')
 case "${CHOICE}" in
     delta|"" )  CHOICE=delta; LIST=/usr/share/vankos/delta.txt; DM=greetd ;;
+    # тот же пакет delta, другая сессия по умолчанию на экране входа
+    delta-hyprland ) SESSION=delta-hyprland; CHOICE=delta; LIST=/usr/share/vankos/delta.txt; DM=greetd ;;
     gnome )     CHOICE=gnome; LIST=/usr/share/vankos/gnome.txt; DM=gdm ;;
     * ) fail "неизвестный вариант рабочего стола: ${CHOICE}" ;;
 esac
@@ -91,6 +93,13 @@ if [ "${CHOICE}" = "delta" ]; then
     # первый вход уже найдёт их на месте.
     arch-chroot "${ROOT}" systemd-tmpfiles --create /usr/lib/tmpfiles.d/delta-greeter.conf || \
         log "предупреждение: systemd-tmpfiles не создал каталоги экрана входа (создаст при загрузке)"
+    # Какая сессия выбрана на экране входа сначала (его состояние: greeter/Backend.qml)
+    if [ -n "${SESSION:-}" ]; then
+        install -d "${ROOT}/var/cache/delta-greeter"
+        printf '{ "session": "%s" }\n' "${SESSION}" > "${ROOT}/var/cache/delta-greeter/state.json"
+        arch-chroot "${ROOT}" chown -R greeter: /var/cache/delta-greeter || \
+            log "предупреждение: не удалось передать каталог экрана входа пользователю greeter"
+    fi
     # Оболочка сама создаёт ~/.config/delta при первом входе; в skel ничего не нужно.
 else
     log "готовлю GNOME"
@@ -124,11 +133,11 @@ fi
 
 # --- отметка о выбранном окружении ---
 install -d "${ROOT}/etc/vankos"
-printf '%s\n' "${CHOICE}" > "${ROOT}/etc/vankos/shell"
+printf '%s\n' "${SESSION:-${CHOICE}}" > "${ROOT}/etc/vankos/shell"
 cat > "${ROOT}/etc/vankos/release" <<EOF
-VANKS_SHELL=${CHOICE}
+VANKS_SHELL=${SESSION:-${CHOICE}}
 VANKS_DISPLAY_MANAGER=${DM}
-VANKS_VERSION=0.4
+VANKS_VERSION=1.0
 EOF
 
 log "рабочий стол ${CHOICE} установлен"

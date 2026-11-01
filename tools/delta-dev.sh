@@ -86,6 +86,8 @@ cmd_check() {
 
 cmd_nested() {
     local secs=${1:-600} sock="" pid hpid
+    # вложенная сессия для проверки оболочки — на Hyprland; композитор: compositor/tools/run-delta.sh
+    export DELTA_BACKEND=${DELTA_BACKEND:-hyprland}
     [ -n "${WAYLAND_DISPLAY:-}" ] || fail "нужна текущая Wayland-сессия"
     cmd_stop >/dev/null 2>&1 || true
     mkdir -p "${DEV_HOME}/.config/delta/hypr"

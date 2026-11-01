@@ -45,7 +45,7 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
         PhysicalProperties {
             size: (0, 0).into(),
             subpixel: Subpixel::Unknown,
-            make: "Vanks".into(),
+            make: "Delta".into(),
             model: "Окно отладки".into(),
         },
     );

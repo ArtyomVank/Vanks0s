@@ -19,7 +19,9 @@ Item {
         if (!f) return "";
         return Media.isVideo(f) || Settings.get("wallpaper.video", false) === true ? Settings.get("wallpaper.poster", "") : f;
     }
-    readonly property bool wanted: active && wallFile !== ""
+    // свой композитор преломляет настоящий фон, вместе с окнами (fx::GLASS);
+    // обои здесь нужны только под Hyprland, где фон взять неоткуда
+    readonly property bool wanted: active && wallFile !== "" && !Theme.ownCompositor
     readonly property alias texture: wall
     readonly property bool ready: wanted && wall.status === Image.Ready && wall.implicitWidth > 0
 

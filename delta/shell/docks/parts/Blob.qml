@@ -37,7 +37,9 @@ Item {
     property real speed: 1
     // когда показать содержимое: по умолчанию — когда карточка уже почти раскрылась
     property real revealAt: 0.86
-    readonly property bool revealed: open && t > revealAt
+    // вид анимации (Theme.anim.panel): капля, пружина или проявление
+    readonly property bool dropKind: Theme.anim.panel === "drop"
+    readonly property bool revealed: open && t > (dropKind ? revealAt : 0.25)
 
     default property alias content: inner.data
     readonly property alias body: body
@@ -84,7 +86,7 @@ Item {
         return pullKey.slice(0, i) + "/" + (pullKey.slice(i + 1).startsWith("top:") ? "top" : "apps");
     }
     readonly property bool fromIsland: pullKey !== "" && ShellState.islandReady[islandId] === true
-    readonly property bool handOff: fromIsland && t < p1End
+    readonly property bool handOff: dropKind && fromIsland && t < p1End
     Component.onDestruction: if (pullKey && ShellState.pullKey === pullKey) ShellState.pull = 0
 
     NumberAnimation {
@@ -102,7 +104,7 @@ Item {
         anim.to = to;
         // длинный путь (окно приложений из дока) — чуть дольше
         const dist = Math.hypot(sx - land.x, sy - land.y);
-        const full = Math.min(1250, 720 + dist * 0.6);
+        const full = (dropKind ? Math.min(1250, 720 + dist * 0.6) : Theme.anim.panel === "spring" ? 420 : 260) * Theme.anim.panelK;
         anim.duration = Math.max(1, Math.round(Math.abs(to - t) * (to > 0 ? full : full * 0.72) * speed * Theme.anim.k));
         anim.start();
     }
@@ -144,7 +146,32 @@ Item {
     }
 
     // --- форма в момент t (в координатах карточки) ---
-    readonly property var g: {
+    readonly property var g: root.dropKind ? dropShape : plainShape
+    // пружина: карточка выпрыгивает от стороны источника, с перелётом;
+    // проявление: почти на месте, только чуть растёт
+    readonly property var plainShape: {
+        if (root.dropKind) return null;
+        const t = root.t, spring = Theme.anim.panel === "spring";
+        const e = spring ? outBack(t, overshootFor(Math.max(width, height) * 0.4) * 1.4) : outCubic(t);
+        const from = spring ? 0.72 : 0.96;
+        const s = mix(from, 1, e);
+        const w = width * s, h = height * s;
+        // опора — край, обращённый к источнику
+        const x = sdx < 0 ? 0 : sdx > 0 ? width - w : (width - w) / 2;
+        const y = sdy < 0 ? 0 : sdy > 0 ? height - h : (height - h) / 2;
+        const rect = Qt.rect(x, y, Math.max(1, w), Math.max(1, h));
+        return {
+            band: Qt.rect(0, 0, 0, 0),
+            drop: Qt.vector4d(0, 0, 0, 0),
+            body: rect,
+            bodyR: radiusOpen,
+            hit: rect,
+            colorMix: 1,
+            glow: 0
+        };
+    }
+    readonly property var dropShape: {
+        if (!root.dropKind) return null;
         const t = root.t, R = dropR;
         const p1 = clamp01(t / p1End), p2 = clamp01((t - p1End) / (p2End - p1End)), p3 = clamp01((t - p2End) / (1 - p2End));
         const r = R * (0.35 + 0.65 * outCubic(p1));
@@ -226,6 +253,7 @@ Item {
         width: Math.max(root.width, root.sx + pad) - x
         height: Math.max(root.height, root.sy + pad) - y
         visible: !root.rest && root.t > 0
+        opacity: root.dropKind ? 1 : Math.min(1, root.t * (Theme.anim.panel === "spring" ? 5 : 1))
         band: root.handOff ? Qt.rect(0, 0, 0, 0) : Qt.rect(root.g.band.x - x, root.g.band.y - y, root.g.band.width, root.g.band.height)
         drop: root.handOff ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.g.drop.x - x, root.g.drop.y - y, root.g.drop.z, root.g.drop.w)
         body: Qt.rect(root.g.body.x - x, root.g.body.y - y, root.g.body.width, root.g.body.height)

@@ -52,7 +52,7 @@ PART_RE = re.compile(r"^(.+\.iso)\.part(\d+)$")
 
 # Большие версии сверх правила «два числа»: 0.5.6 — первая с играми Steam и
 # Epic в лаунчере. 0.4 из списка убрана — её заменила 0.5.
-EXTRA = {"0.5.6"}
+EXTRA = {"0.5.6", "0.6.8"}
 HIDDEN = {"0.4"}
 
 
@@ -98,6 +98,19 @@ class Release:
     def major(self):
         v = self.version
         return v not in HIDDEN and (v in EXTRA or len(v.split(".")) <= 2)
+
+
+# С версии 1.0 при установке выбирают оболочку (id — как в shellchooser.conf).
+DESKTOPS = [
+    ("delta", "Delta", "Новое окружение на собственном композиторе, без Hyprland"),
+    ("delta-hyprland", "Hyprland", "Та же оболочка Delta на обычном Hyprland"),
+    ("gnome", "GNOME", "Классический рабочий стол GNOME"),
+]
+
+
+def has_desktops(release):
+    """Выбор оболочки есть только в линии 1.x: в 0.x Delta всегда на Hyprland."""
+    return release.version.split(".")[0] not in ("0", "?")
 
 
 def short(text):

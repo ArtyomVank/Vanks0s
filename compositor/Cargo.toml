@@ -2,7 +2,7 @@
 name = "delta-compositor"
 version = "1.0.0"
 edition = "2021"
-description = "композитор Delta — своя графическая оболочка Vanks OS на Wayland (композитор), будущая 1.0"
+description = "композитор Delta — композитор графического окружения Delta, будущая 1.0"
 publish = false
 
 [dependencies]

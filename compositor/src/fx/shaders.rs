@@ -96,6 +96,7 @@ void main() {
     if (mask > 0.0) {
         vec2 n = vec2(0.0);
         float rim = 0.0;
+        float edge = 0.0;
         if (lens > 0.0) {
             vec2 r = tex_px * lens_reach;
             float d = 0.7071;
@@ -112,14 +113,21 @@ void main() {
             // ближе к краю — сильнее изгиб: линза, а не ровный сдвиг
             n *= near * near;
             // свет сверху слева: край под ним светлее, напротив — слабый отблеск
-            rim = near * near * near * (0.55 * max(0.0, dot(normalize(n + 1e-4), vec2(0.45, 0.89)))
-                                      + 0.18 * max(0.0, dot(normalize(n + 1e-4), vec2(-0.45, -0.89))));
+            float lit = dot(normalize(n + 1e-4), vec2(0.45, 0.89));
+            rim = near * near * near * (0.70 * max(0.0, lit) + 0.38 * max(0.0, -lit));
+            // толщина стекла: у кромки со стороны от света оно темнее
+            edge = near * near * near * near * near * (1.0 - max(0.0, lit));
         }
         vec2 frag = gl_FragCoord.xy + vec2(n.x, n.y * y_sign) * lens;
         vec2 uv = clamp((frag - blur_map.xy) * blur_map.zw, blur_clamp.xy, blur_clamp.zw);
         vec3 back = texture2D(blur_tex, uv).rgb;
         float l = dot(back, vec3(0.2126, 0.7152, 0.0722));
         back = mix(vec3(l), back, saturation);
+        if (lens > 0.0) {
+            // как у Liquid Glass: яркий фон приглушён ради текста, тёмный — чуть светлее
+            back *= mix(1.08, 0.86, smoothstep(0.45, 0.85, l));
+            back *= 1.0 - 0.22 * edge;
+        }
         back += rim;
         color = color + (1.0 - color.a) * vec4(back, 1.0) * mask;
     }

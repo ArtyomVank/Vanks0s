@@ -15,5 +15,8 @@ Text {
     font.pixelSize: sizes[size] ?? 14
     font.weight: size === "title" || size === "h1" || size === "display" ? Font.DemiBold : Font.Normal
     elide: Text.ElideRight
+    // подсветка текста (appearance.highlight): только у основного и вторичного
+    style: Theme.glowText && tone < 3 ? Text.Outline : Text.Normal
+    styleColor: Theme.textGlow
     verticalAlignment: Text.AlignVCenter
 }

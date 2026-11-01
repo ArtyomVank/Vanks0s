@@ -24,7 +24,9 @@ Scope {
     id: root
 
     readonly property real strength: Math.max(0, Math.min(1.7, Number(Settings.get("windows.jelly", 0.5)) || 0))
+    // в своём композиторе окно гнёт он сам, на каждом кадре экрана (fx::Jelly)
     readonly property bool enabled: strength > 0 && Settings.get("windows.animations", true) !== false
+        && !Quickshell.env("DELTA_COMPOSITOR")
     readonly property int rounding: Math.max(0, Math.min(40, Number(Settings.get("windows.rounding", 16)) || 0))
     readonly property int border: Math.max(0, Math.min(10, Number(Settings.get("windows.border", 2)) || 0))
 

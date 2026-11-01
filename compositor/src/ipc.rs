@@ -51,7 +51,7 @@ impl Shell {
     pub fn init_ipc(&mut self) -> std::io::Result<()> {
         let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
         let time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        let signature = format!("vanks_{time}_{}", std::process::id());
+        let signature = format!("delta_{time}_{}", std::process::id());
         let dir = runtime.join("hypr").join(&signature);
         std::fs::create_dir_all(&dir)?;
 
@@ -383,7 +383,7 @@ impl Shell {
             "mice": [],
             "keyboards": [{
                 "address": "0x1",
-                "name": "vanks-keyboard",
+                "name": "delta-keyboard",
                 "rules": "",
                 "model": "",
                 "layout": input.xkb_layout(),
@@ -467,7 +467,7 @@ impl Shell {
             let first = ipc.last_layout.is_empty();
             ipc.last_layout = layout.clone();
             if !first {
-                self.ipc_event("activelayout", &format!("vanks-keyboard,{layout}"));
+                self.ipc_event("activelayout", &format!("delta-keyboard,{layout}"));
             }
         }
     }

@@ -44,7 +44,7 @@ target/debug/delta-compositor --probe
 
 ## 3. Настоящая сессия — с текстовой консоли
 
-Здесь композитор Delta сама ведёт видеокарту и ввод — как Hyprland. Delta на
+Здесь композитор Delta сам ведёт видеокарту и ввод — как Hyprland. Delta на
 своей консоли при этом продолжает работать.
 
 1. Соберите: `cargo build --release`.
@@ -69,7 +69,7 @@ Delta, установленная в систему, запускается и �
 
 | Что | Как |
 |---|---|
-| выйти из композитор Delta | **Super+Shift+E** |
+| выйти из композитора Delta | **Super+Shift+E** |
 | если сочетание не сработало | **Ctrl+Alt+Backspace** |
 | вернуться в Delta, не закрывая | **Ctrl+Alt+F1** / **F2** (где идёт Delta) |
 | совсем зависла | с другой консоли: `pkill -x delta-compositor` |
@@ -78,13 +78,8 @@ Delta, установленная в систему, запускается и �
 
 ## 4. С экрана входа
 
-```bash
-tools/install-session.sh           # просит sudo; ставит в /usr/local и wayland-sessions
-tools/install-session.sh --remove  # убрать
-```
-
-На экране входа Delta появится «композитор Delta (разработка)». Журнал:
-`journalctl -t delta-compositor -b`.
+Композитор ставится вместе с пакетом `delta`: на экране входа это пункт «Delta»,
+а «Delta на Hyprland» — запасной. Журнал: `journalctl -t delta-session -b`.
 
 ## Что смотреть на железе в Delta
 

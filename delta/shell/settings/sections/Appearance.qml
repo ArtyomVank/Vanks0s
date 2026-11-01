@@ -44,6 +44,17 @@ ColumnLayout {
                 }
             }
         }
+        SettingRow {
+            visible: Theme.style === "delta"
+            icon: "palette"
+            title: I18n.tr("Подсветка")
+            subtitle: I18n.tr("Текст светится цветом оформления или плитки под текстом подкрашены им")
+            Chips {
+                model: [{ value: "off", label: I18n.tr("Выкл") }, { value: "text", label: I18n.tr("Текст") }, { value: "tiles", label: I18n.tr("Плитки") }]
+                current: Theme.highlight
+                onPicked: v => Settings.set("appearance.highlight", v)
+            }
+        }
     }
 
     // --- тема ---
@@ -304,11 +315,11 @@ ColumnLayout {
         SettingRow {
             icon: "palette"
             title: I18n.tr("Цвет оформления")
-            subtitle: Theme.material ? I18n.tr("В Material You цвет берётся из обоев")
-                                     : I18n.tr("Кнопки, выделение и рамка окна")
+            subtitle: Theme.wallTheme ? I18n.tr("В теме «Цвет обоев» он берётся из обоев")
+                                      : I18n.tr("Кнопки, выделение и рамка окна")
             RowLayout {
                 spacing: 8
-                enabled: !Theme.material
+                enabled: !Theme.wallTheme
                 opacity: enabled ? 1 : 0.5
                 Repeater {
                     model: Theme.accents
