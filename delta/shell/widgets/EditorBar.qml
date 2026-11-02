@@ -35,6 +35,7 @@ Glass {
     readonly property var info: it ? WidgetTypes.info(place, it.id) : null
     readonly property bool fixed: !!it && WidgetTypes.fixed(place, it.id)
     readonly property bool isClock: !!it && it.id === "clock"
+    readonly property bool sizeOnly: !!info && info.sizeOnly === true
     readonly property bool isWeather: !!it && it.id === "weather"
     readonly property bool isNotifs: !!it && it.id === "notifs"
     readonly property bool isPhoto: !!it && it.id === "photo"
@@ -191,6 +192,13 @@ Glass {
             tone: 3; size: "small"; wrapMode: Text.WordWrap
         }
 
+        Label {
+            visible: root.sizeOnly && !root.collapsed
+            Layout.fillWidth: true
+            text: I18n.tr("Эти часы выглядят как на экране блокировки: стиль и цвет меняются там, здесь — только размер и место. При разблокировке часы сами перелетают сюда.")
+            tone: 3; size: "small"; wrapMode: Text.WordWrap
+        }
+
         GridLayout {
             visible: !!root.it && !root.fixed && !root.collapsed
             Layout.fillWidth: true
@@ -325,17 +333,17 @@ Glass {
             }
 
             // фон и прозрачность — у любого виджета
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: I18n.tr("Подложка") }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it && !root.sizeOnly; text: I18n.tr("Подложка") }
             Chips {
                 Layout.fillWidth: true
-                visible: !!root.it
+                visible: !!root.it && !root.sizeOnly
                 model: [{ value: true, label: I18n.tr("Стекло") }, { value: false, label: I18n.tr("Без подложки") }]
                 current: root.it ? root.it.bg !== false : true
                 onPicked: v => root.grid.setBg(root.it.id, v)
             }
-            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it; text: I18n.tr("Прозрачность") }
+            Label { Layout.preferredWidth: 104; tone: 3; visible: !!root.it && !root.sizeOnly; text: I18n.tr("Прозрачность") }
             RowLayout {
-                visible: !!root.it
+                visible: !!root.it && !root.sizeOnly
                 spacing: 10
                 Slider {
                     id: alpha

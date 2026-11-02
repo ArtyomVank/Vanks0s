@@ -170,7 +170,7 @@ ColumnLayout {
     Component.onCompleted: readPerformance()
     function setPerformance(on) {
         performanceBusy = true;
-        Exec.run(["pkexec", "delta-setup", "performance", on ? "on" : "off"], {
+        Exec.run(["pkexec", "delta-setup", "performance", on ? "performance" : "balance"], {
             label: I18n.tr("Максимальная производительность"),
             done: () => { performanceBusy = false; readPerformance(); }
         });

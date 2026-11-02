@@ -1,0 +1,431 @@
+#!/usr/bin/env python3
+"""Delta — «Телефон»: подключение Android по проводу, Wi-Fi и Bluetooth.
+
+  delta-phone                     окно
+  delta-phone status              что подключено (JSON для окна)
+  delta-phone serve               Wi-Fi: страница для браузера телефона (строки JSON)
+  delta-phone adb-send <serial> <файлы…>   в «Загрузки» телефона, отладка по USB
+  delta-phone mtp-send <адрес> <файлы…>    в «Загрузки» телефона, передача файлов
+  delta-phone mtp-open <адрес>    открыть память телефона в файловом менеджере
+  delta-phone screen <serial>     экран телефона в окне (scrcpy)
+  delta-phone bt-send <адрес> <файлы…>     на телефон по Bluetooth
+
+Команды отправки и serve пишут по строке JSON на событие. На телефон ставить
+ничего не нужно: Wi-Fi — обычная страница в браузере по QR-коду. Адрес страницы
+содержит случайный ключ, сервер слушает только локальную сеть и живёт, пока
+открыто окно (конец stdin — выход).
+"""
+
+import html
+import json
+import os
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+def say(**event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+def run(cmd, timeout=10):
+    """Вывод команды или None, если её нет или она не сработала."""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return res.stdout if res.returncode == 0 else None
+
+
+# ---------- что подключено ----------
+
+def adb_devices():
+    out = run(["adb", "devices", "-l"], 12) if shutil.which("adb") else None
+    devices = []
+    for line in (out or "").splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        info = dict(p.split(":", 1) for p in parts[2:] if ":" in p)
+        name = info.get("model", "").replace("_", " ") or parts[0]
+        devices.append({"serial": parts[0], "state": parts[1], "name": name})
+    return devices
+
+
+def mtp_devices():
+    out = run(["gio", "mount", "-li"]) or ""
+    devices, name = [], ""
+    for line in out.splitlines():
+        m = re.match(r"\s*Volume\(\d+\):\s*(.+)", line)
+        if m:
+            name = m.group(1).strip()
+        m = re.search(r"activation_root=(mtp://\S+)", line)
+        if m and not any(d["uri"] == m.group(1) for d in devices):
+            devices.append({"uri": m.group(1), "name": name or "Android"})
+    return devices
+
+
+def bt_devices():
+    if not shutil.which("bluetoothctl"):
+        return False, []
+    powered = "Powered: yes" in (run(["bluetoothctl", "show"], 4) or "")
+    devices = []
+    for line in (run(["bluetoothctl", "devices", "Paired"], 4) or "").splitlines():
+        m = re.match(r"Device (\S+) (.+)", line)
+        if not m:
+            continue
+        info = run(["bluetoothctl", "info", m.group(1)], 4) or ""
+        icon = re.search(r"Icon: (\S+)", info)
+        devices.append({
+            "addr": m.group(1),
+            "name": m.group(2),
+            "phone": bool(icon) and icon.group(1) == "phone",
+            "connected": "Connected: yes" in info,
+        })
+    devices.sort(key=lambda d: not d["phone"])
+    return powered, devices
+
+
+def lan_ip():
+    # адрес домашней сети: у VPN и прокси-туннелей (tun, wg, 198.18.x.x) свои
+    # адреса, с телефона до них не достучаться
+    try:
+        links = json.loads(run(["ip", "-j", "-4", "addr", "show", "up", "scope", "global"], 4) or "[]")
+    except ValueError:
+        return ""
+    for prefix in ("192.168.", "10.", "172."):
+        for link in links:
+            if re.match(r"(tun|tap|wg|utun|docker|br-|virbr|veth|lo)", link.get("ifname", "")):
+                continue
+            for addr in link.get("addr_info", []):
+                ip = addr.get("local", "")
+                if not ip.startswith(prefix):
+                    continue
+                if prefix == "172." and not 16 <= int(ip.split(".")[1]) <= 31:
+                    continue
+                return ip
+    return ""
+
+
+def status():
+    powered, bt = bt_devices()
+    print(json.dumps({
+        "adb": adb_devices(),
+        "mtp": mtp_devices(),
+        "btPowered": powered,
+        "bt": bt,
+        "ip": lan_ip(),
+        "tools": {t: bool(shutil.which(t)) for t in ("adb", "scrcpy", "qrencode", "gdbus", "zenity")},
+    }, ensure_ascii=False))
+
+
+# ---------- Wi-Fi: страница для браузера телефона ----------
+
+def downloads_dir():
+    out = (run(["xdg-user-dir", "DOWNLOAD"], 3) or "").strip()
+    home = os.path.expanduser("~")
+    path = out if out and out != home else os.path.join(home, "Downloads")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def free_name(folder, name):
+    # только имя файла: ни каталогов, ни скрытых файлов от телефона
+    name = os.path.basename(name.replace("\\", "/")).lstrip(".").replace("\0", "") or "file"
+    base, ext = os.path.splitext(name)
+    path, n = os.path.join(folder, name), 1
+    while os.path.exists(path):
+        path = os.path.join(folder, f"{base} ({n}){ext}")
+        n += 1
+    return path
+
+
+PAGE = """<!doctype html><html lang="ru"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Delta — обмен файлами</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#16161e;color:#eee;font:16px system-ui,sans-serif;padding:20px;max-width:560px;margin:auto}
+h1{font-size:22px}h2{font-size:16px;margin-top:28px;color:#aab}
+a.f{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;background:#24242f;border-radius:14px;color:#fff;text-decoration:none;margin:8px 0;word-break:break-word}
+a.f span{color:#99a;white-space:nowrap}label.b{display:block;text-align:center;padding:16px;background:#4f7cff;border-radius:14px;font-weight:600}
+input{display:none}.s{padding:10px 2px;color:#bbc;word-break:break-word}.e{color:#ff8080}
+</style><h1>Delta — обмен файлами</h1>
+<h2>С компьютера на телефон</h2><div id="l">%FILES%</div>
+<h2>С телефона на компьютер</h2><label class="b">Выбрать файлы<input id="i" type="file" multiple></label><div id="o"></div>
+<script>
+const o=document.getElementById('o');
+async function send(f){const d=document.createElement('div');d.className='s';o.append(d);
+ await new Promise(ok=>{const x=new XMLHttpRequest();x.open('PUT','upload?name='+encodeURIComponent(f.name));
+ x.upload.onprogress=e=>{d.textContent=f.name+': '+Math.round(e.loaded/e.total*100)+' %'};
+ x.onload=()=>{if(x.status==200)d.textContent=f.name+' — отправлено ✓';else{d.textContent=f.name+' — ошибка';d.classList.add('e')}ok()};
+ x.onerror=()=>{d.textContent=f.name+' — ошибка';d.classList.add('e');ok()};x.send(f)})}
+document.getElementById('i').onchange=async e=>{for(const f of e.target.files)await send(f);e.target.value=''};
+setInterval(async()=>{try{const r=await fetch('list');if(r.ok)document.getElementById('l').innerHTML=await r.text()}catch(_){}},3000);
+</script></html>"""
+
+
+def size_text(n):
+    for unit, k in (("ГБ", 2 ** 30), ("МБ", 2 ** 20), ("КБ", 2 ** 10)):
+        if n >= k:
+            return f"{n / k:.1f} {unit}".replace(".", ",")
+    return f"{n} Б"
+
+
+class Share:
+    def __init__(self):
+        self.token = secrets.token_urlsafe(9)
+        self.files = []
+        self.folder = downloads_dir()
+        self.lock = threading.Lock()
+
+    def listing(self):
+        with self.lock:
+            files = list(enumerate(self.files))
+        rows = []
+        for i, path in files:
+            try:
+                size = size_text(os.path.getsize(path))
+            except OSError:
+                continue
+            rows.append(f'<a class="f" href="f/{i}" download>{html.escape(os.path.basename(path))}<span>{size}</span></a>')
+        return "".join(rows) or '<div class="s">Пока ничего: выберите файлы на компьютере</div>'
+
+
+class Handler(BaseHTTPRequestHandler):
+    share = None
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args):
+        pass  # в адресе ключ — в журнал его не пишем
+
+    def route(self):
+        """Путь после ключа или None: без ключа сервера как будто нет."""
+        parts = urllib.parse.urlsplit(self.path)
+        prefix = f"/{self.share.token}/"
+        if not parts.path.startswith(prefix):
+            return None, {}
+        return parts.path[len(prefix):], urllib.parse.parse_qs(parts.query)
+
+    def reply(self, code, body=b"", kind="text/html; charset=utf-8"):
+        self.send_response(code)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        path, _ = self.route()
+        if path is None:
+            return self.reply(404)
+        if path == "":
+            return self.reply(200, PAGE.replace("%FILES%", self.share.listing()).encode())
+        if path == "list":
+            return self.reply(200, self.share.listing().encode())
+        m = re.fullmatch(r"f/(\d+)", path)
+        with self.share.lock:
+            file = self.share.files[int(m.group(1))] if m and int(m.group(1)) < len(self.share.files) else None
+        if not file or not os.path.isfile(file):
+            return self.reply(404)
+        name = os.path.basename(file)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(os.path.getsize(file)))
+        self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+        self.end_headers()
+        try:
+            with open(file, "rb") as f:
+                shutil.copyfileobj(f, self.wfile, 1024 * 1024)
+            say(event="sent", name=name)
+        except OSError:
+            self.close_connection = True
+
+    def do_PUT(self):
+        path, query = self.route()
+        length = int(self.headers.get("Content-Length") or 0)
+        if path != "upload" or not query.get("name"):
+            self.close_connection = True
+            return self.reply(404)
+        target = free_name(self.share.folder, query["name"][0])
+        part = target + ".part"
+        try:
+            with open(part, "wb") as f:
+                left = length
+                while left > 0:
+                    chunk = self.rfile.read(min(1024 * 1024, left))
+                    if not chunk:
+                        raise OSError("обрыв")
+                    f.write(chunk)
+                    left -= len(chunk)
+            os.replace(part, target)
+        except OSError:
+            try:
+                os.unlink(part)
+            except OSError:
+                pass
+            self.close_connection = True
+            return self.reply(500)
+        say(event="received", name=os.path.basename(target), path=target, size=length)
+        self.reply(200, b"ok", "text/plain")
+
+
+def serve():
+    ip = lan_ip()
+    if not ip:
+        say(event="error", error="no-network")
+        return 1
+    share = Share()
+    Handler.share = share
+    server = ThreadingHTTPServer((ip, 0), Handler)
+    server.daemon_threads = True
+    url = f"http://{ip}:{server.server_address[1]}/{share.token}/"
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    qr = os.path.join(runtime, f"delta-phone-{os.getpid()}.png")
+    made = run(["qrencode", "-s", "10", "-m", "2", "-o", qr, url]) is not None
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    say(event="ready", url=url, qr=qr if made else "", folder=share.folder)
+    # команды окна: {"files": [пути]}; конец stdin — окно закрыли
+    for line in sys.stdin:
+        try:
+            files = json.loads(line).get("files", [])
+        except ValueError:
+            continue
+        with share.lock:
+            share.files = [f for f in files if isinstance(f, str) and os.path.isfile(f)]
+    server.shutdown()
+    try:
+        os.unlink(qr)
+    except OSError:
+        pass
+    return 0
+
+
+# ---------- провод ----------
+
+def send_each(files, send):
+    ok = True
+    for i, path in enumerate(files):
+        name = os.path.basename(path)
+        say(event="file", name=name, index=i + 1, total=len(files))
+        if not send(path):
+            say(event="failed", name=name)
+            ok = False
+    say(event="done", ok=ok)
+    return 0 if ok else 1
+
+
+def adb_send(serial, files):
+    return send_each(files, lambda p: run(["adb", "-s", serial, "push", p, "/sdcard/Download/"], 3600) is not None)
+
+
+def mtp_storage(uri):
+    if run(["gio", "mount", uri], 20) is None:
+        pass  # уже подключено — gio отвечает ошибкой, дальше видно по списку
+    entries = (run(["gio", "list", uri], 20) or "").split("\n")
+    entries = [e.strip() for e in entries if e.strip()]
+    return uri.rstrip("/") + "/" + urllib.parse.quote(entries[0]) if entries else None
+
+
+def mtp_send(uri, files):
+    storage = mtp_storage(uri)
+    if not storage:
+        say(event="done", ok=False, error="no-storage")
+        return 1
+    return send_each(files, lambda p: run(["gio", "copy", p, storage + "/Download/"], 3600) is not None)
+
+
+def mtp_open(uri):
+    run(["gio", "mount", uri], 20)
+    return subprocess.call(["gio", "open", uri])
+
+
+def screen(serial):
+    return subprocess.call(["scrcpy", "-s", serial, "--window-title", "Экран телефона"])
+
+
+# ---------- Bluetooth (OBEX: служба org.bluez.obex в сессионной шине) ----------
+
+def obex(path, method, *args):
+    return run(["gdbus", "call", "--session", "--dest", "org.bluez.obex", "--object-path", path, "--method", method, *args], 40)
+
+
+def obex_prop(path, name):
+    return obex(path, "org.freedesktop.DBus.Properties.Get", "org.bluez.obex.Transfer1", name)
+
+
+def bt_send_one(session, path):
+    out = obex(session, "org.bluez.obex.ObjectPush1.SendFile", path)
+    m = re.search(r"objectpath '([^']+)'", out or "")
+    if not m:
+        return False
+    transfer, size = m.group(1), os.path.getsize(path)
+    name, last = os.path.basename(path), -1
+    while True:
+        out = obex_prop(transfer, "Status")
+        # передача закончилась — bluez уже убрал её объект
+        if out is None:
+            return True
+        status = re.search(r"'(\w+)'", out)
+        status = status.group(1) if status else ""
+        if status == "complete":
+            return True
+        if status == "error":
+            return False
+        done = re.search(r"(\d+)\D*$", obex_prop(transfer, "Transferred") or "")
+        percent = min(100, int(done.group(1)) * 100 // size) if done and size else 0
+        if percent != last:
+            say(event="progress", name=name, percent=percent)
+            last = percent
+        time.sleep(0.5)
+
+
+def bt_send(addr, files):
+    out = obex("/org/bluez/obex", "org.bluez.obex.Client1.CreateSession", addr, "{'Target': <'opp'>}")
+    m = re.search(r"objectpath '([^']+)'", out or "")
+    if not m:
+        say(event="done", ok=False, error="no-session")
+        return 1
+    session = m.group(1)
+    try:
+        return send_each(files, lambda p: bt_send_one(session, p))
+    finally:
+        obex("/org/bluez/obex", "org.bluez.obex.Client1.RemoveSession", session)
+
+
+def open_window():
+    data = os.environ.get("DELTA_DATA", "/usr/share/delta")
+    entry = os.environ.get("DELTA_PHONE_ENTRY") or os.path.join(os.environ.get("DELTA_SHELL_DIR") or data + "/shell", "phone-app.qml")
+    os.execvp("qs", ["qs", "-p", entry, "-n", "-d"])
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    args = argv[2:]
+    if not cmd:
+        open_window()
+    if cmd == "status":
+        return status() or 0
+    if cmd == "serve":
+        return serve()
+    if cmd == "adb-send" and len(args) >= 2:
+        return adb_send(args[0], args[1:])
+    if cmd == "mtp-send" and len(args) >= 2:
+        return mtp_send(args[0], args[1:])
+    if cmd == "mtp-open" and len(args) == 1:
+        return mtp_open(args[0])
+    if cmd == "screen" and len(args) == 1:
+        return screen(args[0])
+    if cmd == "bt-send" and len(args) >= 2:
+        return bt_send(args[0], args[1:])
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

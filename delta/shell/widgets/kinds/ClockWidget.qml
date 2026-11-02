@@ -12,8 +12,11 @@ import qs.widgets.parts
 Base {
     id: root
 
+    // «Часы с экрана блокировки»: вид — как у часов той раскладки
+    readonly property bool lockLook: !!item && item.id === "lockclock"
+    readonly property var lookItem: lockLook ? (Settings.get("widgets.lock", []) || []).find(x => x && x.id === "clock") || null : item
     function opt(key, def) {
-        return WidgetTypes.clockValue(item, key, lock ? Settings.get("lock.clock." + key, Settings.get("clock." + key, def)) : Settings.get("clock." + key, def));
+        return WidgetTypes.clockValue(lookItem, key, lock || lockLook ? Settings.get("lock.clock." + key, Settings.get("clock." + key, def)) : Settings.get("clock." + key, def));
     }
     readonly property string style: opt("style", "ios")
     readonly property string tint: opt("color", "white")

@@ -31,9 +31,16 @@ Item {
     // масштаб сетки относительно концепта (клетка 80 px)
     property real unit: 1
 
-    readonly property bool lock: place === "lock"
-    readonly property bool bg: item.bg !== false
-    readonly property bool isClock: item.id === "clock"
+    readonly property bool isLockClock: item.id === "lockclock"
+    // часы с экрана блокировки и на столе выглядят как там: при разблокировке
+    // они встают на это место (LockSurface) и подмена не должна быть видна
+    readonly property bool lock: place === "lock" || isLockClock
+    readonly property bool bg: isLockClock
+        ? ((Settings.get("widgets.lock", []) || []).find(x => x && x.id === "clock") || { bg: false }).bg !== false
+        : item.bg !== false
+    readonly property bool isClock: item.id === "clock" || isLockClock
+    // геометрию ведут снаружи каждый кадр: без пружинки
+    property bool instant: false
     readonly property bool isApp: WidgetTypes.isApp(item.id)
     // поле входа: без «×» и уголка, только переносится
     readonly property bool fixed: WidgetTypes.fixed(place, item.id)
@@ -70,10 +77,10 @@ Item {
     z: dragging || resizing ? 10 : selected ? 2 : 1
 
     // перенос и смена размера — с пружинкой, как в концепте; за пальцем — без анимации
-    Behavior on x { enabled: !root.dragging; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on y { enabled: !root.dragging; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on width { NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-    Behavior on height { NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on x { enabled: !root.dragging && !root.instant; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on y { enabled: !root.dragging && !root.instant; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on width { enabled: !root.instant; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+    Behavior on height { enabled: !root.instant; NumberAnimation { duration: 350 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
 
     // цвета содержимого: на стекле — тема, без подложки и на блокировке — белые с тенью
     readonly property QtObject pal: QtObject {
@@ -99,8 +106,8 @@ Item {
         }
 
         // появление: лёгкий «поп» (frame.scale занят только им)
-        opacity: 0
-        Component.onCompleted: appear.start()
+        opacity: root.instant ? 1 : 0
+        Component.onCompleted: if (!root.instant) appear.start()
         ParallelAnimation {
             id: appear
             NumberAnimation { target: frame; property: "opacity"; from: 0; to: 1; duration: 300 }
@@ -171,7 +178,7 @@ Item {
                 anchors.fill: parent
                 sourceComponent: {
                     switch (root.item.id) {
-                    case "clock": return clockC;
+                    case "clock": case "lockclock": return clockC;
                     case "weather": return weatherC;
                     case "music": return musicC;
                     case "pc": return pcC;

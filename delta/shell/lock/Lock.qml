@@ -58,6 +58,7 @@ Scope {
         ShellState.closeMenu();
         ShellState.closeOverlay();
         ShellState.lockEditing = false;
+        ShellState.deskClockHidden = true;
         auth.reset();
         // перед сном — сразу, без перехода: важно успеть закрыть экран
         fromDesktop = canXray && quick !== true;
@@ -76,12 +77,14 @@ Scope {
         if (canXray) setXray(true);
         exitRequested();
         finishTimer.restart();
+        deskClockTimer.restart();
         revealTimer.restart();
     }
 
     function finishUnlock() {
         persist.locked = false;
         unlocking = false;
+        ShellState.deskClockHidden = false;
         Sounds.play("service-login");
         ShellState.unlocking = false;
         ShellState.desktopShown = true;
@@ -112,6 +115,8 @@ Scope {
 
     // концепт: 820 мс, кольцо доигрывает чуть дольше уже на рабочем столе
     Timer { id: finishTimer; interval: 840 * Theme.anim.k; onTriggered: root.finishUnlock() }
+    // виджет на столе появляется чуть раньше конца: его кадр должен успеть до снятия замка
+    Timer { id: deskClockTimer; interval: Math.max(0, 840 * Theme.anim.k - 70); onTriggered: if (root.unlocking) ShellState.deskClockHidden = false }
     // фон блокировки начинает таять на 420 мс — рабочий стол проступает чуть раньше
     Timer { id: revealTimer; interval: 360 * Theme.anim.k; onTriggered: if (root.unlocking) ShellState.desktopShown = true }
     Timer { id: xrayOff; interval: 900; onTriggered: if (!root.unlocking) root.setXray(false) }

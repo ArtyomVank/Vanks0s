@@ -1,20 +1,28 @@
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
-    delegate_compositor, delegate_shm,
+    delegate_compositor, delegate_drm_syncobj, delegate_shm,
     xwayland::XWaylandClientData,
-    reexports::wayland_server::{
-        protocol::{wl_buffer, wl_surface::WlSurface},
-        Client,
+    reexports::{
+        calloop::Interest,
+        wayland_server::{
+            protocol::{wl_buffer, wl_surface::WlSurface},
+            Client, Resource,
+        },
     },
     wayland::{
         buffer::BufferHandler,
-        compositor::{get_parent, is_sync_subsurface, CompositorClientState, CompositorHandler, CompositorState},
+        compositor::{
+            add_blocker, add_pre_commit_hook, get_parent, is_sync_subsurface, with_states, BufferAssignment, CompositorClientState,
+            CompositorHandler, CompositorState, SurfaceAttributes,
+        },
+        dmabuf::get_dmabuf,
+        drm_syncobj::{DrmSyncobjCachedState, DrmSyncobjHandler, DrmSyncobjState},
         shm::{ShmHandler, ShmState},
     },
 };
 
 use super::{layer_shell, xdg_shell};
-use crate::{grabs::resize_grab, state::ClientState, Shell};
+use crate::{grabs::resize_grab, state::ClientState, CalloopData, Shell};
 
 impl CompositorHandler for Shell {
     fn compositor_state(&mut self) -> &mut CompositorState {
@@ -32,6 +40,7 @@ impl CompositorHandler for Shell {
     fn new_surface(&mut self, surface: &WlSurface) {
         layer_shell::guard_removed_layer(surface);
         crate::lock::guard_removed_lock(surface);
+        wait_for_buffer(surface);
     }
 
     /// Программа прислала новый кадр поверхности.
@@ -54,6 +63,57 @@ impl CompositorHandler for Shell {
     }
 }
 
+/// Кадр программы применяется, только когда видеокарта его дорисовала. Иначе
+/// на экран попадает недорисованный буфер: на NVIDIA неявной синхронизации нет,
+/// и при запуске, когда видеокарта занята, это видно как мусор на панелях до
+/// следующего кадра (например, пока не сдвинешь мышь).
+fn wait_for_buffer(surface: &WlSurface) {
+    add_pre_commit_hook::<Shell, _>(surface, |state, _, surface| {
+        let (acquire, dmabuf) = with_states(surface, |states| {
+            let acquire = states.cached_state.get::<DrmSyncobjCachedState>().pending().acquire_point.clone();
+            let mut attrs = states.cached_state.get::<SurfaceAttributes>();
+            let dmabuf = match attrs.pending().buffer.as_ref() {
+                Some(BufferAssignment::NewBuffer(buffer)) => get_dmabuf(buffer).cloned().ok(),
+                _ => None,
+            };
+            (acquire, dmabuf)
+        });
+        let Some(dmabuf) = dmabuf else { return };
+        let Some(client) = surface.client() else { return };
+        let wake = move |data: &mut CalloopData| {
+            let dh = data.display_handle.clone();
+            data.state.client_compositor_state(&client).blocker_cleared(&mut data.state, &dh);
+        };
+        // явная синхронизация, если программа её использует; иначе — неявная у dmabuf
+        if let Some(Ok((blocker, source))) = acquire.as_ref().map(|p| p.generate_blocker()) {
+            let wake = wake.clone();
+            let inserted = state.loop_handle.insert_source(source, move |_, _, data| {
+                wake(data);
+                Ok(())
+            });
+            if inserted.is_ok() {
+                add_blocker(surface, blocker);
+                return;
+            }
+        }
+        if let Ok((blocker, source)) = dmabuf.generate_blocker(Interest::READ) {
+            let inserted = state.loop_handle.insert_source(source, move |_, _, data| {
+                wake(data);
+                Ok(())
+            });
+            if inserted.is_ok() {
+                add_blocker(surface, blocker);
+            }
+        }
+    });
+}
+
+impl DrmSyncobjHandler for Shell {
+    fn drm_syncobj_state(&mut self) -> Option<&mut DrmSyncobjState> {
+        self.syncobj_state.as_mut()
+    }
+}
+
 impl BufferHandler for Shell {
     fn buffer_destroyed(&mut self, _buffer: &wl_buffer::WlBuffer) {}
 }
@@ -66,3 +126,4 @@ impl ShmHandler for Shell {
 
 delegate_compositor!(Shell);
 delegate_shm!(Shell);
+delegate_drm_syncobj!(Shell);

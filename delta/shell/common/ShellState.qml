@@ -101,6 +101,8 @@ Singleton {
     property bool lockEditing: false       // редактор виджетов экрана блокировки
     property bool dockEditing: false       // перестановка модулей верхнего дока
     property bool locked: false            // экран заблокирован (пишет lock/)
+    // виджет «Часы с экрана блокировки» скрыт: его часы пока на замке (пишет lock/)
+    property bool deskClockHidden: false
     property bool unlocking: false         // идёт анимация разблокировки (пишет lock/)
     // рабочий стол виден: false под блокировкой, true уже с середины разблокировки —
     // обои, виджеты и доки проступают слоями, пока экран блокировки тает (пишет lock/)

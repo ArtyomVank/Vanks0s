@@ -22,6 +22,7 @@ Singleton {
         { id: "display",       file: "Display",       group: "system",    title: I18n.tr("Экран"),                    icon: "monitor",   keywords: "монитор разрешение частота масштаб поворот hdr vrr яркость ночной свет" },
         { id: "sound",         file: "Sound",         group: "system",    title: I18n.tr("Звук"),                     icon: "volume",    keywords: "громкость динамики наушники микрофон выход вход" },
         { id: "power",         file: "Power",         group: "system",    title: I18n.tr("Питание"),                  icon: "power",     keywords: "батарея сон гибернация крышка энергия профиль" },
+        { id: "performance",   file: "Performance",   group: "system",    title: I18n.tr("Производительность"),       icon: "gauge",     keywords: "процессор частота ядра турбо эконом экономия баланс максимальная режим игры" },
         { id: "updates",       file: "Updates",       group: "system",    title: I18n.tr("Обновления"),               icon: "download",  keywords: "pacman пакеты обновить система" },
         { id: "about",         file: "About",         group: "system",    title: I18n.tr("О системе"),                icon: "info",      keywords: "система версия процессор видеокарта память диск имя компьютера ядро" },
         { id: "network",       file: "Network",       group: "devices",   title: I18n.tr("Сеть"),                     icon: "wifi",      keywords: "wi-fi wifi интернет ethernet vpn прокси" },

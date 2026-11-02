@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.0.0
+pkgver=1.2.0
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -47,6 +47,8 @@ depends=(
     'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk'
     # системные службы, к которым обращаются оболочка и «Настройки»
     'polkit' 'accountsservice' 'upower' 'power-profiles-daemon'
+    # «Телефон»: adb и экран телефона, память по кабелю, Bluetooth, QR-код для Wi-Fi
+    'android-tools' 'scrcpy' 'gvfs-mtp' 'bluez-obex' 'qrencode' 'iproute2'
     'networkmanager' 'bluez' 'gnome-keyring'
     # снимки экрана и буфер обмена
     'grim' 'slurp' 'wl-clipboard' 'cliphist'
@@ -115,6 +117,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-games"     "${pkgdir}/usr/bin/delta-games"
     install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"
     install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
+    install -Dm755 "${_src}/bin/delta-phone"     "${pkgdir}/usr/bin/delta-phone"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"
@@ -151,6 +154,10 @@ package() {
     # магазин Delta: пакеты Arch и Flathub
     install -Dm644 "${_src}/session/delta-store.desktop" \
         "${pkgdir}/usr/share/applications/delta-store.desktop"
+    install -Dm644 "${_src}/session/delta-phone.desktop" \
+        "${pkgdir}/usr/share/applications/delta-phone.desktop"
+    install -Dm644 "${_src}/session/delta-phone.svg" \
+        "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-phone.svg"
     install -Dm644 "${_src}/session/delta-welcome.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \
@@ -172,6 +179,10 @@ package() {
 
     # экран блокировки: пароль заодно открывает связку ключей (lock/Lock.qml)
     install -Dm644 "${_src}/session/pam/delta-lock" "${pkgdir}/etc/pam.d/delta-lock"
+
+    # режим производительности повторяется при загрузке (delta-setup performance)
+    install -Dm644 "${_src}/session/delta-performance.service" \
+        "${pkgdir}/usr/lib/systemd/system/delta-performance.service"
 
     # право на автовход: pkexec delta-autologin спрашивает пароль администратора
     install -Dm644 "${_src}/session/polkit/org.vankos.delta.autologin.policy" \

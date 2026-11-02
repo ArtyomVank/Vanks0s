@@ -14,6 +14,9 @@ Singleton {
     readonly property var desktop: ({
         clock:    { name: "Часы", short: "Часы", icon: "clock", def: [7, 3], min: [3, 2], max: [13, 5], modes: [],
                     presets: [[4, 2], [7, 3], [10, 4]] },
+        // часы экрана блокировки на столе: вид берут оттуда, менять можно только размер
+        lockclock: { name: "Часы с экрана блокировки", short: "Часы блокировки", icon: "lock", def: [7, 3], min: [3, 2], max: [13, 5], modes: [],
+                    presets: [[4, 2], [7, 3], [10, 4]], sizeOnly: true },
         weather:  { name: "Погода", short: "Погода", icon: "cloud-sun", def: [2, 2], min: [2, 2], max: [6, 4],
                     modes: [["compact", "Компакт", 2, 2], ["wide", "Подробно", 4, 2]] },
         music:    { name: "Музыка", short: "Музыка", icon: "music", def: [2, 2], min: [2, 2], max: [6, 3],
@@ -51,7 +54,7 @@ Singleton {
         photo:    { name: "Фото", short: "Фото", icon: "image", def: [3, 3], min: [2, 2], max: [8, 6],
                     modes: [["slow", "Раз в минуту", 2, 2], ["fast", "Раз в 10 с", 2, 2]], presets: [[2, 2], [3, 3], [4, 3]] }
     })
-    readonly property var desktopOrder: ["clock", "analog", "photo", "notifs", "weather", "sun", "music", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
+    readonly property var desktopOrder: ["clock", "lockclock", "analog", "photo", "notifs", "weather", "sun", "music", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "calendar", "battery"]
 
     // Экран блокировки: свои варианты у часов, уведомлений, погоды, календаря,
     // музыки и батареи (белые, строкой), остальные — те же, что на рабочем столе.
@@ -72,7 +75,11 @@ Singleton {
         // поле входа (аватар, имя, пароль): есть всегда, только передвигается
         login:    { name: "Вход", icon: "lock", def: [5, 3], min: [5, 3], max: [5, 3], modes: [], fixed: true }
     })
-    readonly property var lock: Object.assign({}, desktop, lockOwn)
+    readonly property var lock: {
+        const t = Object.assign({}, desktop, lockOwn);
+        delete t.lockclock;
+        return t;
+    }
     readonly property var lockOrder: ["clock", "analog", "notifs", "photo", "weather", "calendar", "music", "sun", "bars", "timer", "net", "pc", "gtemp", "ctemp", "cpu", "ram", "gpu", "disk", "battery"]
 
     readonly property var clockStyles: [

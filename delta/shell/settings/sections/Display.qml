@@ -386,7 +386,7 @@ ColumnLayout {
         }
 
         Maybe {
-            show: page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
+            show: Displays.fullSupport && page.cfg !== null && page.cfg.enabled && !page.cfg.mirror
             SettingRow {
                 icon: "refresh-rate"
                 title: I18n.tr("Переменная частота (VRR)")
@@ -401,7 +401,7 @@ ColumnLayout {
         }
 
         Maybe {
-            show: page.cfg !== null && page.cfg.enabled && page.mirrorModel.length > 1
+            show: Displays.fullSupport && page.cfg !== null && page.cfg.enabled && page.mirrorModel.length > 1
             SettingRow {
                 icon: "windows"
                 title: I18n.tr("Повторять экран")
@@ -422,7 +422,14 @@ ColumnLayout {
         title: I18n.tr("Цвет")
 
         Maybe {
-            show: page.mon !== null && page.mon.hdr.hdr
+            show: !Displays.fullSupport
+            Note {
+                kind: "info"
+                text: I18n.tr("HDR, 10 бит, цветовой охват, профиль ICC, VRR и повтор экрана пока работают только в сессии «Delta на Hyprland». В этой сессии экран рисует сам композитор Delta, и он их ещё не умеет.")
+            }
+        }
+        Maybe {
+            show: Displays.fullSupport && page.mon !== null && page.mon.hdr.hdr
             SettingRow {
                 icon: "hdr"
                 title: "HDR"
@@ -434,14 +441,14 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: page.cfg !== null && page.cfg.hdr
+            show: Displays.fullSupport && page.cfg !== null && page.cfg.hdr
             Note {
                 kind: "warn"
                 text: I18n.tr("HDR в Hyprland пока экспериментальный: возможны неверные цвета и мерцание. 10 бит на канал ломают часть программ записи экрана.")
             }
         }
         Maybe {
-            show: page.cfg !== null && page.cfg.hdr
+            show: Displays.fullSupport && page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "sun"
                 title: I18n.tr("Яркость обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
@@ -455,7 +462,7 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: page.cfg !== null && page.cfg.hdr
+            show: Displays.fullSupport && page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "palette"
                 title: I18n.tr("Насыщенность обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
@@ -468,7 +475,7 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: Displays.anyHdr
+            show: Displays.fullSupport && Displays.anyHdr
             SettingRow {
                 icon: "hdr"
                 title: I18n.tr("Авто-HDR в полноэкранных играх")
@@ -481,6 +488,7 @@ ColumnLayout {
         }
 
         SettingRow {
+            visible: Displays.fullSupport
             icon: "palette"
             title: I18n.tr("10 бит на канал")
             subtitle: page.cfg && page.cfg.hdr ? "В режиме HDR всегда включено" : "Плавнее градиенты. Может сломать запись экрана в части программ"
@@ -491,7 +499,7 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: page.cfg !== null && !page.cfg.hdr
+            show: Displays.fullSupport && page.cfg !== null && !page.cfg.hdr
             SettingRow {
                 icon: "palette"
                 title: I18n.tr("Цветовой охват")
@@ -505,6 +513,7 @@ ColumnLayout {
             }
         }
         SettingRow {
+            visible: Displays.fullSupport
             icon: "file"
             title: I18n.tr("Цветовой профиль (ICC)")
             subtitle: page.cfg && page.cfg.hdr && page.cfg.icc ? "С HDR профиль не используется" : "Полный путь к файлу .icc или .icm; пусто — без профиля"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Phone
+Name[ru]=Телефон
+Comment=Connect an Android phone by cable, quick send over Wi-Fi or Bluetooth
+Comment[ru]=Android по проводу, быстрая отправка файлов по Wi-Fi и Bluetooth
+Exec=delta-phone
+Icon=delta-phone
+Terminal=false
+Categories=Utility;
+Keywords=android;phone;usb;adb;mtp;scrcpy;wifi;bluetooth;телефон;андроид;
+StartupWMClass=delta-phone

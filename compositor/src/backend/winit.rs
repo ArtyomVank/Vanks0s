@@ -1,5 +1,6 @@
 use smithay::{
     backend::{
+        drm::DrmDeviceFd,
         egl::EGLDevice,
         renderer::{damage::OutputDamageTracker, gles::GlesRenderer, ImportDma},
         winit::{self, WinitEvent},
@@ -7,10 +8,18 @@ use smithay::{
     input::pointer::{CursorIcon, CursorImageStatus},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::{
-        calloop::EventLoop, wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
+        calloop::{
+            timer::{TimeoutAction, Timer},
+            EventLoop,
+        },
+        wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
     },
-    utils::{Rectangle, Transform},
-    wayland::{dmabuf::DmabufFeedbackBuilder, presentation::Refresh},
+    utils::{DeviceFd, Rectangle, Transform},
+    wayland::{
+        dmabuf::DmabufFeedbackBuilder,
+        drm_syncobj::{supports_syncobj_eventfd, DrmSyncobjState},
+        presentation::Refresh,
+    },
 };
 
 use crate::{config, render::{output_elements, take_feedback}, CalloopData, Shell};
@@ -25,6 +34,16 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     let formats = backend.renderer().dmabuf_formats();
     let node = EGLDevice::device_for_display(backend.renderer().egl_context().display())
         .and_then(|device| device.try_get_render_node());
+    // явная синхронизация кадров, как в настоящей сессии
+    if let Ok(Some(path)) = node.as_ref().map(|n| n.as_ref().and_then(|n| n.dev_path())) {
+        if let Ok(file) = std::fs::File::options().read(true).write(true).open(path) {
+            let fd = DrmDeviceFd::new(DeviceFd::from(std::os::fd::OwnedFd::from(file)));
+            if supports_syncobj_eventfd(&fd) {
+                data.state.syncobj_state = Some(DrmSyncobjState::new::<Shell>(&data.display_handle, fd));
+                tracing::info!("явная синхронизация кадров включена");
+            }
+        }
+    }
     let feedback = match node {
         Ok(Some(node)) => DmabufFeedbackBuilder::new(node.dev_id(), formats.clone()).build().ok(),
         _ => None,
@@ -57,6 +76,27 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     data.state.output_added(&output);
     data.state.winit = Some(backend);
     data.state.reload_monitors();
+
+    // Запись видео из скрытого окна: сессия вокруг просит кадры редко, поэтому
+    // снимки экрана и кадры программ идут по своему таймеру (DELTA_CAPTURE_FPS=60).
+    let capture_fps = std::env::var("DELTA_CAPTURE_FPS").ok().and_then(|v| v.parse::<u32>().ok()).filter(|f| *f > 0);
+    if let Some(fps) = capture_fps {
+        let period = std::time::Duration::from_secs_f64(1.0 / f64::from(fps));
+        let capture_output = output.clone();
+        event_loop.handle().insert_source(Timer::from_duration(period), move |_, _, data| {
+            let state = &mut data.state;
+            if let Some(mut backend) = state.winit.take() {
+                state.lock_frame_drawn(&capture_output);
+                state.run_copies(backend.renderer(), &capture_output);
+                state.send_frames(&capture_output);
+                state.winit = Some(backend);
+                state.space.refresh();
+                state.popups.cleanup();
+                let _ = data.display_handle.flush_clients();
+            }
+            TimeoutAction::ToDuration(period)
+        })?;
+    }
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
     // курсор рисует сессия вокруг; мы только меняем его фигуру, когда просит программа

@@ -201,6 +201,10 @@ impl Shell {
             }
             // из Lua понимаем только мониторы: раздел «Экран» применяет их на лету
             "eval" => {
+                if args.contains("session_lock_xray") {
+                    self.set_lock_xray(args.contains("session_lock_xray = true"));
+                    return "ok".into();
+                }
                 let rules = crate::monitors::parse_lua(args);
                 return match self.apply_monitor_rules(&rules) {
                     Ok(()) => "ok".into(),

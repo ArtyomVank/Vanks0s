@@ -65,6 +65,16 @@ Item {
         onFileChanged: reload()
     }
     readonly property bool gridReady: gridLoader.status === Loader.Ready
+    // Пока сетка грузится, запасных часов и поля входа на их обычных местах не
+    // показываем: иначе сначала видны они, а потом — раскладка пользователя.
+    // Сетка не загрузилась — запасные появятся (войти должно быть можно всегда).
+    property bool gridWaitOver: false
+    Timer { running: root.gridOn && !root.gridReady; interval: 1500; onTriggered: root.gridWaitOver = true }
+    readonly property bool gridSettled: !gridOn || gridReady || gridWaitOver || gridLoader.status === Loader.Error
+    onGridSettledChanged: if (gridSettled && !exitAnim.running) {
+        contentIn.restart();
+        focusField();
+    }
     // часы рисует сетка, если в раскладке экрана блокировки есть виджет «clock»
     readonly property bool gridHasClock: gridReady && Array.isArray(lockWidgets) && lockWidgets.some(w => w && w.id === "clock")
     readonly property bool gridHasNotifs: gridReady && Array.isArray(lockWidgets) && lockWidgets.some(w => w && (w.id === "notifs" || w.id === "notifications"))
@@ -114,10 +124,50 @@ Item {
         QtObject { id: gridBlur; property real v: 0 }
     }
 
+    // ---------- часы встают на рабочий стол ----------
+    // На столе есть виджет «Часы с экрана блокировки»: при разблокировке часы не
+    // исчезают вместе с сеткой, а перелетают на его место и меняют размер.
+    readonly property var deskClock: (Settings.get("widgets.desktop", []) || []).find(w => w && w.id === "lockclock") || null
+    QtObject {
+        id: fly
+        property real x: 0
+        property real y: 0
+        property real w: 0
+        property real h: 0
+        property var to: ({ x: 0, y: 0, w: 0, h: 0 })
+    }
+    Loader {
+        id: flyClock
+        active: false
+        onLoaded: {
+            item.bx = Qt.binding(() => fly.x);
+            item.by = Qt.binding(() => fly.y);
+            item.bw = Qt.binding(() => fly.w);
+            item.bh = Qt.binding(() => fly.h);
+        }
+    }
+    function startFly() {
+        const g = gridReady ? gridLoader.item : null;
+        const from = g && mode === "lock" && deskClock ? g.find("clock") : null;
+        if (!from) return;
+        const a = g.box(from.c, from.r, from.w, from.h);
+        fly.x = a.x; fly.y = a.y; fly.w = a.w; fly.h = a.h;
+        fly.to = g.boxOf("desktop", deskClock);
+        g.hiddenId = "clock";
+        flyClock.setSource(Quickshell.shellDir + "/widgets/WidgetCard.qml", {
+            grid: g, item: from, place: "lock", unit: g.unit, instant: true, bx: a.x, by: a.y, bw: a.w, bh: a.h
+        });
+        flyClock.active = true;
+    }
+    function stopFly() {
+        flyClock.active = false;
+        if (gridReady) gridLoader.item.hiddenId = "";
+    }
+
     // ---------- часы (если их нет в сетке) ----------
     Item {
         id: clockBox
-        visible: !root.gridHasClock
+        visible: root.gridSettled && !root.gridHasClock
         anchors.horizontalCenter: parent.horizontalCenter
         y: Math.round(root.height * 0.095)
         width: bigClock.implicitWidth
@@ -144,7 +194,7 @@ Item {
     // notifications.lockView. Высота — по содержимому, но не до поля пароля.
     NotifsWidget {
         id: notes
-        visible: root.notifOn && !root.gridHasNotifs && !root.editing && list.length > 0
+        visible: root.gridSettled && root.notifOn && !root.gridHasNotifs && !root.editing && list.length > 0
         x: Math.round((root.width - width) / 2)
         y: Math.round(root.height * 0.38)
         width: Math.round(Math.min(420, root.width * 0.34))
@@ -156,7 +206,7 @@ Item {
     // ---------- вход ----------
     Item {
         id: login
-        visible: root.showLogin && !root.editing
+        visible: root.gridSettled && root.showLogin && !root.editing
         x: root.loginBox ? Math.round(root.loginBox.x + (root.loginBox.w - width) / 2) : Math.round((root.width - width) / 2)
         y: root.loginBox ? Math.round(root.loginBox.y + (root.loginBox.h - height) / 2) : root.height - height - Math.round(root.height * 0.09)
         width: 420
@@ -396,15 +446,13 @@ Item {
         NumberAnimation { target: clockShift; property: "y"; from: 70; to: 0; duration: 900; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
         NumberAnimation { target: clockScale; properties: "xScale,yScale"; from: 1.25; to: 1; duration: 900 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
         NumberAnimation { target: clockBox; property: "opacity"; from: 0; to: 1; duration: 500; easing.type: Easing.OutCubic }
-        NumberAnimation { target: gridLoader; property: "opacity"; from: 0; to: 1; duration: 600; easing.type: Easing.OutCubic }
-        SequentialAnimation {
-            PropertyAction { target: login; property: "opacity"; value: 0 }
-            PauseAnimation { duration: 160 * Theme.anim.k }
-            ParallelAnimation {
-                NumberAnimation { target: login; property: "opacity"; to: 1; duration: 420; easing.type: Easing.OutCubic }
-                NumberAnimation { target: loginShift; property: "y"; from: 40; to: 0; duration: 520; easing.type: Easing.OutCubic }
-            }
-        }
+    }
+    // сетка и поле входа проявляются, как только сетка готова
+    ParallelAnimation {
+        id: contentIn
+        NumberAnimation { target: gridLoader; property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
+        NumberAnimation { target: login; property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
+        NumberAnimation { target: loginShift; property: "y"; from: 40; to: 0; duration: 520; easing.type: Easing.OutCubic }
     }
 
     // ---------- разблокировка: ~820 мс ----------
@@ -426,6 +474,11 @@ Item {
             PauseAnimation { duration: 200 * Theme.anim.k }
             NumberAnimation { target: clockBox; property: "opacity"; to: 0; duration: 600; easing.type: Easing.InOutQuad }
         }
+        // часы на столе: встают на место виджета
+        NumberAnimation { target: fly; property: "x"; to: fly.to.x; duration: 840 * Theme.anim.k; easing.type: root.curve }
+        NumberAnimation { target: fly; property: "y"; to: fly.to.y; duration: 840 * Theme.anim.k; easing.type: root.curve }
+        NumberAnimation { target: fly; property: "w"; to: fly.to.w; duration: 840 * Theme.anim.k; easing.type: root.curve }
+        NumberAnimation { target: fly; property: "h"; to: fly.to.h; duration: 840 * Theme.anim.k; easing.type: root.curve }
         // вход уезжает вниз
         NumberAnimation { target: loginShift; property: "y"; to: 170; duration: 700; easing.type: root.curve }
         NumberAnimation { target: loginScale; properties: "xScale,yScale"; to: 0.9; duration: 700 * Theme.anim.k; easing.type: root.curve }
@@ -441,17 +494,25 @@ Item {
         NumberAnimation { target: ring; property: "opacity"; from: 0.9; to: 0; duration: 900; easing.type: Easing.OutQuad }
     }
 
-    function playEnter() { enterAnim.restart(); }
+    function playEnter() {
+        enterAnim.restart();
+        if (gridSettled) contentIn.restart();
+        else gridLoader.opacity = login.opacity = 0;
+    }
     function playExit() {
         enterAnim.stop();
+        contentIn.stop();
         confirm = "";
         ring.c = login.visible ? field.mapToItem(root, field.width / 2, field.height / 2) : Qt.point(width / 2, height * 0.8);
+        startFly();
         exitAnim.restart();
     }
     // вернуть всё на место (после предпросмотра анимации или неудачного запуска сессии)
     function reset() {
         exitAnim.stop();
         enterAnim.stop();
+        contentIn.stop();
+        stopFly();
         bg.blurred = 1; bg.sharp = 1;
         clockShift.y = 0; clockScale.xScale = 1; clockScale.yScale = 1; clockBox.opacity = 1;
         loginShift.y = 0; loginScale.xScale = 1; loginScale.yScale = 1; login.opacity = 1;

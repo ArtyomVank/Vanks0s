@@ -114,8 +114,12 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, dra
                     .into_iter()
                     .map(OutputElement::Surface),
             );
+            if !shell.lock_xray_active() {
+                return elements;
+            }
+        } else {
+            return elements;
         }
-        return elements;
     }
 
     let programs = shell.fx_programs(renderer);

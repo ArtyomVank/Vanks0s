@@ -334,6 +334,13 @@ hl.window_rule({
     center = true,
 })
 hl.window_rule({
+    name  = "delta-phone",
+    match = { class = "^delta-phone$" },
+    float = true,
+    size  = "900 640",
+    center = true,
+})
+hl.window_rule({
     name  = "calamares",
     match = { class = "^(calamares|io.calamares.calamares)$" },
     float = true,

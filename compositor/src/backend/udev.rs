@@ -10,7 +10,11 @@
 //! монитора → следующий кадр. Если не изменилось ничего — пробуем снова
 //! через один кадр монитора.
 
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use smithay::{
     backend::{
@@ -48,6 +52,7 @@ use smithay::{
     utils::{DeviceFd, Monotonic, Time},
     wayland::{
         dmabuf::{DmabufFeedbackBuilder, DmabufGlobal},
+        drm_syncobj::{supports_syncobj_eventfd, DrmSyncobjState},
         presentation::Refresh,
     },
 };
@@ -104,7 +109,15 @@ struct Screen {
     queued: bool,
     /// следующая попытка кадра уже назначена
     timer: Option<RegistrationToken>,
+    /// когда появился экран и сколько раз он уже перерисован целиком (FULL_REPAINT)
+    born: Instant,
+    repainted: usize,
 }
+
+/// На этих секундах после появления экрана кадр рисуется заново целиком: при
+/// запуске видеокарта занята и меняется режим экрана, и случайно оставшийся
+/// след не должен ждать, пока что-то сдвинется.
+const FULL_REPAINT: [u64; 3] = [3, 8, 15];
 
 /// Родное разрешение, но самая высокая частота: «предпочтительный» режим в EDID
 /// часто 60 Гц даже у игровых мониторов (200 Гц у разработчика).
@@ -238,6 +251,13 @@ impl Shell {
         let udev = self.udev.as_mut().expect("udev");
         let fd = udev.session.open(path, OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK)?;
         let fd = DrmDeviceFd::new(DeviceFd::from(fd));
+        if supports_syncobj_eventfd(&fd) {
+            match self.syncobj_state.as_mut() {
+                Some(state) => state.update_device(fd.clone()),
+                None => self.syncobj_state = Some(DrmSyncobjState::new::<Shell>(&self.display_handle, fd.clone())),
+            }
+            tracing::info!("явная синхронизация кадров включена");
+        }
         let (drm, notifier) = DrmDevice::new(fd.clone(), true)?;
         let gbm = GbmDevice::new(fd)?;
 
@@ -374,7 +394,7 @@ impl Shell {
         };
         tracing::info!(name, size = ?wl_mode.size, refresh = wl_mode.refresh, ?loc, "монитор подключён");
 
-        gpu.screens.insert(crtc, Screen { off: false, output: output.clone(), connector, global, drm_output, queued: false, timer: None });
+        gpu.screens.insert(crtc, Screen { born: Instant::now(), repainted: 0, off: false, output: output.clone(), connector, global, drm_output, queued: false, timer: None });
         self.space.map_output(&output, loc);
         self.output_added(&output);
         layer_map_for_output(&output).arrange();
@@ -572,6 +592,10 @@ impl Shell {
 
     /// Отрисовать кадр монитора; true — кадр новый и поставлен на показ.
     fn draw(&mut self, renderer: &mut GlesRenderer, screen: &mut Screen) -> Result<bool, SwapBuffersError> {
+        if FULL_REPAINT.get(screen.repainted).is_some_and(|s| screen.born.elapsed().as_secs() >= *s) {
+            screen.repainted += 1;
+            let _ = screen.drm_output.with_compositor(|c| c.reset_buffers());
+        }
         let elements = output_elements(renderer, self, &screen.output, true);
         let result = screen
             .drm_output

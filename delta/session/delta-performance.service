@@ -1,0 +1,11 @@
+[Unit]
+Description=Delta: режим производительности процессора
+# power-profiles-daemon при старте выставляет свой режим — наш должен быть позже
+After=power-profiles-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/delta-setup performance apply
+
+[Install]
+WantedBy=multi-user.target

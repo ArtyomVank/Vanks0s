@@ -19,6 +19,7 @@ use smithay::{
         content_type::ContentTypeState,
         cursor_shape::CursorShapeManagerState,
         dmabuf::DmabufState,
+        drm_syncobj::DrmSyncobjState,
         fractional_scale::{with_fractional_scale, FractionalScaleManagerState},
         idle_inhibit::IdleInhibitManagerState,
         output::OutputManagerState,
@@ -76,6 +77,8 @@ pub struct Shell {
     pub seat_state: SeatState<Shell>,
     pub data_device_state: DataDeviceState,
     pub dmabuf_state: DmabufState,
+    /// явная синхронизация кадров, если её умеет видеокарта
+    pub syncobj_state: Option<DrmSyncobjState>,
     pub cursor_shape_state: CursorShapeManagerState,
     pub session_lock_state: SessionLockManagerState,
     pub primary_selection_state: PrimarySelectionState,
@@ -84,8 +87,8 @@ pub struct Shell {
     pub popups: PopupManager,
 
     pub seat: Seat<Self>,
-    /// сколько окон уже поставлено каскадом (сдвиг следующего)
-    pub cascade: i32,
+    /// до этого времени рабочий стол виден сквозь замок (lock.rs, переход Delta)
+    pub lock_xray: Option<std::time::Instant>,
     /// все окна, и на других столах, — в порядке наложения (последнее сверху)
     pub windows: Vec<Window>,
     pub workspaces: Workspaces,
@@ -197,6 +200,7 @@ impl Shell {
             seat_state,
             data_device_state,
             dmabuf_state: DmabufState::new(),
+            syncobj_state: None,
             cursor_shape_state,
             session_lock_state,
             primary_selection_state,
@@ -204,7 +208,7 @@ impl Shell {
             xdg_activation_state,
             popups: PopupManager::default(),
             seat,
-            cascade: 0,
+            lock_xray: None,
             windows: Vec::new(),
             workspaces: Workspaces::default(),
             fx: Default::default(),
@@ -337,7 +341,9 @@ impl Shell {
             if let Some(lock) = self.lock_surface(output) {
                 send_frames_surface_tree(lock.wl_surface(), output, time, throttle, |_, _| Some(output.clone()));
             }
-            return;
+            if !self.lock_xray_active() {
+                return;
+            }
         }
         let scale = output.current_scale().fractional_scale();
         for window in self.space.elements() {
@@ -362,17 +368,20 @@ impl Shell {
             .cloned()
     }
 
-    /// Новое окно: по центру экрана, каждое следующее — со сдвигом (каскад).
+    /// Новое окно: по центру экрана. Если там уже стоит другое — со сдвигом
+    /// (каскад), но не за край экрана.
     pub fn initial_position(&mut self, size: (i32, i32)) -> Point<i32, Logical> {
         let Some(output) = self.output_under_pointer() else {
             return (0, 0).into();
         };
         let geo = self.usable_area(&output);
-        let step = config::CASCADE_STEP * (self.cascade % 8);
-        self.cascade += 1;
-        let x = geo.loc.x + (geo.size.w - size.0).max(0) / 2 + step;
-        let y = geo.loc.y + (geo.size.h - size.1).max(0) / 2 + step;
-        (x, y).into()
+        let (free_w, free_h) = ((geo.size.w - size.0).max(0), (geo.size.h - size.1).max(0));
+        let at = |step: i32| -> Point<i32, Logical> {
+            let shift = config::CASCADE_STEP * step;
+            (geo.loc.x + (free_w / 2 + shift).min(free_w), geo.loc.y + (free_h / 2 + shift).min(free_h)).into()
+        };
+        let taken = |loc: Point<i32, Logical>| self.space.elements().any(|w| self.space.element_location(w) == Some(loc));
+        (0..8).map(at).find(|loc| !taken(*loc)).unwrap_or_else(|| at(0))
     }
 
     /// Поднять окно наверх и отдать ему клавиатуру — щелчок, Super+перетаскивание,

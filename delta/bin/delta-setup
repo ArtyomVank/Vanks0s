@@ -252,58 +252,139 @@ cmd_remove() {
     step "Готово"
 }
 
-# Максимальная производительность: регулятор частоты performance, как в
-# cpupower-gui и CoreCtrl, но одной кнопкой и без отдельной программы. Правило
-# systemd-tmpfiles повторяет его при каждой загрузке; службу power-profiles-daemon
-# переключаем тоже, иначе она вернёт свой режим. DELTA_SETUP_ROOT — для проверок.
+# Режимы производительности (Настройки → Производительность):
+#   eco          без турбо и с самым бережным регулятором частоты;
+#   balance      обычный режим: частота идёт за нагрузкой;
+#   performance  все ядра всегда на максимальной частоте (минимум = максимум).
+# Режим лежит в PERF_STATE, служба delta-performance повторяет его при загрузке
+# (balance — обычное состояние системы, для него службы нет). power-profiles-daemon
+# переключаем первым, иначе он вернёт свой режим. DELTA_SETUP_ROOT — для проверок.
 PERF_ROOT=${DELTA_SETUP_ROOT:-}
+PERF_STATE=${PERF_ROOT}/var/lib/delta/performance
+# правило прежних версий (тумблер «Максимальная производительность»)
 PERF_RULE=${PERF_ROOT}/etc/tmpfiles.d/delta-performance.conf
-PERF_POLICIES=${PERF_ROOT}/sys/devices/system/cpu/cpufreq
+PERF_CPU=${PERF_ROOT}/sys/devices/system/cpu
+PERF_POLICIES=${PERF_CPU}/cpufreq
 perf_write() {  # файл значение: драйвер может отказать (EPP при performance) — не страшно
     [ -w "$1" ] && { printf '%s\n' "$2" >"$1"; } 2>/dev/null
     return 0
 }
-cmd_performance() {
-    local p any=0 all=1 want gov
+perf_supported() {
+    local p
     for p in "${PERF_POLICIES}"/policy*/scaling_governor; do
-        [ -r "${p}" ] || continue
-        any=1
-        [ "$(cat "${p}")" = performance ] || all=0
+        [ -r "${p}" ] && return 0
     done
-    if [ "${1:-}" = status ]; then
-        [ "${any}" = 1 ] || { echo unsupported; return 0; }
-        [ "${all}" = 1 ] && echo on || echo off
-        return 0
-    fi
-    [ -n "${PERF_ROOT}" ] || [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup performance …"
-    [ "${any}" = 1 ] || die "Частотой этого процессора система не управляет"
-    case "${1:-}" in
-        on)
-            mkdir -p "$(dirname -- "${PERF_RULE}")"
-            printf '%s\n' '# Delta: «Максимальная производительность» (Настройки → Рекомендации)' \
-                'w /sys/devices/system/cpu/cpufreq/policy*/scaling_governor - - - - performance' >"${PERF_RULE}" \
-                || die "Не удалось сохранить режим"
-            for p in "${PERF_POLICIES}"/policy*; do
-                perf_write "${p}/scaling_governor" performance
-                perf_write "${p}/energy_performance_preference" performance
-            done
-            [ -z "${PERF_ROOT}" ] && command -v powerprofilesctl >/dev/null && powerprofilesctl set performance >/dev/null 2>&1
-            ;;
-        off)
-            rm -f "${PERF_RULE}"
-            for p in "${PERF_POLICIES}"/policy*; do
-                # обычный регулятор: какой есть у этого драйвера
-                want=""
-                for gov in schedutil powersave ondemand; do
-                    grep -qw "${gov}" "${p}/scaling_available_governors" 2>/dev/null && { want=${gov}; break; }
-                done
-                [ -n "${want}" ] && perf_write "${p}/scaling_governor" "${want}"
-                perf_write "${p}/energy_performance_preference" balance_performance
-            done
-            [ -z "${PERF_ROOT}" ] && command -v powerprofilesctl >/dev/null && powerprofilesctl set balanced >/dev/null 2>&1
-            ;;
-        *) die "performance: on | off | status" ;;
+    return 1
+}
+perf_mode() {
+    perf_supported || { echo unsupported; return 0; }
+    local m=""
+    [ -r "${PERF_STATE}" ] && m=$(cat "${PERF_STATE}")
+    case "${m}" in
+        eco|balance|performance) echo "${m}" ;;
+        *) if [ -e "${PERF_RULE}" ]; then echo performance; else echo balance; fi ;;
     esac
+}
+perf_governor() {  # каталог_политики регуляторы…: первый, какой есть у драйвера
+    local p=$1 gov
+    shift
+    for gov in "$@"; do
+        if grep -qw "${gov}" "${p}/scaling_available_governors" 2>/dev/null; then
+            perf_write "${p}/scaling_governor" "${gov}"
+            return 0
+        fi
+    done
+}
+perf_apply() {
+    local mode=$1 p min max turbo=1
+    [ "${mode}" = eco ] && turbo=0
+    # no_turbo и boost до чтения частот: без турбо меняется и cpuinfo_max_freq
+    perf_write "${PERF_CPU}/intel_pstate/no_turbo" "$((1 - turbo))"
+    perf_write "${PERF_POLICIES}/boost" "${turbo}"
+    for p in "${PERF_POLICIES}"/policy*; do
+        [ -d "${p}" ] || continue
+        perf_write "${p}/boost" "${turbo}"
+        min=$(cat "${p}/cpuinfo_min_freq" 2>/dev/null)
+        max=$(cat "${p}/cpuinfo_max_freq" 2>/dev/null)
+        case "${mode}" in
+            performance)
+                perf_governor "${p}" performance
+                perf_write "${p}/energy_performance_preference" performance
+                # минимум поднимаем после максимума: драйвер не примет min > max
+                [ -n "${max}" ] && perf_write "${p}/scaling_max_freq" "${max}"
+                [ -n "${max}" ] && perf_write "${p}/scaling_min_freq" "${max}"
+                ;;
+            balance|eco)
+                # у пассивных драйверов powersave — это всегда самая низкая частота,
+                # поэтому он последний: остаётся только там, где выбирать не из чего
+                if [ "${mode}" = eco ]; then
+                    perf_governor "${p}" conservative schedutil ondemand powersave
+                    perf_write "${p}/energy_performance_preference" power
+                else
+                    perf_governor "${p}" schedutil ondemand powersave
+                    perf_write "${p}/energy_performance_preference" balance_performance
+                fi
+                [ -n "${min}" ] && perf_write "${p}/scaling_min_freq" "${min}"
+                [ -n "${max}" ] && perf_write "${p}/scaling_max_freq" "${max}"
+                ;;
+        esac
+    done
+}
+perf_info() {  # ядер, средняя, самая низкая и самая высокая частота сейчас (МГц)
+    local f v n=0 sum=0 lo=0 hi=0
+    for f in "${PERF_CPU}"/cpu[0-9]*/cpufreq/scaling_cur_freq; do
+        [ -r "${f}" ] || continue
+        v=$(($(cat "${f}") / 1000))
+        n=$((n + 1)); sum=$((sum + v))
+        { [ "${lo}" = 0 ] || [ "${v}" -lt "${lo}" ]; } && lo=${v}
+        [ "${v}" -gt "${hi}" ] && hi=${v}
+    done
+    [ "${n}" -gt 0 ] && echo "${n} $((sum / n)) ${lo} ${hi}"
+    return 0
+}
+cmd_performance() {
+    local mode=${1:-}
+    case "${mode}" in
+        mode) perf_mode; return 0 ;;
+        info) perf_info; return 0 ;;
+        # для тумблера в «Рекомендациях»
+        status)
+            case "$(perf_mode)" in
+                unsupported) echo unsupported ;;
+                performance) echo on ;;
+                *) echo off ;;
+            esac
+            return 0 ;;
+        on) mode=performance ;;
+        off) mode=balance ;;
+    esac
+    [ -n "${PERF_ROOT}" ] || [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup performance …"
+    perf_supported || die "Частотой этого процессора система не управляет"
+    local ppd=""
+    case "${mode}" in
+        eco) ppd=power-saver ;;
+        balance) ppd=balanced ;;
+        performance) ppd=performance ;;
+        # при загрузке (служба delta-performance)
+        apply)
+            mode=$(perf_mode)
+            [ "${mode}" = balance ] && return 0
+            perf_apply "${mode}"
+            return 0 ;;
+        *) die "performance: eco | balance | performance | apply | mode | info" ;;
+    esac
+    mkdir -p "$(dirname -- "${PERF_STATE}")" || die "Не удалось сохранить режим"
+    printf '%s\n' "${mode}" >"${PERF_STATE}" || die "Не удалось сохранить режим"
+    rm -f "${PERF_RULE}"
+    if [ -z "${PERF_ROOT}" ]; then
+        command -v powerprofilesctl >/dev/null && powerprofilesctl set "${ppd}" >/dev/null 2>&1
+        if [ "${mode}" = balance ]; then
+            systemctl disable delta-performance.service >/dev/null 2>&1
+        else
+            systemctl enable delta-performance.service >/dev/null 2>&1
+        fi
+    fi
+    perf_apply "${mode}"
     return 0
 }
 

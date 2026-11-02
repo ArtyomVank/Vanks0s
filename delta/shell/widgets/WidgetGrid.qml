@@ -87,6 +87,17 @@ Item {
 
     function find(id) { return items.find(x => x.id === id) || null; }
 
+    // эта карточка не рисуется: её часы летят отдельно (LockSurface)
+    property string hiddenId: ""
+    // где на этой сетке стоит виджет другой раскладки — так же, как в normalize
+    function boxOf(layer, x) {
+        const t = WidgetTypes.info(layer, x.id);
+        const lim = WidgetTypes.limits(layer, x.id, x.mode || "");
+        const w = clampInt(x.w ?? t.def[0], lim.min[0], Math.min(lim.max[0], cols));
+        const h = clampInt(x.h ?? t.def[1], lim.min[1], Math.min(lim.max[1], rows));
+        return box(clampInt(x.c, 0, cols - w), clampInt(x.r, 0, rows - h), w, h);
+    }
+
     // запись: правим «сырой» список, чтобы не потерять скрытые виджеты (батарея без батареи)
     function save(update) {
         const list = Settings.clone(Array.isArray(raw) ? raw : []) || [];
@@ -196,7 +207,7 @@ Item {
         const w = Math.max(t.def[0], lim.min[0]), h = Math.max(t.def[1], lim.min[1]);
         const spot = findSpot(id, w, h);
         if (!spot) { say("На сетке нет места для «" + t.name + "»"); return false; }
-        const it = { id: id, c: spot.c, r: spot.r, w: w, h: h, bg: id !== "clock" && id !== "bars" };
+        const it = { id: id, c: spot.c, r: spot.r, w: w, h: h, bg: id !== "clock" && id !== "lockclock" && id !== "bars" };
         if (mode) it.mode = mode;
         save(list => {
             const i = list.findIndex(x => x && x.id === id);
@@ -452,6 +463,7 @@ Item {
         delegate: WidgetCard {
             id: card
             required property string modelData
+            visible: modelData !== root.hiddenId && !(modelData === "lockclock" && ShellState.deskClockHidden)
             readonly property var it: root.find(modelData) || { id: modelData, c: 0, r: 0, w: 1, h: 1 }
             readonly property bool moving: root.drag !== null && root.drag.type === "move" && root.drag.id === modelData
             readonly property bool sizing: root.drag !== null && root.drag.type === "resize" && root.drag.id === modelData

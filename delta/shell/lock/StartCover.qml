@@ -48,7 +48,20 @@ Scope {
     function finish() {
         if (!covering) return;
         covering = false;
-        autostart();
+        // Автозапуск ждёт ввода пароля. При автовходе связку ключей открывает
+        // пароль на экране блокировки, а браузер, запущенный раньше, успевал
+        // показать своё окно «разблокируйте связку» — поверх уже открытой.
+        if (lock.locked) autostartAfterUnlock = true;
+        else autostart();
+    }
+    property bool autostartAfterUnlock: false
+    Connections {
+        target: root.lock
+        function onLockedChanged() {
+            if (root.lock.locked || !root.autostartAfterUnlock) return;
+            root.autostartAfterUnlock = false;
+            root.autostart();
+        }
     }
 
     // один раз за сессию: метка в XDG_RUNTIME_DIR своя у каждого запуска Hyprland.

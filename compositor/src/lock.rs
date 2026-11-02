@@ -33,6 +33,8 @@ use crate::Shell;
 
 /// Как часто просить Delta снова взять замок, пока экран закрыт без него.
 const LOCK_RETRY: Duration = Duration::from_secs(2);
+/// Дольше любого перехода Delta (0,9 с и ещё 0,9 с до выключения)
+const XRAY_LIMIT: Duration = Duration::from_secs(4);
 
 /// Отметка на поверхности: она была замком.
 struct WasLockSurface;
@@ -73,6 +75,17 @@ pub struct LockSurfaceOn {
 impl Shell {
     pub fn is_locked(&self) -> bool {
         !matches!(self.lock, Lock::Unlocked)
+    }
+
+    /// Переход Delta: рабочий стол виден сквозь прозрачные места замка (как
+    /// misc.session_lock_xray в Hyprland). Сам выключается через XRAY_LIMIT:
+    /// упавшая оболочка не должна оставить стол открытым.
+    pub fn set_lock_xray(&mut self, on: bool) {
+        self.lock_xray = on.then(|| Instant::now() + XRAY_LIMIT);
+    }
+
+    pub fn lock_xray_active(&self) -> bool {
+        self.lock_xray.is_some_and(|until| Instant::now() < until)
     }
 
     /// Поверхность замка на этом мониторе, если программа её уже дала.
