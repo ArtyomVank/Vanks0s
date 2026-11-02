@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Свои супер обои (wallpaper/SuperWalls.qml). Лежат в ~/.local/share/delta/superwalls/<id>:
+# far.jpg — вид на экране блокировки, near.jpg — на рабочем столе, clip.mp4 — полёт.
+#
+#   delta-superwall list                 JSON: [{ id, kind, title, far, near, clip }]
+#   delta-superwall new photos [дальнее ближнее]   без файлов — спросит в окнах
+#   delta-superwall new video [файл]     печатает JSON новых обоев
+#   delta-superwall remove <id>
+set -u
+
+ROOT=${XDG_DATA_HOME:-${HOME}/.local/share}/delta/superwalls
+# полёт длится столько: дольше ждать рабочий стол незачем
+MAX_SECONDS=3
+
+fail() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
+ask() { zenity --file-selection --title="$1" --file-filter="$2" 2>/dev/null; }
+
+new_dir() {
+    local n=1 id=$1
+    while [ -e "${ROOT}/${id}" ]; do n=$((n + 1)); id="$1-${n}"; done
+    mkdir -p "${ROOT}/${id}" && printf '%s\n' "${id}"
+}
+# имя папки только из латиницы: у фото с русским названием остаётся просто «wall»
+slug() {
+    local s
+    s=$(printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')
+    printf '%s' "${s:-wall}"
+}
+
+# картинка не шире 2560: обоям больше не нужно, а памяти занимает
+to_jpg() { ffmpeg -v error -nostdin -y -i "$1" -frames:v 1 -vf "scale='min(2560,iw)':-2" -q:v 2 "$2" </dev/null; }
+
+entry() {  # папка
+    local d=$1 id
+    id=$(basename -- "${d}")
+    jq -c --arg id "user:${id}" --arg far "${d}/far.jpg" --arg near "${d}/near.jpg" --arg clip "${d}/clip.mp4" \
+        '{ id: $id, kind: .kind, title: .title, far: $far, near: $near, clip: (if .kind == "video" then $clip else "" end) }' "${d}/meta.json"
+}
+
+cmd_photos() {
+    local far=${1:-} near=${2:-} title id d
+    [ -n "${far}" ] || far=$(ask "Первое фото: издалека, на экране блокировки" "Картинки | *.jpg *.jpeg *.png *.webp *.bmp *.JPG *.PNG") || exit 3
+    [ -n "${near}" ] || near=$(ask "Второе фото: вблизи, на рабочем столе" "Картинки | *.jpg *.jpeg *.png *.webp *.bmp *.JPG *.PNG") || exit 3
+    [ -f "${far}" ] && [ -f "${near}" ] || fail "Файл не найден"
+    title=$(basename -- "${near}"); title=${title%.*}
+    id=$(new_dir "$(slug "${title}")-photos"); d=${ROOT}/${id}
+    to_jpg "${far}" "${d}/far.jpg" && to_jpg "${near}" "${d}/near.jpg" || { rm -rf -- "${d}"; fail "Не получилось прочитать фото"; }
+    jq -n --arg t "${title}" '{ kind: "photos", title: $t }' >"${d}/meta.json"
+    entry "${d}"
+}
+
+cmd_video() {
+    local file=${1:-} title id d len speed
+    [ -n "${file}" ] || file=$(ask "Видео для супер обоев: начало — экран блокировки, конец — рабочий стол" "Видео | *.mp4 *.webm *.mkv *.mov *.m4v *.avi *.MP4 *.MOV") || exit 3
+    [ -f "${file}" ] || fail "Файл не найден"
+    len=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "${file}" </dev/null)
+    [ -n "${len}" ] || fail "Не получилось прочитать видео"
+    title=$(basename -- "${file}"); title=${title%.*}
+    id=$(new_dir "$(slug "${title}")-video"); d=${ROOT}/${id}
+    # длинное видео ускоряем до ${MAX_SECONDS} с; звук не нужен
+    speed=$(LC_ALL=C awk -v l="${len}" -v m="${MAX_SECONDS}" 'BEGIN { printf "%.6f", (l > m ? m / l : 1) }')
+    ffmpeg -v error -nostdin -y -i "${file}" -an -vf "setpts=${speed}*PTS,scale='min(1920,iw)':-2,fps=60" \
+        -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -movflags +faststart "${d}/clip.mp4" </dev/null \
+        || { rm -rf -- "${d}"; fail "Не получилось перекодировать видео"; }
+    ffmpeg -v error -nostdin -y -i "${d}/clip.mp4" -frames:v 1 -q:v 2 "${d}/far.jpg" </dev/null
+    ffmpeg -v error -nostdin -y -sseof -0.1 -i "${d}/clip.mp4" -update 1 -q:v 2 "${d}/near.jpg" </dev/null
+    [ -s "${d}/far.jpg" ] && [ -s "${d}/near.jpg" ] || { rm -rf -- "${d}"; fail "Не получилось взять кадры из видео"; }
+    jq -n --arg t "${title}" '{ kind: "video", title: $t }' >"${d}/meta.json"
+    entry "${d}"
+}
+
+case "${1:-}" in
+    list)
+        for d in "${ROOT}"/*/; do [ -f "${d}meta.json" ] && entry "${d%/}"; done | jq -s .
+        ;;
+    new)
+        case "${2:-}" in
+            photos) cmd_photos "${3:-}" "${4:-}" ;;
+            video)  cmd_video "${3:-}" ;;
+            *) fail "new photos | new video" 2 ;;
+        esac
+        ;;
+    remove)
+        case "${2:-}" in ""|.|..|*/*) fail "неверное имя" 2 ;; esac
+        [ -d "${ROOT}/$2" ] && rm -rf -- "${ROOT:?}/$2"
+        ;;
+    *) sed -n '2,8p' "$0"; exit 2 ;;
+esac

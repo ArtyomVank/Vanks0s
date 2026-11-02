@@ -193,6 +193,17 @@ PanelWindow {
         }
     }
 
+    // --- супер обои: под ними лежит их готовый кадр (wallpaper.path) ---
+    Loader {
+        anchors.fill: parent
+        active: SuperWalls.current !== null
+        sourceComponent: SuperWall {
+            spec: SuperWalls.current
+            near: ShellState.desktopShown
+            live: true
+        }
+    }
+
     // Правый щелчок по свободному месту рабочего стола — меню «виджеты, обои,
     // настройки» (wallpaper/DesktopMenu.qml). Виджеты лежат слоем выше и свои
     // щелчки забирают сами, сюда доходят только щелчки мимо окон и виджетов.

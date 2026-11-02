@@ -127,6 +127,7 @@ FloatingWindow {
         jobStep = job.action === "connect" ? I18n.tr("Подключаю Flathub")
             : job.action === "remove" ? I18n.tr("Ждём пароль администратора") : I18n.tr("Готовлю установку");
         jobLine = "";
+        jobProc.environment = { DELTA_TRANSFER_NAME: job.title || "" };
         jobProc.command = job.action === "connect" ? ["delta-store", "connect"] : ["delta-store", job.action, job.source, job.id];
         jobProc.running = true;
     }

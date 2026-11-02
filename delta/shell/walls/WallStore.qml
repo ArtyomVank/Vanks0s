@@ -252,6 +252,7 @@ Singleton {
     function apply(item) {
         if (!item) return;
         // сначала признак видео, потом путь: обои реагируют на смену пути
+        Settings.set("wallpaper.super", "");
         Settings.set("wallpaper.video", item.video);
         Settings.set("wallpaper.path", item.path);
     }

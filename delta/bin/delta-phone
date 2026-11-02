@@ -17,6 +17,7 @@
 """
 
 import html
+import hashlib
 import json
 import os
 import re
@@ -170,6 +171,20 @@ setInterval(async()=>{try{const r=await fetch('list');if(r.ok)document.getElemen
 </script></html>"""
 
 
+def transfer_state(part, name, done, total, state="active"):
+    """файл состояния для дока загрузок (delta-transfers)"""
+    run = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    folder = os.path.join(run, "delta-transfers-" + (os.environ.get("WAYLAND_DISPLAY") or "0"))
+    path = os.path.join(folder, "phone-" + hashlib.md5(part.encode()).hexdigest() + ".json")
+    try:
+        os.makedirs(folder, exist_ok=True)
+        with open(path + ".new", "w", encoding="utf-8") as f:
+            json.dump({"kind": "phone", "name": name, "done": done, "total": total, "state": state}, f, ensure_ascii=False)
+        os.replace(path + ".new", path)
+    except OSError:
+        pass
+
+
 def size_text(n):
     for unit, k in (("ГБ", 2 ** 30), ("МБ", 2 ** 20), ("КБ", 2 ** 10)):
         if n >= k:
@@ -253,18 +268,26 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return self.reply(404)
         target = free_name(self.share.folder, query["name"][0])
-        part = target + ".part"
+        # скрытый и со своим окончанием: иначе его примут за загрузку браузера
+        part = os.path.join(self.share.folder, "." + os.path.basename(target) + ".delta-part")
+        name = os.path.basename(target)
+        shown = 0.0
         try:
             with open(part, "wb") as f:
                 left = length
                 while left > 0:
-                    chunk = self.rfile.read(min(1024 * 1024, left))
+                    chunk = self.rfile.read(min(256 * 1024, left))
                     if not chunk:
                         raise OSError("обрыв")
                     f.write(chunk)
                     left -= len(chunk)
+                    if time.time() - shown >= 0.4:
+                        shown = time.time()
+                        transfer_state(part, name, length - left, length)
             os.replace(part, target)
+            transfer_state(part, name, length, length, "done")
         except OSError:
+            transfer_state(part, name, 0, length, "failed")
             try:
                 os.unlink(part)
             except OSError:

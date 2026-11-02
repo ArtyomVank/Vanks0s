@@ -8,6 +8,7 @@ import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.docks.parts
+import qs.services
 
 // Верхний (статус-) док одного монитора: сетка модулей или пилюля музыки.
 //
@@ -27,7 +28,9 @@ PanelWindow {
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property bool hasWindows: smart && DockService.covered(screen?.name ?? "", openRect)
     readonly property bool autohide: cfg.autohide === true || (smart && hasWindows)
-    readonly property bool pill: DockService.mediaPill && !ShellState.dockEditing
+    // загрузка важнее музыки: пока она идёт, в доке проценты (TransferPill)
+    readonly property bool transfer: Transfers.active && !ShellState.dockEditing && !menuHere
+    readonly property bool pill: DockService.mediaPill && !ShellState.dockEditing && !transfer
     // «остров»: короткое сообщение вместо модулей — без звука / звук включён
     // (колокольчик) или событие системы (значок, заголовок, подпись)
     readonly property bool noticing: DockService.notice !== null && !ShellState.dockEditing && !menuHere
@@ -35,8 +38,9 @@ PanelWindow {
 
     readonly property real margin: 10
     readonly property real barThick: length === "compact" ? 42 : 48
-    readonly property real thick: noticing || pill ? 44 : barThick
+    readonly property real thick: noticing ? 44 : transfer ? (vertical ? 44 : transferContent.height) : pill ? 44 : barThick
     readonly property real along: noticing ? (vertical ? 150 : (muteNotice ? notice.implicitWidth : info.implicitWidth) + 40)
+                                : transfer ? (vertical ? transferContent.height : transferContent.width)
                                 : pill ? (vertical ? 200 : 340) : grid.implicitAlong
     // длина края — по самому окну: ShellScreen не всегда успевает за сменой масштаба
     readonly property real screenAlong: vertical ? height : width
@@ -50,7 +54,7 @@ PanelWindow {
     readonly property bool hovered: island.hovered || hot.containsMouse || hint.containsMouse
     readonly property bool want: Settings.ready && ShellState.desktopShown && !ShellState.widgetEditing && (!autohide || hovered || hold.running || menuHere
                                  || ShellState.docksForced || ShellState.dockEditing || DockService.peek
-                                 || DockService.musicPeek || noticing)
+                                 || DockService.musicPeek || noticing || transfer)
     onHoveredChanged: if (!hovered) hold.restart()
     // мышь ушла — ждём, вдруг вернётся (защита от дрожания у края)
     Timer { id: hold; interval: 700 }
@@ -153,10 +157,10 @@ PanelWindow {
         edge: win.edge
         along: win.along
         thick: win.thick
-        radiusOpen: win.thick / 2
+        radiusOpen: Math.min(win.thick / 2, 28)
         margin: win.margin
         want: win.want
-        tiles: win.length === "tiles" && !win.pill && !win.noticing
+        tiles: win.length === "tiles" && !win.pill && !win.noticing && !win.transfer
         editing: ShellState.dockEditing
         screenName: win.screen?.name ?? ""
         dockId: "top"
@@ -172,7 +176,7 @@ PanelWindow {
             thick: win.barThick
             editing: ShellState.dockEditing
             screen: win.screen
-            readonly property bool on: !win.pill && !win.noticing
+            readonly property bool on: !win.pill && !win.noticing && !win.transfer
             opacity: on ? 1 : 0
             visible: opacity > 0
             enabled: on
@@ -214,6 +218,28 @@ PanelWindow {
                 SequentialAnimation {
                     PauseAnimation { duration: (pillContent.on ? 150 : 0) * Theme.anim.k }
                     NumberAnimation { duration: (pillContent.on ? 460 : 140) * Theme.anim.k; easing.type: pillContent.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
+        }
+
+        TransferPill {
+            id: transferContent
+            anchors.centerIn: parent
+            vertical: win.vertical
+            readonly property bool on: win.transfer && !win.noticing
+            opacity: on ? 1 : 0
+            visible: opacity > 0
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: (transferContent.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (transferContent.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: (transferContent.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (transferContent.on ? 460 : 140) * Theme.anim.k; easing.type: transferContent.on ? Easing.OutBack : Easing.InCubic }
                 }
             }
         }
@@ -339,9 +365,12 @@ PanelWindow {
         parent: island.body
         anchors.fill: parent
         z: -1
-        cursorShape: win.pill ? Qt.PointingHandCursor : Qt.ArrowCursor
+        cursorShape: win.pill || win.transfer ? Qt.PointingHandCursor : Qt.ArrowCursor
         // звук без плеера MPRIS (игра, видео) — управлять нечем, открываем звук
-        onClicked: if (win.pill) win.activate(DockService.streamOnly ? "sound" : "media")
+        onClicked: {
+            if (win.transfer) Transfers.expanded = !Transfers.expanded;
+            else if (win.pill) win.activate(DockService.streamOnly ? "sound" : "media");
+        }
         onDoubleClicked: {
             if (ShellState.dockEditing) return;
             if (ShellState.menu === "media") ShellState.closeMenu();

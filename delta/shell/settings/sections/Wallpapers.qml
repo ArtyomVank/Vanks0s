@@ -8,6 +8,7 @@ import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.walls
+import qs.wallpaper
 import "../../wallpaper/media.js" as Media
 
 // Раздел «Обои»: папка, заполнение, видеообои, смена по таймеру.
@@ -16,7 +17,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Обои")
     property string icon: "image"
-    property string keywords: "фон картинка видеообои папка заполнение таймер смена"
+    property string keywords: "фон картинка видеообои папка заполнение таймер смена супер живые чёрная дыра луна"
     spacing: 18
 
     readonly property string current: Settings.get("wallpaper.path", "")
@@ -46,7 +47,7 @@ ColumnLayout {
                 visible: root.current.length > 0
                 text: I18n.tr("Убрать")
                 kind: "ghost"
-                onClicked: { Settings.set("wallpaper.video", false); Settings.set("wallpaper.path", ""); }
+                onClicked: { Settings.set("wallpaper.super", ""); Settings.set("wallpaper.video", false); Settings.set("wallpaper.path", ""); }
             }
         }
         SettingRow {
@@ -65,6 +66,141 @@ ColumnLayout {
                     }
                 }
             }
+        }
+    }
+
+    // плитка супер или живых обоев: снимок сцены, название, выбрана ли
+    component SuperTile: Rectangle {
+        id: tile
+        required property var wall
+        readonly property bool sel: SuperWalls.currentId === wall.id
+        width: 150
+        height: 92
+        radius: 12
+        color: Theme.soft2
+        border.width: sel ? 2.5 : 1
+        border.color: sel ? Theme.accent : Theme.line
+        Image {
+            anchors { fill: parent; margins: tile.border.width }
+            source: Media.fileUrl(SuperWalls.still(tile.wall))
+            sourceSize: Qt.size(300, 184)
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+        }
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
+            height: 22
+            radius: 8
+            color: Qt.rgba(0, 0, 0, 0.5)
+            Label {
+                anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                text: tile.wall.kind === "photos" || tile.wall.kind === "video" ? tile.wall.title : I18n.tr(tile.wall.title)
+                size: "caption"
+                color: "#ffffff"
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: SuperWalls.apply(tile.wall) }
+    }
+
+    // свои супер обои: окна выбора файлов и ffmpeg — в delta-superwall
+    property string creating: ""
+    property string createError: ""
+    Process {
+        id: creator
+        stdout: StdioCollector { id: created }
+        stderr: StdioCollector { id: createdErr }
+        onExited: code => {
+            root.creating = "";
+            root.createError = code === 0 || code === 3 ? "" : (createdErr.text.trim() || I18n.tr("Не получилось"));
+            if (code !== 0) return;
+            try { SuperWalls.apply(JSON.parse(created.text)); } catch (e) {}
+            SuperWalls.reload();
+        }
+    }
+    function create(kind) {
+        if (creator.running) return;
+        creating = kind;
+        createError = "";
+        creator.command = ["delta-superwall", "new", kind];
+        creator.running = true;
+    }
+
+    Card {
+        title: I18n.tr("Супер обои")
+        Label {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            text: I18n.tr("На экране блокировки они видны издалека, а при входе на рабочий стол камера летит к ним. На столе кадр стоит и не нагружает видеокарту.")
+            size: "small"
+            tone: 2
+            wrapMode: Text.WordWrap
+        }
+        Flow {
+            Layout.fillWidth: true
+            Layout.margins: 12
+            spacing: 10
+            Repeater {
+                model: SuperWalls.builtin.concat(SuperWalls.user)
+                delegate: SuperTile {
+                    required property var modelData
+                    wall: modelData
+                }
+            }
+        }
+        SettingRow {
+            icon: "plus"
+            title: I18n.tr("Сделать свои")
+            subtitle: root.createError || (root.creating === "video" ? I18n.tr("Готовлю видео, это займёт несколько секунд")
+                : I18n.tr("Два фото: первое на блокировке, второе на столе. Или видео: начало на блокировке, конец на столе"))
+            Row {
+                spacing: 8
+                Btn { text: I18n.tr("Из двух фото"); icon: "image"; kind: "soft"; enabled: root.hasZenity && root.creating === ""; onClicked: root.create("photos") }
+                Btn { text: I18n.tr("Из видео"); icon: "video"; kind: "soft"; enabled: root.hasZenity && root.creating === ""; onClicked: root.create("video") }
+            }
+        }
+        SettingRow {
+            readonly property var mine: SuperWalls.current && SuperWalls.current.id.startsWith("user:") ? SuperWalls.current : null
+            visible: mine !== null
+            icon: "trash"
+            title: I18n.tr("Удалить выбранные свои обои")
+            subtitle: mine ? mine.title : ""
+            Btn { text: I18n.tr("Удалить"); kind: "ghost"; onClicked: SuperWalls.removeUser(parent.mine) }
+        }
+    }
+
+    Card {
+        title: I18n.tr("Живые обои при запуске")
+        Label {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            text: I18n.tr("При включении компьютера рисунок оживает на экране блокировки и замирает. Дальше это обычные неподвижные обои.")
+            size: "small"
+            tone: 2
+            wrapMode: Text.WordWrap
+        }
+        Flow {
+            Layout.fillWidth: true
+            Layout.margins: 12
+            spacing: 10
+            Repeater {
+                model: SuperWalls.flows
+                delegate: SuperTile {
+                    required property var modelData
+                    wall: modelData
+                }
+            }
+        }
+        SettingRow {
+            visible: SuperWalls.current !== null && SuperWalls.current.kind === "flow"
+            icon: "refresh"
+            title: I18n.tr("Показать ещё раз")
+            Btn { text: I18n.tr("Показать"); kind: "soft"; onClicked: SuperWalls.playIntro() }
         }
     }
 

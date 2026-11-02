@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.2.0
+pkgver=1.3.0
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -118,6 +118,8 @@ package() {
     install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"
     install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
     install -Dm755 "${_src}/bin/delta-phone"     "${pkgdir}/usr/bin/delta-phone"
+    install -Dm755 "${_src}/bin/delta-transfers" "${pkgdir}/usr/bin/delta-transfers"
+    install -Dm755 "${_src}/bin/delta-superwall" "${pkgdir}/usr/bin/delta-superwall"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"

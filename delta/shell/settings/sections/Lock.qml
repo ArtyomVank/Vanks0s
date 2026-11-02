@@ -261,6 +261,11 @@ ColumnLayout {
             Toggle { checked: Settings.get("lock.onStart", false); onToggled: v => Settings.set("lock.onStart", v) }
         }
         SettingRow {
+            icon: "image"; title: I18n.tr("Размытие обоев")
+            subtitle: I18n.tr("Если выключить, обои на экране блокировки будут чёткими. Супер обои не размываются")
+            Toggle { checked: Settings.get("lock.blurWall", true) !== false; onToggled: v => Settings.set("lock.blurWall", v) }
+        }
+        SettingRow {
             icon: "eye"; title: I18n.tr("Плавный переход к рабочему столу")
             subtitle: I18n.tr("Рабочий стол плавно проступает, когда вы входите")
             Toggle { checked: Settings.get("lock.smoothTransitions", true); onToggled: v => Settings.set("lock.smoothTransitions", v) }

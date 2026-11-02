@@ -39,6 +39,21 @@ LIMIT=40
 
 dry() { [ "${DELTA_DRY_RUN:-}" = 1 ] || [ -n "${DELTA_NESTED:-}" ]; }
 step() { printf '::step:: %s\n' "$*"; }
+# док загрузок: файл состояния для delta-transfers (id имя скачано всего [active|done|failed])
+transfer_put() {
+    local dir=${XDG_RUNTIME_DIR:-/tmp}/delta-transfers-${WAYLAND_DISPLAY:-0} f
+    mkdir -p "${dir}" 2>/dev/null
+    f=${dir}/store-$1.json
+    jq -n --arg name "$2" --argjson done "$3" --argjson total "$4" --arg state "${5:-active}" \
+        '{ kind: "store", name: $name, done: $done, total: $total, state: $state }' >"${f}.new" 2>/dev/null &&
+        mv -f -- "${f}.new" "${f}"
+}
+# «123.4 MB» из flatpak remote-info — в байты
+human_bytes() {
+    LC_ALL=C awk -v s="$1" 'BEGIN { split(s, a, /[ \302\240]+/); m = 1
+        if (a[2] ~ /^k/ || a[2] ~ /^K/) m = 1e3; if (a[2] ~ /^M/) m = 1e6; if (a[2] ~ /^G/) m = 1e9
+        printf "%d\n", a[1] * m }'
+}
 
 # каталог Flathub: системный, иначе пользовательский
 find_appstream() {
@@ -282,12 +297,32 @@ check_id() {
 }
 
 cmd_install() {
-    local src=$1 id=$2
+    local src=$1 id=$2 name=${DELTA_TRANSFER_NAME:-$2} a b
     check_id "${src}" "${id}"
     case "${src}" in
         pacman)
-            if dry; then step "Проверка: pkexec delta-setup install ${id}"; sleep 2; step "Готово"; return 0; fi
-            pkexec delta-setup install "${id}"
+            if dry; then
+                step "Проверка: pkexec delta-setup install ${id}"
+                local i
+                for i in 1 2 3 4 5 6 7 8; do transfer_put "${id}" "${name}" "$((i * 40000000))" 320000000; sleep 1; done
+                transfer_put "${id}" "${name}" 320000000 320000000 done
+                step "Готово"
+                return 0
+            fi
+            # --progress: delta-setup печатает «::download:: скачано всего» для дока загрузок
+            local line got=0 rc
+            while IFS= read -r line; do
+                case "${line}" in
+                    "::download:: "*) read -r _ a b <<<"${line}"; got=1; transfer_put "${id}" "${name}" "${a}" "${b}" ;;
+                    "::rc:: "*) rc=${line#::rc:: } ;;
+                    *) printf '%s\n' "${line}" ;;
+                esac
+            done < <(pkexec delta-setup install --progress "${id}"; echo "::rc:: $?")
+            if [ "${got}" = 1 ]; then
+                if [ "${rc:-1}" = 0 ]; then transfer_put "${id}" "${name}" "${b}" "${b}" done
+                else transfer_put "${id}" "${name}" 0 "${b}" failed; fi
+            fi
+            return "${rc:-1}"
             ;;
         flatpak)
             if dry; then step "Проверка: flatpak install --system flathub ${id}"; sleep 2; step "Готово"; return 0; fi
@@ -297,7 +332,22 @@ cmd_install() {
                 pkexec delta-setup install flatpak || return 1
             fi
             step "Скачиваю и устанавливаю ${id}"
-            flatpak install --system -y --noninteractive flathub "${id}" 2>&1 || return 1
+            # flatpak печатает «Installing 1/3… 45%»: общий процент и размер приложения для дока
+            local size total=0 line p n k rc
+            size=$(LC_ALL=C flatpak remote-info --system flathub "${id}" 2>/dev/null | sed -n 's/^ *Download: *//p' | head -n1)
+            [ -n "${size}" ] && total=$(human_bytes "${size}")
+            while IFS= read -r line; do
+                printf '%s\n' "${line}"
+                p=$(sed -n 's/.*[^0-9]\([0-9]\{1,3\}\)%.*/\1/p' <<<" ${line}")
+                [ -n "${p}" ] || continue
+                k=$(sed -n 's/.* \([0-9]\{1,3\}\)\/\([0-9]\{1,3\}\).*/\1/p' <<<" ${line}"); n=$(sed -n 's/.* \([0-9]\{1,3\}\)\/\([0-9]\{1,3\}\).*/\2/p' <<<" ${line}")
+                [ -n "${k}" ] && [ -n "${n}" ] && [ "${n}" -gt 0 ] || { k=1; n=1; }
+                [ "${total}" -gt 0 ] || total=100
+                transfer_put "${id}" "${name}" "$(( total * ((k - 1) * 100 + p) / (n * 100) ))" "${total}"
+            done < <(flatpak install --system -y --noninteractive flathub "${id}" 2>&1 | tr '\r' '\n'; echo "${PIPESTATUS[0]}" >"${XDG_RUNTIME_DIR:-/tmp}/delta-store-rc-$$")
+            rc=$(cat "${XDG_RUNTIME_DIR:-/tmp}/delta-store-rc-$$" 2>/dev/null || echo 1); rm -f -- "${XDG_RUNTIME_DIR:-/tmp}/delta-store-rc-$$"
+            if [ "${rc}" != 0 ]; then transfer_put "${id}" "${name}" 0 "${total}" failed; return 1; fi
+            transfer_put "${id}" "${name}" "${total}" "${total}" done
             step "Готово"
             ;;
     esac

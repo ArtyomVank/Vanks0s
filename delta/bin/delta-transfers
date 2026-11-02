@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Delta — что сейчас скачивается: для дока загрузок (services/Transfers.qml).
+
+    delta-transfers watch    печатает строки JSON:
+        {"items": [{"id", "kind", "name", "done", "total", "speed"}]}
+        {"event": "done", "kind", "name"}
+
+Откуда берутся загрузки:
+- файлы состояния $XDG_RUNTIME_DIR/delta-transfers-<дисплей>/*.json: их пишут
+  delta-phone (файл с телефона) и delta-store (магазин). Поля: id, kind, name,
+  done, total, state (active, done, failed);
+- браузеры: временные файлы в папке загрузок. Сколько скачано, видно по размеру
+  файла. Размер всего файла браузеры семейства Chrome пишут в свой файл History;
+  у остальных он неизвестен, и док показывает только скачанное и скорость.
+"""
+
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+import time
+
+CHROMES = ["google-chrome", "google-chrome-beta", "chromium", "BraveSoftware/Brave-Browser",
+           "microsoft-edge", "vivaldi", "opera", "yandex-browser"]
+# временные файлы загрузки: окончание или начало имени
+TEMP_END = (".crdownload", ".part", ".partial", ".opdownload", ".download")
+TEMP_START = (".com.google.Chrome.", ".org.chromium.Chromium.", ".com.brave.Browser.")
+FRESH = 30         # файл старше этого не считаем новой загрузкой (секунды)
+PAUSED = 60        # столько не растёт — загрузка на паузе, из дока её убираем
+STALE = 90         # столько молчит файл состояния — его писатель умер
+
+
+def state_dir():
+    run = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    return os.path.join(run, "delta-transfers-" + (os.environ.get("WAYLAND_DISPLAY") or "0"))
+
+
+def say(**event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+def download_dirs():
+    home = os.path.expanduser("~")
+    found = [os.path.join(home, "Downloads"), os.path.join(home, "Загрузки")]
+    try:
+        out = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True, text=True, timeout=3).stdout.strip()
+        if out and out != home:
+            found.insert(0, out)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return list(dict.fromkeys(d for d in found if os.path.isdir(d)))
+
+
+def is_temp(name):
+    return name.endswith(TEMP_END) or name.startswith(TEMP_START)
+
+
+def clean_name(name):
+    if name.startswith(TEMP_START):
+        return ""
+    for end in TEMP_END:
+        if name.endswith(end):
+            name = name[: -len(end)]
+            break
+    # «Unconfirmed 123456» — Chrome ещё не назвал файл; имя придёт, когда он закончит
+    return "" if re.fullmatch(r"\w+( \w+)? \d{3,}", name) else name
+
+
+def chrome_histories():
+    root = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"))
+    out = []
+    for family in CHROMES:
+        base = os.path.join(root, family)
+        try:
+            profiles = os.listdir(base)
+        except OSError:
+            continue
+        for profile in profiles:
+            path = os.path.join(base, profile, "History")
+            if os.path.isfile(path):
+                out.append(path)
+    return out
+
+
+def chrome_info(path):
+    """(настоящее имя, размер) загрузки по файлу History; браузер держит его открытым"""
+    for history in chrome_histories():
+        try:
+            db = sqlite3.connect("file:" + history.replace("?", "%3f").replace("#", "%23") + "?immutable=1", uri=True, timeout=1)
+            try:
+                row = db.execute("SELECT target_path, total_bytes FROM downloads WHERE current_path = ? "
+                                 "ORDER BY id DESC LIMIT 1", (path,)).fetchone()
+            finally:
+                db.close()
+        except sqlite3.Error:
+            continue
+        if row:
+            return os.path.basename(row[0] or ""), max(0, int(row[1] or 0))
+    return "", 0
+
+
+class Item:
+    def __init__(self, id_, kind, name, done, total, now):
+        self.id, self.kind, self.name = id_, kind, name
+        self.done, self.total = done, total
+        self.speed = 0.0
+        self.mark_done, self.mark_time = done, now
+        self.grew = now
+        self.asked = 0.0
+
+    def update(self, done, now):
+        if done > self.done:
+            self.grew = now
+        self.done = done
+        # скорость — раз в секунду и со сглаживанием, иначе цифры прыгают
+        passed = now - self.mark_time
+        if passed >= 0.9:
+            rate = max(0, done - self.mark_done) / passed
+            self.speed = rate if self.speed == 0 else self.speed * 0.5 + rate * 0.5
+            self.mark_done, self.mark_time = done, now
+
+    def public(self):
+        return {"id": self.id, "kind": self.kind, "name": self.name, "done": self.done,
+                "total": self.total, "speed": int(self.speed)}
+
+
+class Watcher:
+    def __init__(self):
+        self.items = {}
+        self.dirs = download_dirs()
+        self.next_dirs = 0.0
+
+    def states(self, now):
+        folder = state_dir()
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            names = []
+        seen = set()
+        for name in names:
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(folder, name)
+            try:
+                if now - os.path.getmtime(path) > STALE:
+                    os.unlink(path)
+                    continue
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, ValueError):
+                continue
+            id_ = "state:" + name
+            state = data.get("state", "active")
+            if state != "active":
+                self.items.pop(id_, None)
+                if state == "done":
+                    say(event="done", kind=data.get("kind", ""), name=data.get("name", ""))
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+                continue
+            seen.add(id_)
+            done, total = int(data.get("done") or 0), int(data.get("total") or 0)
+            item = self.items.get(id_)
+            if item is None:
+                item = self.items[id_] = Item(id_, data.get("kind", ""), data.get("name", ""), done, total, now)
+            item.total = total
+            item.update(done, now)
+        for id_ in [i for i in self.items if i.startswith("state:") and i not in seen]:
+            del self.items[id_]
+
+    def browsers(self, now):
+        if now >= self.next_dirs:
+            self.dirs = download_dirs()
+            self.next_dirs = now + 30
+        seen = set()
+        for folder in self.dirs:
+            try:
+                entries = list(os.scandir(folder))
+            except OSError:
+                continue
+            for e in entries:
+                if not is_temp(e.name):
+                    continue
+                try:
+                    st = e.stat()
+                except OSError:
+                    continue
+                id_ = "file:" + e.path
+                item = self.items.get(id_)
+                if item is None:
+                    if now - st.st_mtime > FRESH:
+                        continue
+                    item = self.items[id_] = Item(id_, "browser", clean_name(e.name), st.st_size, 0, now)
+                seen.add(id_)
+                # размер браузер записывает в History с задержкой, спрашиваем до ответа
+                if item.total == 0 and now - item.asked >= 2:
+                    item.asked = now
+                    real, total = chrome_info(e.path)
+                    if real:
+                        item.name = real
+                    item.total = total
+                item.update(st.st_size, now)
+                if now - item.grew > PAUSED:
+                    del self.items[id_]
+                    seen.discard(id_)
+                    # на паузе: снова заметим, когда файл начнёт расти
+        for id_ in [i for i in self.items if i.startswith("file:") and i not in seen]:
+            self.finished(self.items.pop(id_), now)
+
+    def finished(self, item, now):
+        # временный файл пропал: готовый файл лежит рядом под настоящим именем,
+        # а если его нет — загрузку отменили, сообщать не о чем
+        folder = os.path.dirname(item.id[len("file:"):])
+        if item.total and item.done < item.total * 0.5:
+            return
+        best = None
+        try:
+            for e in os.scandir(folder):
+                if is_temp(e.name) or e.is_dir():
+                    continue
+                st = e.stat()
+                if now - st.st_mtime < 300 and st.st_size >= item.done:
+                    if e.name == item.name:
+                        best = e.name
+                        break
+                    if best is None or st.st_mtime > best_time:
+                        best, best_time = e.name, st.st_mtime
+        except OSError:
+            return
+        if best:
+            say(event="done", kind=item.kind, name=best)
+
+    def snapshot(self):
+        return sorted((i.public() for i in self.items.values()), key=lambda i: i["id"])
+
+    def run(self):
+        parent = os.getppid()
+        last = None
+        while True:
+            now = time.time()
+            self.states(now)
+            self.browsers(now)
+            snap = self.snapshot()
+            if snap != last:
+                say(items=snap)
+                last = snap
+            # оболочка закрылась — закрываемся и мы
+            if os.getppid() != parent:
+                return 0
+            time.sleep(0.5 if snap else 1.2)
+
+
+def main(argv):
+    if len(argv) > 1 and argv[1] == "watch":
+        return Watcher().run()
+    sys.stderr.write(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

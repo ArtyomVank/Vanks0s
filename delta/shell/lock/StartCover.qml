@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.common
 import qs.lock.parts
+import qs.wallpaper
 
 // «Добро пожаловать» с первого кадра оболочки при запуске сессии. Раньше,
 // пока оболочка грузилась, а блокировка решала, показываться ли, были видны
@@ -48,6 +49,9 @@ Scope {
     function finish() {
         if (!covering) return;
         covering = false;
+        // живые обои оживают один раз: когда заставка ушла
+        if (SuperWalls.current?.kind === "flow") SuperWalls.playIntro();
+        else SuperWalls.intro = 1;
         // Автозапуск ждёт ввода пароля. При автовходе связку ключей открывает
         // пароль на экране блокировки, а браузер, запущенный раньше, успевал
         // показать своё окно «разблокируйте связку» — поверх уже открытой.

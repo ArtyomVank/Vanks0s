@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import qs.common
+import qs.wallpaper
 
 // Фон экрана блокировки: свои обои (lock.wallpaper) или обои рабочего стола,
 // размытые и притемнённые.
@@ -22,6 +23,10 @@ Item {
     // видеообои здесь не крутим: берём их кадр-заставку (его пишет wallpaper/Wallpaper.qml)
     readonly property bool video: /\.(mp4|webm|mkv|mov|avi|m4v)$/i.test(file)
     readonly property string image: video ? Settings.get("wallpaper.poster", "") : file
+    // супер обои видны как есть, издалека; своя картинка блокировки важнее них
+    readonly property var superWall: own ? null : SuperWalls.current
+    // можно убрать размытие: обои тогда чёткие, затемнение слабее
+    readonly property bool blurOn: Settings.get("lock.blurWall", true) !== false && superWall === null
 
     Item {
         anchors.fill: parent
@@ -46,6 +51,12 @@ Item {
             cache: false
             fillMode: root.fill === "contain" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             sourceSize: Qt.size(root.width, root.height)
+        }
+
+        Loader {
+            anchors.fill: parent
+            active: root.superWall !== null
+            sourceComponent: SuperWall { spec: root.superWall }
         }
     }
 
@@ -79,7 +90,7 @@ Item {
 
     MultiEffect {
         anchors.fill: parent
-        opacity: root.blurred
+        opacity: root.blurOn ? root.blurred : 0
         visible: opacity > 0
         source: smallBox
         blurEnabled: true
@@ -95,6 +106,6 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(8 / 255, 6 / 255, 18 / 255, 0.32)
-        opacity: root.blurred
+        opacity: root.blurred * (root.blurOn ? 1 : 0.4)
     }
 }

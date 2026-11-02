@@ -184,11 +184,29 @@ aur_install() {
     done
 }
 
+# для дока загрузок: «::download:: скачано всего». Скачанное видно по росту кэша
+# пакетов (там и готовые пакеты, и недокачанные .part), всё — по сумме размеров
+# из pacman. Строки идут только с --progress: другие окна показывают вывод как есть.
+download_progress() {
+    local total start now
+    total=$(pacman -Sup --needed --print-format %s "$@" 2>/dev/null | awk '{ s += $1 } END { printf "%d", s }')
+    [ "${total:-0}" -gt 0 ] || return 0
+    start=$(du -sb /var/cache/pacman/pkg 2>/dev/null | cut -f1)
+    while sleep 1; do
+        now=$(du -sb /var/cache/pacman/pkg 2>/dev/null | cut -f1)
+        now=$(( now - start ))
+        [ "${now}" -gt 0 ] || now=0
+        [ "${now}" -lt "${total}" ] || now=${total}
+        printf '::download:: %s %s\n' "${now}" "${total}"
+    done
+}
+
 cmd_install() {
     [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup install …"
-    local p pkgs=() aur=() in_aur=0
+    local p pkgs=() aur=() in_aur=0 progress=0
     for p in "$@"; do
         [ "${p}" = --aur ] && { in_aur=1; continue; }
+        [ "${p}" = --progress ] && { progress=1; continue; }
         # только имена пакетов: никаких ключей pacman и путей
         [[ ${p} =~ ^[a-z0-9][a-z0-9@._+-]*$ ]] || die "странное имя пакета: ${p}"
         if [ "${in_aur}" = 1 ]; then
@@ -215,7 +233,12 @@ cmd_install() {
     step "Обновляю ключи подписи"
     run pacman -Sy --needed --noconfirm archlinux-keyring || die "Не удалось получить списки пакетов — нет интернета?"
     step "Скачиваю и устанавливаю (${#} пакетов)"
-    run pacman -Su --needed --noconfirm "$@" || die "Установка не удалась"
+    local dl=""
+    if [ "${progress}" = 1 ]; then download_progress "$@" & dl=$!; fi
+    run pacman -Su --needed --noconfirm "$@"
+    local rc=$?
+    [ -n "${dl}" ] && kill "${dl}" 2>/dev/null
+    [ "${rc}" = 0 ] || die "Установка не удалась"
     [ "${#aur[@]}" -gt 0 ] && aur_install "${aur[@]}"
 
     if printf '%s\n' "$@" | grep -qx linux-zen; then grub_prefer_zen; fi

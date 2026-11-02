@@ -23,7 +23,8 @@
 #   delta-exe --uninstall <ярлык.desktop>        удалить программу: её папку в
 #                                           C:, ярлыки, а если система Windows
 #                                           была только её — и систему
-#   delta-exe --tidy                        убрать ярлыки удалённых программ
+#   delta-exe --tidy                        убрать ярлыки удалённых программ, добавить
+#                                           папки, положенные прямо в C: префикса
 #   delta-exe --deps <файл>                 какие библиотеки нужны игре (JSON
 #                                           delta-pe и что уже стоит в префиксе)
 #   delta-exe --proton         путь к самому свежему Proton CachyOS (для delta-games)
@@ -939,6 +940,42 @@ reachable() {
     mountpoint -q -- "${root}"
 }
 
+# Главный .exe папки: самый большой не служебный, неглубоко
+main_exe() {
+    find "$1" -maxdepth 3 -type f -iname '*.exe' -printf '%s\t%p\n' 2>/dev/null | sort -t$'\t' -k1,1 -n -r | cut -f2- |
+        grep -viE '/(unins|setup|install|update|crash|report|vc_?redist|dxsetup|dotnet|directx|ue4prereq|unitycrash|easyanticheat)[^/]*\.exe$|/(_commonredist|redist|redistributables?|directx|support)/' |
+        head -n1
+}
+
+# Игру или программу положили папкой прямо в C: префикса, без установщика:
+# лаунчер покажет её сам. Каждую папку — один раз (.delta-adopted), чтобы
+# не возвращать ярлык, который убрали руками.
+adopt_folders() {
+    local prefix pname seen c dir exe
+    for prefix in "${PREFIXES}"/*/; do
+        prefix=${prefix%/}
+        [ -d "${prefix}" ] || continue
+        pname=$(basename -- "${prefix}")
+        seen=${prefix}/.delta-adopted
+        c=$(drive_c "${prefix}")
+        for dir in "${c}"/*/; do
+            dir=${dir%/}
+            [ -d "${dir}" ] || continue
+            case "$(basename -- "${dir}")" in
+                windows|users|ProgramData|"Program Files"|"Program Files (x86)"|openxr|vrclient|proton_shortcuts|temp|tmp) continue ;;
+            esac
+            grep -qxF -- "$(basename -- "${dir}")" "${seen}" 2>/dev/null && continue
+            if ! grep -qsF -- "X-Delta-Exe=${dir}/" "${APPS}"/delta-exe-*.desktop; then
+                exe=$(main_exe "${dir}")
+                # exe ещё нет — папку только копируют: посмотрим в следующий раз
+                [ -n "${exe}" ] || continue
+                add_app "${prefix}" "${pname}" "" "${exe}" >/dev/null
+            fi
+            basename -- "${dir}" >>"${seen}"
+        done
+    done
+}
+
 # Уборка ярлыков программ Windows: программы нет (удалили её папку, сам
 # префикс) — ярлык долой; ярлык прежних версий с двоичным мусором в Icon=
 # (оболочка на нём падала) — пересоздать.
@@ -960,6 +997,7 @@ tidy() {
             [ -n "${pname}" ] && [ -d "$(prefix_of "${pname}")" ] && add_app "$(prefix_of "${pname}")" "${pname}" "" "${exe}" "${title}" >/dev/null
         fi
     done
+    adopt_folders
     command -v update-desktop-database >/dev/null && update-desktop-database "${APPS}" 2>/dev/null
     return 0
 }
