@@ -1,5 +1,5 @@
 //! Имя монитора из EDID: производитель (три буквы, «SAM», «DEL») и модель
-//! из дескриптора имени. Полный разбор (HDR, цвет) — вместе с 0.6.
+//! из дескриптора имени, а также что монитор заявляет про HDR.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Info {
@@ -44,6 +44,49 @@ pub fn parse(edid: &[u8]) -> Option<Info> {
     Some(Info { make, model, serial })
 }
 
+/// Что монитор заявляет про HDR в расширении CTA-861.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Hdr {
+    /// умеет SMPTE ST 2084 (PQ)
+    pub pq: bool,
+    /// яркость, кд/м²; 0 — не заявлена
+    pub max_nits: f32,
+    pub avg_nits: f32,
+    pub min_nits: f32,
+}
+
+pub fn hdr(edid: &[u8]) -> Hdr {
+    let mut out = Hdr::default();
+    for block in edid.chunks_exact(128).skip(1).filter(|b| b[0] == 0x02) {
+        // блоки данных лежат с 4-го байта до смещения первого описания таймингов
+        let end = (block[2] as usize).clamp(4, 127);
+        let mut i = 4;
+        while i < end {
+            let (tag, len) = (block[i] >> 5, (block[i] & 0x1f) as usize);
+            let data = &block[(i + 1).min(end)..(i + 1 + len).min(end)];
+            match (tag, data.first()) {
+                // статические метаданные HDR: 2-й бит — ST 2084
+                (7, Some(6)) if data.len() >= 3 => {
+                    out.pq = data[1] & 0x04 != 0;
+                    let nits = |cv: u8| 50.0 * 2f32.powf(f32::from(cv) / 32.0);
+                    if let Some(&cv) = data.get(3).filter(|cv| **cv > 0) {
+                        out.max_nits = nits(cv);
+                    }
+                    if let Some(&cv) = data.get(4).filter(|cv| **cv > 0) {
+                        out.avg_nits = nits(cv);
+                    }
+                    if let Some(&cv) = data.get(5) {
+                        out.min_nits = out.max_nits * (f32::from(cv) / 255.0).powi(2) / 100.0;
+                    }
+                }
+                _ => {}
+            }
+            i += 1 + len;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,5 +116,20 @@ mod tests {
         assert_eq!((i.model.as_str(), i.serial.as_str()), ("0x1234", "0x00000007"));
         assert_eq!(parse(&edid(&[], 0)).unwrap().serial, "");
         assert!(parse(&[0; 64]).is_none());
+    }
+
+    #[test]
+    fn hdr_block() {
+        let mut edid = vec![0u8; 256];
+        edid[128] = 0x02;
+        edid[130] = 40;
+        // чужой блок, затем статические метаданные: SDR + PQ, тип 1, 0x61 → 408,8 кд/м²
+        edid[132..136].copy_from_slice(&[0xe3, 5, 0xc0, 0x00]);
+        edid[136..143].copy_from_slice(&[0xe6, 6, 0x05, 0x01, 0x61, 0x61, 0x07]);
+        let h = hdr(&edid);
+        assert!(h.pq);
+        assert!((h.max_nits - 408.76).abs() < 0.1, "{}", h.max_nits);
+        assert!((h.min_nits - 0.00308).abs() < 0.001, "{}", h.min_nits);
+        assert_eq!(hdr(&edid[..128]), Hdr::default());
     }
 }

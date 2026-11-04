@@ -437,3 +437,54 @@ void main() {
 }
 "#
 );
+
+/// HDR, последний проход кадра. В рабочем пространстве значения закодированы
+/// гаммой 2.2 и лежат в BT.709, 1.0 — белый обычной картинки, поэтому окна
+/// смешиваются так же, как без HDR. Здесь: свет → BT.2020 → PQ.
+pub const HDR_OUT: &str = concat!(
+    tex_head!(),
+    r#"
+uniform float white;
+vec3 pq(vec3 nits) {
+    vec3 y = pow(max(nits, 0.0) / 10000.0, vec3(0.1593017578125));
+    return pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), vec3(78.84375));
+}
+void main() {
+    vec3 c = texture2D(tex, v_coords).rgb;
+    vec3 light = sign(c) * pow(abs(c), vec3(2.2));
+    light = mat3(0.6274, 0.0691, 0.0164, 0.3293, 0.9195, 0.0880, 0.0433, 0.0113, 0.8956) * light;
+    gl_FragColor = vec4(pq(light * white), 1.0);
+}
+"#
+);
+
+/// Поверхность, которая сама сказала, в каком она цвете: из её пространства в
+/// рабочее. tf: 0 — гамма 2.2 и sRGB, 1 — PQ, 2 — линейный scRGB, 3 — BT.1886.
+pub const COLOR_IN: &str = concat!(
+    tex_head!(),
+    r#"
+uniform float tf;
+uniform float white;
+uniform mat3 to709;
+vec3 from_pq(vec3 e) {
+    vec3 p = pow(max(e, 0.0), vec3(1.0 / 78.84375));
+    vec3 y = max(p - 0.8359375, 0.0) / (18.8515625 - 18.6875 * p);
+    return 10000.0 * pow(y, vec3(1.0 / 0.1593017578125));
+}
+void main() {
+    vec4 c = texture2D(tex, v_coords);
+#if defined(NO_ALPHA)
+    c.a = 1.0;
+#endif
+    vec3 e = c.a > 0.0 ? c.rgb / c.a : c.rgb;
+    vec3 light;
+    if (tf < 0.5) light = sign(e) * pow(abs(e), vec3(2.2));
+    else if (tf < 1.5) light = from_pq(e) / white;
+    else if (tf < 2.5) light = e * 80.0 / white;
+    else light = pow(max(e, 0.0), vec3(2.4));
+    light = to709 * light;
+    vec3 o = sign(light) * pow(abs(light), vec3(1.0 / 2.2));
+    gl_FragColor = vec4(o * c.a, c.a) * alpha;
+}
+"#
+);

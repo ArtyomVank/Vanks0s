@@ -8,12 +8,14 @@ use smithay::{
         element::{surface::WaylandSurfaceRenderElement, Element, Id, Kind, RenderElement, UnderlyingStorage},
         gles::{
             ffi, GlesError, GlesFrame, GlesPixelProgram, GlesRenderer, GlesTexProgram,
-            GlesTexture, Uniform, UniformName, UniformType,
+            GlesTexture, Uniform, UniformName, UniformType, UniformValue,
         },
         utils::{CommitCounter, DamageSet, OpaqueRegions},
     },
     utils::{Buffer as BufferCoords, Physical, Point, Rectangle, Scale, Size, Transform},
 };
+
+use crate::protocols::color_management::ColorDesc;
 
 use super::{
     gl::{self as gl_util, bind_positions, fb_rect, viewport, Blurred, Chain, Raw, UNIT_QUAD},
@@ -26,6 +28,7 @@ type R = GlesRenderer;
 #[derive(Debug)]
 pub struct Programs {
     pub clip: GlesTexProgram,
+    pub color: GlesTexProgram,
     pub glass: GlesTexProgram,
     pub decor: GlesPixelProgram,
     down: Raw,
@@ -46,6 +49,12 @@ impl Programs {
         let clip = renderer
             .compile_custom_texture_shader(shaders::CLIP, &[u("clip_rect", UniformType::_4f), u("clip_radius", UniformType::_1f)])
             .map_err(|e| format!("clip: {e:?}"))?;
+        let color = renderer
+            .compile_custom_texture_shader(
+                shaders::COLOR_IN,
+                &[u("tf", UniformType::_1f), u("white", UniformType::_1f), u("to709", UniformType::Matrix3x3)],
+            )
+            .map_err(|e| format!("color: {e:?}"))?;
         let glass = renderer
             .compile_custom_texture_shader(
                 shaders::GLASS,
@@ -122,6 +131,7 @@ impl Programs {
 
         Ok(Rc::new(Self {
             clip,
+            color,
             glass,
             decor,
             down,
@@ -227,6 +237,79 @@ impl RenderElement<R> for ClipSurface {
         frame.override_default_tex_program(
             self.programs.clip.clone(),
             vec![Uniform::new("clip_rect", rect), Uniform::new("clip_radius", self.radius)],
+        );
+        let res = RenderElement::<R>::draw(&self.inner, frame, src, dst, damage, opaque_regions);
+        frame.clear_tex_program_override();
+        res
+    }
+
+    fn underlying_storage(&self, _renderer: &mut R) -> Option<UnderlyingStorage<'_>> {
+        None
+    }
+}
+
+// ---- поверхность в своём цвете ----
+
+/// Поверхность, которая назвала свой цвет (HDR-видео, игра): рисуется через
+/// перевод в рабочее пространство кадра, без скругления и стекла.
+#[derive(Debug)]
+pub struct ColorSurface {
+    pub inner: WaylandSurfaceRenderElement<R>,
+    pub desc: ColorDesc,
+    /// белый этого монитора, кд/м²
+    pub white: f32,
+    pub programs: Rc<Programs>,
+}
+
+impl Element for ColorSurface {
+    fn id(&self) -> &Id {
+        self.inner.id()
+    }
+    fn current_commit(&self) -> CommitCounter {
+        self.inner.current_commit()
+    }
+    fn location(&self, scale: Scale<f64>) -> Point<i32, Physical> {
+        self.inner.location(scale)
+    }
+    fn src(&self) -> Rectangle<f64, BufferCoords> {
+        self.inner.src()
+    }
+    fn transform(&self) -> Transform {
+        self.inner.transform()
+    }
+    fn geometry(&self, scale: Scale<f64>) -> Rectangle<i32, Physical> {
+        self.inner.geometry(scale)
+    }
+    fn damage_since(&self, scale: Scale<f64>, commit: Option<CommitCounter>) -> DamageSet<i32, Physical> {
+        self.inner.damage_since(scale, commit)
+    }
+    fn opaque_regions(&self, scale: Scale<f64>) -> OpaqueRegions<i32, Physical> {
+        self.inner.opaque_regions(scale)
+    }
+    fn alpha(&self) -> f32 {
+        self.inner.alpha()
+    }
+    fn kind(&self) -> Kind {
+        self.inner.kind()
+    }
+}
+
+impl RenderElement<R> for ColorSurface {
+    fn draw(
+        &self,
+        frame: &mut GlesFrame<'_, '_>,
+        src: Rectangle<f64, BufferCoords>,
+        dst: Rectangle<i32, Physical>,
+        damage: &[Rectangle<i32, Physical>],
+        opaque_regions: &[Rectangle<i32, Physical>],
+    ) -> Result<(), GlesError> {
+        frame.override_default_tex_program(
+            self.programs.color.clone(),
+            vec![
+                Uniform::new("tf", self.desc.tf_uniform()),
+                Uniform::new("white", self.white),
+                Uniform::new("to709", UniformValue::Matrix3x3 { matrices: vec![self.desc.to_709()], transpose: false }),
+            ],
         );
         let res = RenderElement::<R>::draw(&self.inner, frame, src, dst, damage, opaque_regions);
         frame.clear_tex_program_override();

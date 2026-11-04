@@ -38,15 +38,15 @@ Item {
     property var actions: []
     property bool canReply: false
     property string replyHint
-    Binding on summary { when: root.n !== null; value: root.n.summary; restoreMode: Binding.RestoreNone }
-    Binding on body { when: root.n !== null; value: root.n.body; restoreMode: Binding.RestoreNone }
-    Binding on app { when: root.n !== null; value: root.n.appName; restoreMode: Binding.RestoreNone }
+    Binding on summary { when: root.n !== null; value: root.n?.summary ?? ""; restoreMode: Binding.RestoreNone }
+    Binding on body { when: root.n !== null; value: root.n?.body ?? ""; restoreMode: Binding.RestoreNone }
+    Binding on app { when: root.n !== null; value: root.n?.appName ?? ""; restoreMode: Binding.RestoreNone }
     Binding on icon { when: root.n !== null; value: NotifyStore.iconFor(root.n); restoreMode: Binding.RestoreNone }
     Binding on image { when: root.n !== null; value: NotifyStore.imageFor(root.n); restoreMode: Binding.RestoreNone }
-    Binding on urgency { when: root.n !== null; value: root.n.urgency; restoreMode: Binding.RestoreNone }
-    Binding on actions { when: root.n !== null; value: root.n.actions; restoreMode: Binding.RestoreNone }
-    Binding on canReply { when: root.n !== null; value: root.n.hasInlineReply; restoreMode: Binding.RestoreNone }
-    Binding on replyHint { when: root.n !== null; value: root.n.inlineReplyPlaceholder; restoreMode: Binding.RestoreNone }
+    Binding on urgency { when: root.n !== null; value: root.n?.urgency ?? NotificationUrgency.Normal; restoreMode: Binding.RestoreNone }
+    Binding on actions { when: root.n !== null; value: root.n?.actions ?? []; restoreMode: Binding.RestoreNone }
+    Binding on canReply { when: root.n !== null; value: root.n?.hasInlineReply ?? false; restoreMode: Binding.RestoreNone }
+    Binding on replyHint { when: root.n !== null; value: root.n?.inlineReplyPlaceholder ?? ""; restoreMode: Binding.RestoreNone }
 
     readonly property bool critical: urgency === NotificationUrgency.Critical
     readonly property var buttons: actions.filter(a => a && a.identifier !== "default" && a.text)

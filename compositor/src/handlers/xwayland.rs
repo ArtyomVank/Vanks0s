@@ -140,7 +140,8 @@ impl XwmHandler for Shell {
     fn mapped_override_redirect_window(&mut self, _xwm: XwmId, surface: X11Surface) {
         let loc = surface.geometry().loc;
         let window = Window::new_x11_window(surface);
-        self.space.map_element(window, loc, true);
+        // без активации: окно под меню должно остаться активным
+        self.space.map_element(window, loc, false);
     }
 
     fn unmapped_window(&mut self, _xwm: XwmId, surface: X11Surface) {
@@ -164,10 +165,19 @@ impl XwmHandler for Shell {
         y: Option<i32>,
         w: Option<u32>,
         h: Option<u32>,
-        _reorder: Option<Reorder>,
+        reorder: Option<Reorder>,
     ) {
         let mut geo = surface.geometry();
         let window = self.x11_window(&surface);
+        // программа подняла своё окно (Steam: уже открытые друзья и настройки). Чужому
+        // окну фокус не отдаём: поднимаем, только если сейчас активна та же программа
+        if let (Some(Reorder::Top), Some(w)) = (reorder, window.as_ref()) {
+            let same = matches!(self.seat.get_keyboard().and_then(|k| k.current_focus()),
+                Some(KeyFocus::X11(x)) if x != surface && x.class() == surface.class());
+            if same && self.space.element_location(w).is_some() {
+                self.focus_window(&w.clone(), SERIAL_COUNTER.next_serial());
+            }
+        }
         if window.as_ref().is_some_and(|w| data(w).mode != Mode::Normal) {
             let _ = surface.configure(geo);
             return;
@@ -230,6 +240,16 @@ impl XwmHandler for Shell {
     fn minimize_request(&mut self, _xwm: XwmId, surface: X11Surface) {
         if let Some(window) = self.x11_window(&surface) {
             self.move_to_workspace(&window, SPECIAL, false);
+        }
+    }
+
+    fn unminimize_request(&mut self, _xwm: XwmId, surface: X11Surface) {
+        if let Some(window) = self.x11_window(&surface) {
+            if data(&window).workspace == SPECIAL {
+                let id = self.active_ws(&self.focused_output_name());
+                self.move_to_workspace(&window, id, false);
+            }
+            self.focus_window(&window, SERIAL_COUNTER.next_serial());
         }
     }
 
@@ -376,6 +396,9 @@ impl XwmHandler for CalloopData {
     }
     fn minimize_request(&mut self, xwm: XwmId, window: X11Surface) {
         XwmHandler::minimize_request(&mut self.state, xwm, window)
+    }
+    fn unminimize_request(&mut self, xwm: XwmId, window: X11Surface) {
+        XwmHandler::unminimize_request(&mut self.state, xwm, window)
     }
     fn resize_request(&mut self, xwm: XwmId, window: X11Surface, button: u32, edge: X11Edge) {
         XwmHandler::resize_request(&mut self.state, xwm, window, button, edge)

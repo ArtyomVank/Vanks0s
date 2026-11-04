@@ -14,7 +14,7 @@ use smithay::{
         },
         wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
     },
-    utils::{DeviceFd, Rectangle, Transform},
+    utils::{DeviceFd, Rectangle, Scale, Transform},
     wayland::{
         dmabuf::DmabufFeedbackBuilder,
         drm_syncobj::{supports_syncobj_eventfd, DrmSyncobjState},
@@ -22,7 +22,7 @@ use smithay::{
     },
 };
 
-use crate::{config, render::{output_elements, take_feedback}, CalloopData, Shell};
+use crate::{config, hdr::HdrPass, render::{output_elements, take_feedback}, CalloopData, Shell};
 
 /// Окно отладки: один выход размером с окно, ввод — из него же.
 pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> Result<(), Box<dyn std::error::Error>> {
@@ -99,6 +99,9 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
     }
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
+    // проверка HDR без монитора: DELTA_NESTED_HDR=1, и раздел «Экран» включает
+    // проход PQ в этом окне (монитор вокруг покажет его блёклым, это нормально)
+    let mut hdr_pass: Option<HdrPass> = None;
     // курсор рисует сессия вокруг; мы только меняем его фигуру, когда просит программа
     let mut shown_cursor: Option<CursorIcon> = Some(CursorIcon::Default);
 
@@ -133,10 +136,33 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
                 let mut feedback = None;
                 // до bind: снимки окон для анимаций рисуются в свои текстуры
                 let elements = output_elements(backend.renderer(), state, &output, false);
+                let mut hdr_states = None;
+                match crate::hdr::output_white(&output) {
+                    Some(white) => {
+                        if !hdr_pass.as_ref().is_some_and(|p| p.fits(size, Scale::from(1.0))) {
+                            hdr_pass = HdrPass::new(backend.renderer(), size, Scale::from(1.0), white)
+                                .map_err(|e| tracing::warn!("{e}"))
+                                .ok();
+                        }
+                        if let Some(pass) = hdr_pass.as_mut() {
+                            pass.set_white(white);
+                            hdr_states = pass.render(backend.renderer(), &elements).map_err(|e| tracing::warn!("{e}")).ok();
+                        }
+                    }
+                    None => hdr_pass = None,
+                }
                 let bound = match backend.bind() {
                     Ok((renderer, mut framebuffer)) => {
-                        match damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND) {
-                            Ok(result) => feedback = Some(take_feedback(state, &output, &result.states)),
+                        let drawn = match (&hdr_pass, hdr_states) {
+                            (Some(pass), Some(states)) => damage_tracker
+                                .render_output(renderer, &mut framebuffer, 0, &[pass.frame()], config::BACKGROUND)
+                                .map(|_| states),
+                            _ => damage_tracker
+                                .render_output(renderer, &mut framebuffer, 0, &elements, config::BACKGROUND)
+                                .map(|result| result.states),
+                        };
+                        match drawn {
+                            Ok(states) => feedback = Some(take_feedback(state, &output, &states)),
                             Err(e) => tracing::warn!("ошибка отрисовки: {e:?}"),
                         }
                         true

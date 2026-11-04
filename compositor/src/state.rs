@@ -98,6 +98,7 @@ pub struct Shell {
     pub global_shortcuts: GlobalShortcutsState,
     pub focus_grabs: FocusGrabState,
     pub foreign_toplevels: ForeignToplevelState,
+    pub color: crate::protocols::color_management::ColorManagement,
     pub screencopy: ScreencopyState,
     pub idle_notify: IdleNotifyState,
     pub idle_inhibit_state: IdleInhibitManagerState,
@@ -216,6 +217,7 @@ impl Shell {
             global_shortcuts,
             focus_grabs,
             foreign_toplevels,
+            color: Default::default(),
             screencopy,
             idle_notify,
             idle_inhibit_state,
@@ -389,6 +391,9 @@ impl Shell {
     pub fn focus_window(&mut self, window: &Window, serial: Serial) {
         self.space.raise_element(window, true);
         self.raise_in_stack(window);
+        // открытые меню X11 остаются над окном
+        let menus: Vec<Window> = self.space.elements().filter(|w| w.x11_surface().is_some_and(|x| x.is_override_redirect())).cloned().collect();
+        menus.iter().for_each(|m| self.space.raise_element(m, false));
         if let (Some(xwm), Some(x11)) = (self.xwm.as_mut(), window.x11_surface()) {
             if let Err(e) = xwm.raise_window(x11) {
                 tracing::debug!("окно X11 не поднялось: {e}");

@@ -30,11 +30,12 @@ Singleton {
         pc:            { name: "Показатели ПК",  span: 3, icon: "cpu" },
         notifications: { name: "Уведомления",    span: 1, icon: "bell" },
         calendar:      { name: "Календарь",      span: 2, icon: "calendar" },
-        tray:          { name: "Фоновые приложения", span: 2, icon: "layers" }
+        tray:          { name: "Фоновые приложения", span: 2, icon: "layers" },
+        clipboard:     { name: "Буфер обмена",   span: 1, icon: "copy" }
     })
     // Музыки среди модулей нет: когда она играет, весь верхний док становится
     // пилюлей плеера (mediaPill), а её меню — menus/MediaMenu.qml.
-    readonly property var order: ["launcher", "workspaces", "calendar", "weather", "pc", "tray", "lang",
+    readonly property var order: ["launcher", "workspaces", "calendar", "weather", "pc", "tray", "clipboard", "lang",
                                   "bluetooth", "wifi", "sound", "battery", "notifications", "power"]
     readonly property int cells: 16
 
@@ -66,11 +67,12 @@ Singleton {
     // в пустой список трей затёр бы весь док.
     Connections {
         target: Settings
-        function onReadyChanged() { root.addTrayOnce(); }
-        function onDefaultsChanged() { root.addTrayOnce(); }
+        function onReadyChanged() { root.addTrayOnce(); root.addClipboardOnce(); }
+        function onDefaultsChanged() { root.addTrayOnce(); root.addClipboardOnce(); }
     }
     Component.onCompleted: {
         addTrayOnce();
+        addClipboardOnce();
         lastCharging = hasBattery ? charging : null;
     }
     function addTrayOnce() {
@@ -78,6 +80,22 @@ Singleton {
         if (Settings.get("docks.top.trayAdded", false) === true) return;
         Settings.set("docks.top.trayAdded", true);
         if (!modules.some(m => m.id === "tray")) addModule("tray");
+    }
+
+    // Буфер обмена появился в 1.3.2: один раз тоже добавляется сам. Док обычно занят
+    // целиком, поэтому ячейку уступает широкий модуль: сначала тот, что шире своего
+    // обычного размера, потом погода, фоновые приложения, календарь.
+    function addClipboardOnce() {
+        if (!Settings.ready || Object.keys(Settings.defaults).length === 0 || modules.length === 0) return;
+        if (Settings.get("docks.top.clipboardAdded", false) === true) return;
+        Settings.set("docks.top.clipboardAdded", true);
+        if (modules.some(m => m.id === "clipboard") || addModule("clipboard")) return;
+        const wide = modules.filter(m => m.span > catalog[m.id].span);
+        const rest = ["weather", "tray", "calendar"].map(id => modules.find(m => m.id === id && m.span > 1)).filter(m => m);
+        const giver = wide[0] || rest[0];
+        if (!giver) return;
+        Settings.set("docks.top.modules", modules.map(m => m.id === giver.id ? Object.assign({}, m, { span: m.span - 1 }) : m)
+            .concat({ id: "clipboard", cell: giver.cell + giver.span - 1, span: 1 }));
     }
 
     // --- вид доков: непрозрачность и ширина ---
@@ -174,7 +192,7 @@ Singleton {
     function resetModules() {
         Settings.set("docks.top.modules", [
             { id: "launcher", cell: 0, span: 1 }, { id: "workspaces", cell: 1, span: 3 },
-            { id: "calendar", cell: 4, span: 2 }, { id: "weather", cell: 6, span: 2 },
+            { id: "calendar", cell: 4, span: 2 }, { id: "weather", cell: 6, span: 1 }, { id: "clipboard", cell: 7, span: 1 },
             { id: "tray", cell: 8, span: 2 }, { id: "notifications", cell: 10, span: 1 }, { id: "lang", cell: 11, span: 1 },
             { id: "wifi", cell: 12, span: 1 }, { id: "sound", cell: 13, span: 1 },
             { id: "battery", cell: 14, span: 1 }, { id: "power", cell: 15, span: 1 }

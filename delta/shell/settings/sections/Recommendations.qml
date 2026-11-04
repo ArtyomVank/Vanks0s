@@ -161,34 +161,13 @@ ColumnLayout {
         }
     }
 
-    // режим процессора: его хранит система, поэтому спрашиваем её, а не настройки
-    property string performance: ""   // on | off | unsupported
-    property bool performanceBusy: false
-    function readPerformance() {
-        Exec.read(["delta-setup", "performance", "status"], (code, out) => performance = code === 0 ? out.trim() : "unsupported");
-    }
-    Component.onCompleted: readPerformance()
-    function setPerformance(on) {
-        performanceBusy = true;
-        Exec.run(["pkexec", "delta-setup", "performance", on ? "performance" : "balance"], {
-            label: I18n.tr("Максимальная производительность"),
-            done: () => { performanceBusy = false; readPerformance(); }
-        });
-    }
-
     Card {
         title: I18n.tr("Игры")
         SettingRow {
             icon: "rocket"
-            title: I18n.tr("Максимальная производительность")
-            subtitle: root.performance === "unsupported"
-                ? I18n.tr("Частотой этого процессора система не управляет")
-                : I18n.tr("Процессор всегда работает на полной частоте: меньше просадок в играх, но больше нагрев и расход батареи")
-            Toggle {
-                enabled: root.performance !== "unsupported" && !root.performanceBusy
-                checked: root.performance === "on"
-                onToggled: v => root.setPerformance(v)
-            }
+            title: I18n.tr("Производительность")
+            subtitle: I18n.tr("Режим работы процессора выбирается в одном месте")
+            Btn { text: I18n.tr("Открыть"); kind: "soft"; icon: "arrow-right"; onClicked: Nav.open("performance") }
         }
         SettingRow {
             icon: "gauge"

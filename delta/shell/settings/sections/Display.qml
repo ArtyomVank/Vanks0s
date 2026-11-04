@@ -425,11 +425,11 @@ ColumnLayout {
             show: !Displays.fullSupport
             Note {
                 kind: "info"
-                text: I18n.tr("HDR, 10 бит, цветовой охват, профиль ICC, VRR и повтор экрана пока работают только в сессии «Delta на Hyprland». В этой сессии экран рисует сам композитор Delta, и он их ещё не умеет.")
+                text: I18n.tr("Цветовой охват, профиль ICC, VRR и повтор экрана пока работают только в сессии «Delta на Hyprland».")
             }
         }
         Maybe {
-            show: Displays.fullSupport && page.mon !== null && page.mon.hdr.hdr
+            show: page.mon !== null && page.mon.hdr.hdr
             SettingRow {
                 icon: "hdr"
                 title: "HDR"
@@ -448,7 +448,14 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: Displays.fullSupport && page.cfg !== null && page.cfg.hdr
+            show: !Displays.fullSupport && page.cfg !== null && page.cfg.hdr
+            Note {
+                kind: "warn"
+                text: I18n.tr("Если экран погас или цвета стали неверными, ничего не нажимайте: через несколько секунд всё вернётся само. Выключить HDR в любой момент: Ctrl+Alt+Shift+H.")
+            }
+        }
+        Maybe {
+            show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "sun"
                 title: I18n.tr("Яркость обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"

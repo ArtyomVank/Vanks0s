@@ -33,10 +33,38 @@ use crate::{
 /// Версия Hyprland, за которую мы себя выдаём (Delta рассчитана на 0.57 с Lua).
 const HYPR_VERSION: &str = "0.57.0";
 
+/// Слушатель событий и то, что он ещё не забрал. Композитор никогда не ждёт
+/// слушателя: иначе занятая оболочка тормозила бы и горячие клавиши, и мышь.
+struct Listener {
+    stream: UnixStream,
+    pending: Vec<u8>,
+}
+
+impl Listener {
+    /// Отдать, сколько возьмёт. false — слушатель ушёл или давно не читает.
+    fn flush(&mut self) -> bool {
+        while !self.pending.is_empty() {
+            match (&self.stream).write(&self.pending) {
+                Ok(0) => return false,
+                Ok(n) => {
+                    self.pending.drain(..n);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(_) => return false,
+            }
+        }
+        self.pending.len() <= MAX_PENDING
+    }
+}
+
+/// Столько событий ждём за слушателя; дальше он считается зависшим.
+const MAX_PENDING: usize = 4 * 1024 * 1024;
+
 pub struct Ipc {
     pub signature: String,
     pub dir: PathBuf,
-    events: Vec<UnixStream>,
+    events: Vec<Listener>,
     /// раскладка, о которой Delta уже знает (activelayout)
     pub last_layout: String,
 }
@@ -83,7 +111,8 @@ impl Shell {
                         let request = String::from_utf8_lossy(&buf).to_string();
                         let reply = data.state.ipc_request(&request);
                         let _ = s.set_nonblocking(false);
-                        let _ = s.set_write_timeout(Some(Duration::from_millis(500)));
+                        // ответ обычно целиком входит в сокет; зависшего клиента ждём недолго
+                        let _ = s.set_write_timeout(Some(Duration::from_millis(100)));
                         let _ = s.write_all(reply.as_bytes());
                         let _ = s.shutdown(std::net::Shutdown::Both);
                         Ok(PostAction::Remove)
@@ -101,7 +130,7 @@ impl Shell {
                 while let Ok((stream, _)) = listener.accept() {
                     let _ = stream.set_nonblocking(true);
                     if let Some(ipc) = data.state.ipc.as_mut() {
-                        ipc.events.push(stream);
+                        ipc.events.push(Listener { stream, pending: Vec::new() });
                     }
                 }
                 Ok(PostAction::Continue)
@@ -121,18 +150,17 @@ impl Shell {
         }
         let line = format!("{name}>>{payload}\n");
         tracing::debug!(event = line.trim_end(), "ipc");
-        ipc.events.retain_mut(|s| match s.write_all(line.as_bytes()) {
-            Ok(()) => true,
-            // слушатель не успевает — подождём чуть-чуть, иначе отпустим
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                let _ = s.set_nonblocking(false);
-                let _ = s.set_write_timeout(Some(Duration::from_millis(50)));
-                let ok = s.write_all(line.as_bytes()).is_ok();
-                let _ = s.set_nonblocking(true);
-                ok
-            }
-            Err(_) => false,
+        ipc.events.retain_mut(|l| {
+            l.pending.extend_from_slice(line.as_bytes());
+            l.flush()
         });
+    }
+
+    /// Дописать слушателям, у которых в прошлый раз был полон сокет.
+    pub fn ipc_flush(&mut self) {
+        if let Some(ipc) = self.ipc.as_mut() {
+            ipc.events.retain_mut(|l| l.pending.is_empty() || l.flush());
+        }
     }
 
     pub fn ipc_request(&mut self, request: &str) -> String {
@@ -206,6 +234,10 @@ impl Shell {
                     return "ok".into();
                 }
                 let rules = crate::monitors::parse_lua(args);
+                // HDR снова включили в настройках — отметка аварийного выключения больше не нужна
+                if rules.iter().any(|r| r.hdr == Some(true)) {
+                    crate::hdr::set_switched_off(false);
+                }
                 return match self.apply_monitor_rules(&rules) {
                     Ok(()) => "ok".into(),
                     Err(e) => format!("error: {e}"),
@@ -286,7 +318,9 @@ impl Shell {
                     "activelyTearing": false,
                     "directScanoutTo": "0",
                     "disabled": self.space.output_geometry(o).is_none(),
-                    "currentFormat": "XRGB8888",
+                    "currentFormat": if crate::hdr::output_white(o).is_some() { "XBGR2101010" } else { "XRGB8888" },
+                    "colorManagementPreset": if crate::hdr::output_white(o).is_some() { "hdr" } else { "srgb" },
+                    "sdrBrightness": crate::hdr::output_white(o).map_or(1.0, |w| w / crate::hdr::SDR_WHITE),
                     "mirrorOf": "none",
                     "availableModes": modes,
                 })

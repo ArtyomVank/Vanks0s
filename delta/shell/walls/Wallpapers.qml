@@ -24,7 +24,7 @@ Scope {
     id: root
 
     readonly property bool open: ShellState.overlay === "wallpapers"
-    property string type: "all"     // all | photo | video
+    property string type: "all"     // all | photo | video | super
     property string tint: "all"     // all | id из WallStore.buckets
     property string query: ""
     // name — по имени, recent — сначала недавно добавленные
@@ -47,6 +47,13 @@ Scope {
         const q = query.trim();
         const cols = WallStore.colors;
         const out = [];
+        if ((type === "all" || type === "super") && tint === "all") {
+            for (const it of WallStore.superItems) {
+                if (q.length && Fuzzy.score(q, [[it.name, 1]]) < 30) continue;
+                out.push(it);
+            }
+        }
+        if (type === "super") return out;
         for (const it of WallStore.items) {
             if (type === "photo" && it.video) continue;
             if (type === "video" && !it.video) continue;
@@ -97,6 +104,22 @@ Scope {
     }
     property bool editFolder: false
 
+    // --- свои обои: окно выбора файлов, как и у папки, поверх выбора обоев не видно ---
+    property bool addingFiles: false
+    function addFiles() {
+        addingFiles = true;
+        hide();
+        WallStore.addFiles();
+    }
+    Connections {
+        target: WallStore
+        function onAddFinished() {
+            if (!root.addingFiles) return;
+            root.addingFiles = false;
+            ShellState.overlay = "wallpapers";
+        }
+    }
+
     // --- окно ---
     property ShellScreen targetScreen: Quickshell.screens[0] ?? null
     property bool everOpened: false
@@ -106,7 +129,7 @@ Scope {
             targetScreen = Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0] ?? null;
             everOpened = true;
             WallStore.scan();
-        } else if (!pickingFolder) {
+        } else if (!pickingFolder && !addingFiles) {
             editFolder = false;
         }
     }
@@ -294,6 +317,11 @@ Scope {
                         on: root.type === "video"
                         onClicked: root.type = root.type === "video" ? "all" : "video"
                     }
+                    BarBtn {
+                        icon: "rocket"; hint: "Супер и живые обои"
+                        on: root.type === "super"
+                        onClicked: root.type = root.type === "super" ? "all" : "super"
+                    }
 
                     Item { width: 4; height: 1 }
 
@@ -359,6 +387,10 @@ Scope {
                         visible: !bar.searching
                         icon: "search"; hint: "Поиск"
                         onClicked: { bar.searching = true; search.focusInput(); }
+                    }
+                    BarBtn {
+                        icon: "plus"; hint: "Добавить свои обои"
+                        onClicked: root.addFiles()
                     }
                     BarBtn {
                         icon: "folder"; hint: "Папка: " + WallStore.pretty(WallStore.folder)
@@ -451,7 +483,7 @@ Scope {
                                     asynchronous: true
                                     fillMode: Image.PreserveAspectCrop
                                     sourceSize: Qt.size(384, 384)
-                                    source: card.near && WallStore.thumbs[card.modelData.key] === true ? Media.fileUrl(card.modelData.thumb) : ""
+                                    source: card.near && (card.modelData.superSpec || WallStore.thumbs[card.modelData.key] === true) ? Media.fileUrl(card.modelData.thumb) : ""
                                 }
                                 // выбранная крупно — сам файл, а не миниатюра
                                 Image {
@@ -474,7 +506,7 @@ Scope {
 
                                 // плашка «Видео» — в верхнем левом углу видимой части
                                 Rectangle {
-                                    visible: card.modelData.video
+                                    visible: card.modelData.video || card.modelData.superSpec !== undefined
                                     x: win.k * card.height + 14; y: 14
                                     width: badge.implicitWidth + 16
                                     height: 22
@@ -484,8 +516,8 @@ Scope {
                                         id: badge
                                         anchors.centerIn: parent
                                         spacing: 4
-                                        Sym { name: "play"; size: 10; color: "#ffffff"; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "Видео"; color: "#ffffff"; font.family: Theme.font; font.pixelSize: 11; font.weight: Font.Bold }
+                                        Sym { name: card.modelData.video ? "play" : "rocket"; size: 10; color: "#ffffff"; anchors.verticalCenter: parent.verticalCenter }
+                                        Text { text: card.modelData.video ? "Видео" : "Супер"; color: "#ffffff"; font.family: Theme.font; font.pixelSize: 11; font.weight: Font.Bold }
                                     }
                                 }
                                 // текущие обои — галочка
@@ -568,12 +600,12 @@ Scope {
                                 asynchronous: true
                                 fillMode: Image.PreserveAspectCrop
                                 sourceSize: Qt.size(384, 216)
-                                source: WallStore.thumbs[cell.modelData.key] === true ? Media.fileUrl(cell.modelData.thumb) : ""
+                                source: (cell.modelData.superSpec || WallStore.thumbs[cell.modelData.key] === true) ? Media.fileUrl(cell.modelData.thumb) : ""
                             }
                             Sym {
-                                visible: cell.modelData.video
+                                visible: cell.modelData.video || cell.modelData.superSpec !== undefined
                                 x: 10; y: 10
-                                name: "play"; size: 14; color: "#ffffff"
+                                name: cell.modelData.video ? "play" : "rocket"; size: 14; color: "#ffffff"
                             }
                         }
                         HoverHandler { id: gHover; cursorShape: Qt.PointingHandCursor }

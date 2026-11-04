@@ -212,31 +212,38 @@ Scope {
             readonly property int gap: 6
             readonly property int bw: btn * 3 + gap * 2 + pad * 2
             readonly property int bh: btn + pad * 2
-            // окно в локальных координатах монитора, кнопки — в правом верхнем углу
-            readonly property real bx: w ? w.x - layer.modelData.x + w.w - bw - 8 : 0
-            readonly property real by: w ? w.y - layer.modelData.y + 8 : 0
+            // окно в локальных координатах монитора, кнопки — в правом верхнем углу;
+            // без окна пилюля гаснет на прежнем месте
+            property int bx: 0
+            property int by: 0
+            Binding on bx { when: layer.w !== null; value: layer.w ? Math.max(0, Math.round(layer.w.x - layer.modelData.x + layer.w.w - layer.bw - 8)) : 0; restoreMode: Binding.RestoreNone }
+            Binding on by { when: layer.w !== null; value: layer.w ? Math.max(0, Math.round(layer.w.y - layer.modelData.y + 8)) : 0; restoreMode: Binding.RestoreNone }
 
-            visible: show
+            // Слой размером с пилюлю и живёт всё время: она ездит за окном через
+            // отступы. Слой на весь экран смешивался на каждом кадре, а прятать
+            // его значит каждый раз заново заводить буферы видеокарты; так при
+            // долгой работе оболочка и тяжелела. Над окном на весь экран слоя нет.
+            visible: root.enabled && !(mon?.activeWorkspace?.hasFullscreen ?? false)
             color: "transparent"
             WlrLayershell.namespace: "delta-window-controls"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusionMode: ExclusionMode.Ignore
             anchors { top: true; left: true }
-            implicitWidth: layer.modelData.width
-            implicitHeight: layer.modelData.height
+            margins { left: layer.bx; top: layer.by }
+            implicitWidth: bw
+            implicitHeight: bh
 
-            // ввод — только в прямоугольник кнопок, остальное пропускаем в окно
+            // пока пилюли нет, ввод проходит в окно под ней
             mask: show && still ? buttonRegion : emptyRegion
             Region { id: emptyRegion }
             Region {
                 id: buttonRegion
-                Region { x: layer.bx; y: layer.by; width: layer.bw; height: layer.bh }
+                Region { width: layer.bw; height: layer.bh }
             }
 
             Rectangle {
                 id: pill
-                x: layer.bx; y: layer.by
-                width: layer.bw; height: layer.bh
+                anchors.fill: parent
                 radius: height / 2
                 color: Theme.glass2
                 border.width: 1

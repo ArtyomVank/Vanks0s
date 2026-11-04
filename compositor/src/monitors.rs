@@ -1,6 +1,6 @@
 //! Мониторы из настроек Delta: `monitors` в settings.json и `hl.monitor(...)`,
 //! которые раздел «Экран» присылает через `hyprctl eval`. Поля те же, что читает
-//! delta-apply. Повтор экрана, VRR и цвет пока не применяются.
+//! delta-apply. Повтор экрана и VRR пока не применяются.
 
 use serde_json::{Map, Value};
 use smithay::{
@@ -23,6 +23,10 @@ pub struct MonitorRule {
     pub position: Option<(i32, i32)>,
     pub scale: Option<f64>,
     pub transform: Option<i32>,
+    /// HDR: «hdr» в settings.json, `cm = "hdr"` в hl.monitor
+    pub hdr: Option<bool>,
+    /// яркость обычной картинки в HDR, множитель к 203 кд/м²
+    pub sdr_brightness: Option<f64>,
 }
 
 /// «1920x1080@200.00Hz», «1920x1080»; «preferred» и прочие слова — None.
@@ -50,6 +54,15 @@ impl MonitorRule {
             position: v.get("position").and_then(Value::as_str).and_then(parse_position),
             scale: v.get("scale").and_then(Value::as_f64).map(|s| s.clamp(0.25, 4.0)),
             transform: v.get("transform").and_then(Value::as_i64).map(|t| t.clamp(0, 7) as i32),
+            hdr: v
+                .get("hdr")
+                .and_then(Value::as_bool)
+                .or_else(|| v.get("cm").and_then(Value::as_str).map(|cm| cm == "hdr" || cm == "hdredid")),
+            sdr_brightness: v
+                .get("sdrBrightness")
+                .or_else(|| v.get("sdrbrightness"))
+                .and_then(Value::as_f64)
+                .map(|b| b.clamp(0.5, 3.0)),
         })
     }
 
@@ -186,6 +199,7 @@ impl Shell {
     }
 
     fn apply_rule(&mut self, output: &Output, rule: &MonitorRule) -> Result<(), String> {
+        self.set_output_hdr(output, rule.hdr == Some(true), rule.sdr_brightness.unwrap_or(1.0));
         let mode = match rule.mode {
             Some(want) => self.set_output_mode(output, want)?,
             None => None,

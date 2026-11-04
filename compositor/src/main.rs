@@ -22,6 +22,7 @@ mod focus;
 mod fx;
 mod grabs;
 mod handlers;
+mod hdr;
 mod input;
 mod ipc;
 mod lock;
@@ -142,7 +143,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.state.popups.cleanup();
         data.state.lock_watchdog();
         data.state.foreign_toplevel_refresh();
+        data.state.ipc_flush();
+        data.state.color_flush();
         let _ = data.display_handle.flush_clients();
     })?;
+    data.state.hdr_shutdown();
     Ok(())
 }

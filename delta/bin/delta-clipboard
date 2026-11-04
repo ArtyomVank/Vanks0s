@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# История буфера обмена для модуля верхнего дока (shell/menus/ClipboardMenu.qml) поверх cliphist.
+# Пароли из менеджеров паролей не сохраняются: так их помечает wl-clipboard, а
+# cliphist учитывает эту пометку. База — своя, в ~/.local/state/delta.
+#
+#   delta-clipboard watch             следить за буфером; печатает строку на каждое копирование
+#   delta-clipboard list [сколько]    JSON: { total, items: [{ id, text, image }] }, новые сверху
+#   delta-clipboard copy <id>         снова положить в буфер
+#   delta-clipboard delete <id>       убрать из истории
+#   delta-clipboard wipe              очистить историю
+#   delta-clipboard max <1…2000>      сколько хранить; лишние старые удаляются сразу
+set -u
+
+STATE=${XDG_STATE_HOME:-${HOME}/.local/state}/delta
+DB=${STATE}/clipboard.db
+MAX_FILE=${STATE}/clipboard-max
+LIMIT=2000
+
+mkdir -p "${STATE}"
+ch() { cliphist -db-path "${DB}" "$@"; }
+current_max() {
+    local n
+    n=$(cat "${MAX_FILE}" 2>/dev/null)
+    case "${n}" in ''|*[!0-9]*) echo 200 ;; *) echo "${n}" ;; esac
+}
+
+# строка истории по id: ей отвечают decode и delete
+line_of() { ch list | awk -F'\t' -v id="$1" '$1 == id { print; exit }'; }
+
+cmd_watch() {
+    local parent=${PPID} kids
+    wl-paste --type text --watch "$0" store &
+    kids=$!
+    wl-paste --type image --watch "$0" store &
+    kids="${kids} $!"
+    # wl-paste --watch сам не закроется: уходим вместе с оболочкой
+    # shellcheck disable=SC2086
+    trap 'kill ${kids} 2>/dev/null; exit 0' TERM INT EXIT
+    while kill -0 "${parent}" 2>/dev/null; do
+        sleep 5 &
+        wait $! || true
+    done
+}
+
+case "${1:-}" in
+    watch) cmd_watch ;;
+    # копирование: зовёт wl-paste --watch, данные на stdin
+    store)
+        ch -max-items "$(current_max)" -max-dedupe-search 200 store
+        echo changed
+        ;;
+    list)
+        n=${2:-200}
+        case "${n}" in ''|*[!0-9]*) n=200 ;; esac
+        all=$(ch -preview-width 200 list)
+        total=$(printf '%s' "${all}" | grep -c '')
+        printf '%s' "${all}" | head -n "${n}" | LC_ALL=C.UTF-8 jq -Rc 'split("\t") | { id: .[0], text: (.[1:] | join("\t")) }
+            | . + { image: (.text | test("^\\[\\[ binary data")) }' | jq -sc --argjson total "${total}" '{ total: $total, items: . }'
+        ;;
+    copy)
+        [ -n "${2:-}" ] || exit 2
+        line=$(line_of "$2")
+        [ -n "${line}" ] || exit 1
+        printf '%s\n' "${line}" | ch decode | wl-copy
+        ;;
+    delete)
+        [ -n "${2:-}" ] || exit 2
+        line=$(line_of "$2")
+        [ -n "${line}" ] || exit 1
+        printf '%s\n' "${line}" | ch delete
+        ;;
+    wipe) ch wipe ;;
+    max)
+        case "${2:-}" in ''|*[!0-9]*) exit 2 ;; esac
+        n=$2
+        [ "${n}" -ge 1 ] || n=1
+        [ "${n}" -le "${LIMIT}" ] || n=${LIMIT}
+        printf '%s\n' "${n}" >"${MAX_FILE}"
+        ch list | tail -n "+$((n + 1))" | ch delete
+        echo "${n}"
+        ;;
+    *) sed -n '2,11p' "$0"; exit 2 ;;
+esac

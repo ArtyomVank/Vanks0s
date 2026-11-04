@@ -5,7 +5,7 @@
 
 pub mod elements;
 mod gl;
-mod shaders;
+pub mod shaders;
 
 use std::{collections::HashMap, rc::Rc, time::Instant};
 

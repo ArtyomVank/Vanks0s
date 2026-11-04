@@ -43,13 +43,13 @@ use smithay::{
             timer::{TimeoutAction, Timer},
             EventLoop, RegistrationToken,
         },
-        drm::control::{self, connector, crtc, Device as _, ModeTypeFlags},
+        drm::control::{self, atomic::AtomicModeReq, connector, crtc, property, AtomicCommitFlags, Device as _, ModeTypeFlags},
         input::{DeviceCapability, Libinput},
         rustix::fs::OFlags,
         wayland_protocols::wp::presentation_time::server::wp_presentation_feedback,
         wayland_server::backend::GlobalId,
     },
-    utils::{DeviceFd, Monotonic, Time},
+    utils::{DeviceFd, Monotonic, Physical, Size, Time},
     wayland::{
         dmabuf::{DmabufFeedbackBuilder, DmabufGlobal},
         drm_syncobj::{supports_syncobj_eventfd, DrmSyncobjState},
@@ -60,6 +60,7 @@ use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 
 use crate::{
     config, edid,
+    hdr::HdrPass,
     monitors::{transform_from, MonitorRule},
     render::{output_elements, take_feedback, OutputElement},
     workspaces::OutputSerial,
@@ -68,6 +69,8 @@ use crate::{
 
 /// Форматы кадра на мониторе: 8 бит на канал — их понимают все.
 const COLOR_FORMATS: &[Fourcc] = &[Fourcc::Argb8888, Fourcc::Abgr8888];
+/// В HDR на канал нужно 10 бит: в 8 битах PQ даёт полосы на градиентах.
+const HDR_FORMATS: &[Fourcc] = &[Fourcc::Xbgr2101010, Fourcc::Xrgb2101010, Fourcc::Abgr2101010, Fourcc::Argb2101010];
 
 type Allocator = GbmAllocator<DrmDeviceFd>;
 type Exporter = GbmFramebufferExporter<DrmDeviceFd>;
@@ -112,6 +115,12 @@ struct Screen {
     /// когда появился экран и сколько раз он уже перерисован целиком (FULL_REPAINT)
     born: Instant,
     repainted: usize,
+    /// что монитор заявляет про HDR
+    caps: edid::Hdr,
+    /// HDR включён: кадр идёт через этот проход
+    hdr: Option<HdrPass>,
+    /// HDR надо включить (яркость белого) или выключить, когда монитор не ждёт кадра
+    hdr_want: Option<Option<f32>>,
 }
 
 /// На этих секундах после появления экрана кадр рисуется заново целиком: при
@@ -223,6 +232,12 @@ pub fn init(event_loop: &mut EventLoop<'static, CalloopData>, data: &mut Calloop
                     }
                     for screen in gpu.screens.values_mut() {
                         screen.queued = false;
+                        // пока консоль была чужой, свойства коннектора могли сбросить
+                        if screen.hdr.is_some() {
+                            if let Err(e) = set_connector_hdr(gpu.manager.device(), screen.connector.handle(), Some(&screen.caps)) {
+                                tracing::warn!("HDR не вернулся: {e}");
+                            }
+                        }
                     }
                 }
                 data.state.schedule_all();
@@ -394,7 +409,15 @@ impl Shell {
         };
         tracing::info!(name, size = ?wl_mode.size, refresh = wl_mode.refresh, ?loc, "монитор подключён");
 
-        gpu.screens.insert(crtc, Screen { born: Instant::now(), repainted: 0, off: false, output: output.clone(), connector, global, drm_output, queued: false, timer: None });
+        // прошлая сессия могла оставить монитор в HDR, а теперь он обычный
+        let wants_hdr = rule.is_some_and(|r| r.hdr == Some(true));
+        if !wants_hdr && connector_in_hdr(gpu.manager.device(), connector.handle()) {
+            if let Err(e) = set_connector_hdr(gpu.manager.device(), connector.handle(), None) {
+                tracing::warn!(name, "HDR не выключился: {e}");
+            }
+        }
+        let caps = edid_blob(gpu.manager.device(), connector.handle()).map(|b| edid::hdr(&b)).unwrap_or_default();
+        gpu.screens.insert(crtc, Screen { caps, hdr: None, hdr_want: None, born: Instant::now(), repainted: 0, off: false, output: output.clone(), connector, global, drm_output, queued: false, timer: None });
         self.space.map_output(&output, loc);
         self.output_added(&output);
         layer_map_for_output(&output).arrange();
@@ -406,7 +429,63 @@ impl Shell {
             }
         }
         self.schedule_render(crtc, Duration::ZERO);
+        if let Some(rule) = rule {
+            self.set_output_hdr(&output, wants_hdr, rule.sdr_brightness.unwrap_or(1.0));
+        }
         Ok(())
+    }
+
+    /// Включить или выключить HDR на мониторе. Сам переход — перед следующим
+    /// кадром: пока кадр ждёт показа, менять формат и свойства коннектора нельзя.
+    pub fn set_output_hdr(&mut self, output: &Output, on: bool, brightness: f64) {
+        let on = on && !crate::hdr::switched_off();
+        // окно отладки: проход HDR без монитора, см. DELTA_NESTED_HDR
+        if self.udev.is_none() {
+            if std::env::var_os("DELTA_NESTED_HDR").is_some() {
+                crate::hdr::set_output_white(output, on.then_some(crate::hdr::SDR_WHITE * brightness as f32));
+                self.color_changed(output);
+            }
+            return;
+        }
+        let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()) else { return };
+        let Some((crtc, screen)) = gpu.screens.iter_mut().find(|(_, s)| s.output == *output) else { return };
+        let crtc = *crtc;
+        if on && !screen.caps.pq {
+            tracing::warn!(name = output.name(), "монитор не заявляет HDR (ST 2084), остаётся обычным");
+            return;
+        }
+        let peak = if screen.caps.max_nits > 0.0 { screen.caps.max_nits } else { f32::MAX };
+        let white = (crate::hdr::SDR_WHITE * brightness as f32).min(peak);
+        match (screen.hdr.as_mut(), on) {
+            (Some(pass), true) => {
+                pass.set_white(white);
+                crate::hdr::set_output_white(output, Some(white));
+                screen.hdr_want = None;
+            }
+            (None, false) => screen.hdr_want = None,
+            _ => screen.hdr_want = Some(on.then_some(white)),
+        }
+        self.schedule_render(crtc, Duration::ZERO);
+    }
+
+    /// Аварийное сочетание: все мониторы обратно в обычный режим, и при следующем
+    /// запуске тоже, пока HDR не включат в настройках заново.
+    pub fn hdr_emergency_off(&mut self) {
+        crate::hdr::set_switched_off(true);
+        tracing::warn!("HDR выключен сочетанием клавиш");
+        for output in self.space.outputs().cloned().collect::<Vec<_>>() {
+            self.set_output_hdr(&output, false, 1.0);
+        }
+    }
+
+    /// Сессия заканчивается: консоль и экран входа не должны остаться в HDR.
+    pub fn hdr_shutdown(&mut self) {
+        let Some(gpu) = self.udev.as_mut().and_then(|u| u.gpu.as_mut()) else { return };
+        for screen in gpu.screens.values().filter(|s| s.hdr.is_some()) {
+            if let Err(e) = set_connector_hdr(gpu.manager.device(), screen.connector.handle(), None) {
+                tracing::warn!("HDR не выключился: {e}");
+            }
+        }
     }
 
     fn stop_screen(&mut self, screen: Screen) {
@@ -438,6 +517,12 @@ impl Shell {
         let screen = gpu.screens.remove(&crtc).expect("монитор найден выше");
         if let Err(e) = screen.drm_output.with_compositor(|c| c.surface().clear()) {
             tracing::warn!(name = output.name(), "монитор не погас: {e}");
+        }
+        if screen.hdr.is_some() {
+            if let Err(e) = set_connector_hdr(gpu.manager.device(), screen.connector.handle(), None) {
+                tracing::warn!(name = output.name(), "HDR не выключился: {e}");
+            }
+            crate::hdr::set_output_white(output, None);
         }
         tracing::info!(name = output.name(), "монитор выключен");
         gpu.disabled.insert(crtc, (screen.connector.clone(), output.clone()));
@@ -556,6 +641,10 @@ impl Shell {
             let screen = gpu.screens.get_mut(&crtc)?;
             let output = screen.output.clone();
             let shown = active && !screen.off;
+            if shown && !screen.queued && screen.hdr_want.is_some() {
+                switch_hdr(&mut gpu.manager, &mut gpu.renderer, screen);
+                self.color_changed(&output);
+            }
             let drawn = shown.then(|| self.draw(&mut gpu.renderer, screen));
             if shown {
                 self.run_copies(&mut gpu.renderer, &output);
@@ -597,19 +686,42 @@ impl Shell {
             let _ = screen.drm_output.with_compositor(|c| c.reset_buffers());
         }
         let elements = output_elements(renderer, self, &screen.output, true);
-        let result = screen
-            .drm_output
-            .render_frame(renderer, &elements, config::BACKGROUND, FrameFlags::DEFAULT)
-            .map_err(|e| match e {
-                smithay::backend::drm::compositor::RenderFrameError::PrepareFrame(e) => SwapBuffersError::from(e),
-                smithay::backend::drm::compositor::RenderFrameError::RenderFrame(e) => {
-                    SwapBuffersError::ContextLost(Box::new(e))
-                }
-            })?;
-        if result.is_empty {
-            return Ok(false);
-        }
-        let feedback = take_feedback(self, &screen.output, &result.states);
+        let map_err = |e| match e {
+            smithay::backend::drm::compositor::RenderFrameError::PrepareFrame(e) => SwapBuffersError::from(e),
+            smithay::backend::drm::compositor::RenderFrameError::RenderFrame(e) => {
+                SwapBuffersError::ContextLost(Box::new(e))
+            }
+        };
+        let feedback = if screen.hdr.is_some() {
+            let (size, scale) = hdr_target(&screen.output);
+            if !screen.hdr.as_ref().is_some_and(|p| p.fits(size, scale)) {
+                let white = screen.hdr.as_ref().map_or(crate::hdr::SDR_WHITE, |p| p.white);
+                screen.hdr = Some(
+                    HdrPass::new(renderer, size, scale, white)
+                        .map_err(|e| SwapBuffersError::TemporaryFailure(e.into()))?,
+                );
+            }
+            let pass = screen.hdr.as_mut().expect("проверено выше");
+            let states = pass.render(renderer, &elements).map_err(|e| SwapBuffersError::TemporaryFailure(e.into()))?;
+            let frame = [pass.frame()];
+            let result = screen
+                .drm_output
+                .render_frame(renderer, &frame, config::BACKGROUND, FrameFlags::DEFAULT)
+                .map_err(map_err)?;
+            if result.is_empty {
+                return Ok(false);
+            }
+            take_feedback(self, &screen.output, &states)
+        } else {
+            let result = screen
+                .drm_output
+                .render_frame(renderer, &elements, config::BACKGROUND, FrameFlags::DEFAULT)
+                .map_err(map_err)?;
+            if result.is_empty {
+                return Ok(false);
+            }
+            take_feedback(self, &screen.output, &result.states)
+        };
         screen.drm_output.queue_frame(feedback).map_err(SwapBuffersError::from)?;
         screen.queued = true;
         Ok(true)
@@ -715,4 +827,148 @@ fn edid_blob(device: &DrmDevice, conn: connector::Handle) -> Option<Vec<u8>> {
         let info = device.get_property(h).ok()?;
         (info.name().to_str() == Ok("EDID") && v != 0).then(|| device.get_property_blob(v).ok()).flatten()
     })
+}
+
+/// struct hdr_output_metadata из drm_mode.h, тип 1.
+#[repr(C)]
+struct HdrOutputMetadata {
+    metadata_type: u32,
+    eotf: u8,
+    descriptor: u8,
+    /// цветность в единицах 0,00002: красный, зелёный, синий
+    primaries: [[u16; 2]; 3],
+    white_point: [u16; 2],
+    /// кд/м²
+    max_mastering: u16,
+    /// 0,0001 кд/м²
+    min_mastering: u16,
+    max_cll: u16,
+    max_fall: u16,
+}
+
+fn connector_prop(device: &DrmDevice, conn: connector::Handle, name: &str) -> Option<(property::Handle, property::Info, u64)> {
+    let props = device.get_properties(conn).ok()?;
+    let (handles, values) = props.as_props_and_values();
+    handles.iter().zip(values).find_map(|(&h, &v)| {
+        let info = device.get_property(h).ok()?;
+        (info.name().to_str() == Ok(name)).then_some((h, info, v))
+    })
+}
+
+fn connector_in_hdr(device: &DrmDevice, conn: connector::Handle) -> bool {
+    connector_prop(device, conn, "HDR_OUTPUT_METADATA").is_some_and(|(_, _, v)| v != 0)
+}
+
+/// Свойства коннектора для HDR: метаданные PQ и цвет BT.2020. None — обратно к
+/// обычным. Монитор может на миг погаснуть: это настоящая смена режима.
+fn set_connector_hdr(device: &DrmDevice, conn: connector::Handle, caps: Option<&edid::Hdr>) -> Result<(), String> {
+    if !device.is_atomic() {
+        return Err("драйвер без atomic".into());
+    }
+    let (metadata, _, _) = connector_prop(device, conn, "HDR_OUTPUT_METADATA").ok_or("драйвер не даёт HDR_OUTPUT_METADATA")?;
+    let mut req = AtomicModeReq::new();
+    let blob = caps
+        .map(|caps| {
+            device.create_property_blob(&HdrOutputMetadata {
+                metadata_type: 0,
+                eotf: 2, // SMPTE ST 2084
+                descriptor: 0,
+                primaries: [[35400, 14600], [8500, 39850], [6550, 2300]],
+                white_point: [15635, 16450],
+                max_mastering: caps.max_nits.round() as u16,
+                min_mastering: (caps.min_nits * 10000.0).round().min(65535.0) as u16,
+                max_cll: caps.max_nits.round() as u16,
+                max_fall: caps.avg_nits.round() as u16,
+            })
+        })
+        .transpose()
+        .map_err(|e| format!("метаданные HDR: {e}"))?;
+    let blob_id = match blob {
+        Some(property::Value::Blob(id)) => Some(id),
+        _ => None,
+    };
+    req.add_property(conn, metadata, blob.unwrap_or(property::Value::Blob(0)));
+    if let Some((handle, info, _)) = connector_prop(device, conn, "Colorspace") {
+        let want = if caps.is_some() { "BT2020_RGB" } else { "Default" };
+        if let property::ValueType::Enum(values) = info.value_type() {
+            let (_, list) = values.values();
+            if let Some(value) = list.iter().find(|v| v.name().to_str() == Ok(want)) {
+                req.add_property(conn, handle, property::Value::Enum(Some(value)));
+            }
+        }
+    }
+    // 10 бит доходят до монитора, только если это разрешено коннектору
+    if let (Some(_), Some((handle, info, _))) = (caps, connector_prop(device, conn, "max bpc")) {
+        if let property::ValueType::UnsignedRange(_, max) = info.value_type() {
+            req.add_property(conn, handle, property::Value::UnsignedRange(max.min(10)));
+        }
+    }
+    let result = device.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, req).map_err(|e| format!("коннектор: {e}"));
+    if let Some(id) = blob_id {
+        let _ = device.destroy_property_blob(id);
+    }
+    result
+}
+
+fn modifiers_of(renderer: &GlesRenderer, code: Fourcc) -> Vec<smithay::backend::allocator::Modifier> {
+    renderer.egl_context().dmabuf_render_formats().iter().filter(|f| f.code == code).map(|f| f.modifier).collect()
+}
+
+/// Размер кадра монитора до поворота и его масштаб.
+fn hdr_target(output: &Output) -> (Size<i32, Physical>, smithay::utils::Scale<f64>) {
+    let size = output.current_mode().map(|m| output.current_transform().transform_size(m.size)).unwrap_or((1, 1).into());
+    (size, smithay::utils::Scale::from(output.current_scale().fractional_scale()))
+}
+
+/// Сам переход между обычным режимом и HDR. Если что-то не вышло, монитор
+/// остаётся или становится обычным: окна важнее цвета.
+fn switch_hdr(manager: &mut OutputManager, renderer: &mut GlesRenderer, screen: &mut Screen) {
+    let Some(want) = screen.hdr_want.take() else { return };
+    let name = screen.output.name();
+    let allocator = manager.allocator().clone();
+    let set_format = |screen: &Screen, renderer: &GlesRenderer, list: &[Fourcc]| {
+        list.iter().copied().find(|code| {
+            let modifiers = modifiers_of(renderer, *code);
+            screen.drm_output.with_compositor(|c| c.set_format(allocator.clone(), *code, modifiers)).is_ok()
+        })
+    };
+    let conn = screen.connector.handle();
+    let enabled = want.and_then(|white| {
+        let (size, scale) = hdr_target(&screen.output);
+        let pass = HdrPass::new(renderer, size, scale, white).map_err(|e| tracing::warn!(name, "{e}")).ok()?;
+        let Some(format) = set_format(screen, renderer, HDR_FORMATS) else {
+            tracing::warn!(name, "монитор не принял кадр в 10 бит, HDR не включён");
+            return None;
+        };
+        if let Err(e) = set_connector_hdr(manager.device(), conn, Some(&screen.caps)) {
+            tracing::warn!(name, "HDR не включён: {e}");
+            return None;
+        }
+        tracing::info!(name, ?format, white, "HDR включён");
+        Some(pass)
+    });
+    if enabled.is_none() {
+        if connector_in_hdr(manager.device(), conn) {
+            if let Err(e) = set_connector_hdr(manager.device(), conn, None) {
+                tracing::warn!(name, "HDR не выключился: {e}");
+            }
+        }
+        if !COLOR_FORMATS.contains(&screen.drm_output.format()) {
+            set_format(screen, renderer, COLOR_FORMATS);
+        }
+    }
+    crate::hdr::set_output_white(&screen.output, enabled.as_ref().map(|p| p.white));
+    screen.hdr = enabled;
+    screen.drm_output.reset_buffers();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Ядро сверяет размер блоба с sizeof(struct hdr_output_metadata).
+    #[test]
+    fn hdr_metadata_layout() {
+        assert_eq!(std::mem::size_of::<HdrOutputMetadata>(), 32);
+    }
 }

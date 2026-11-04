@@ -51,6 +51,12 @@ ColumnLayout {
             }
         }
         SettingRow {
+            icon: "plus"
+            title: I18n.tr("Добавить свои обои")
+            subtitle: I18n.tr("Картинки и видео копируются в папку с обоями, первый файл сразу ставится на стол")
+            Btn { text: I18n.tr("Выбрать файлы"); icon: "image"; kind: "soft"; enabled: root.hasZenity; onClicked: WallStore.addFiles() }
+        }
+        SettingRow {
             icon: "keyboard"
             title: I18n.tr("Быстрый выбор обоев")
             subtitle: I18n.tr("Все обои с поиском и подборкой по цвету")
@@ -94,7 +100,7 @@ ColumnLayout {
             color: Qt.rgba(0, 0, 0, 0.5)
             Label {
                 anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
-                text: tile.wall.kind === "photos" || tile.wall.kind === "video" ? tile.wall.title : I18n.tr(tile.wall.title)
+                text: tile.wall.id.startsWith("user:") ? tile.wall.title : I18n.tr(tile.wall.title)
                 size: "caption"
                 color: "#ffffff"
                 elide: Text.ElideRight
@@ -135,7 +141,7 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 14
             Layout.rightMargin: 14
-            text: I18n.tr("На экране блокировки они видны издалека, а при входе на рабочий стол камера летит к ним. На столе кадр стоит и не нагружает видеокарту.")
+            text: I18n.tr("На экране блокировки они видны издалека, а при входе на рабочий стол камера летит к ним.")
             size: "small"
             tone: 2
             wrapMode: Text.WordWrap
@@ -153,14 +159,21 @@ ColumnLayout {
             }
         }
         SettingRow {
+            icon: "play"
+            title: I18n.tr("Анимация на рабочем столе")
+            subtitle: I18n.tr("Обои движутся всё время, а не только при входе. Постоянно занимает видеокарту, поэтому в окне на весь экран анимация останавливается")
+            Toggle { checked: SuperWalls.animated; onToggled: v => Settings.set("wallpaper.superAnimated", v) }
+        }
+        SettingRow {
             icon: "plus"
             title: I18n.tr("Сделать свои")
-            subtitle: root.createError || (root.creating === "video" ? I18n.tr("Готовлю видео, это займёт несколько секунд")
-                : I18n.tr("Два фото: первое на блокировке, второе на столе. Или видео: начало на блокировке, конец на столе"))
+            subtitle: root.createError || (root.creating === "video" || root.creating === "live" ? I18n.tr("Готовлю видео, это займёт несколько секунд")
+                : I18n.tr("Два фото: первое на блокировке, второе на столе. Видео: начало на блокировке, конец на столе. Анимированные: ролик до 30 секунд крутится по кругу"))
             Row {
                 spacing: 8
                 Btn { text: I18n.tr("Из двух фото"); icon: "image"; kind: "soft"; enabled: root.hasZenity && root.creating === ""; onClicked: root.create("photos") }
                 Btn { text: I18n.tr("Из видео"); icon: "video"; kind: "soft"; enabled: root.hasZenity && root.creating === ""; onClicked: root.create("video") }
+                Btn { text: I18n.tr("Анимированные"); icon: "play"; kind: "soft"; enabled: root.hasZenity && root.creating === ""; onClicked: root.create("live") }
             }
         }
         SettingRow {

@@ -83,8 +83,8 @@ Singleton {
     // Hyprland. Сохраняется в display.autoHdr; сразу применяем и на лету,
     // чтобы не ждать, пока delta-apply научится его писать (см. отчёт).
     readonly property bool anyHdr: monitors.some(m => m.hdr.hdr)
-    // Свой композитор Delta применяет режим, положение, масштаб и поворот, а цвет,
-    // HDR, VRR и повтор экрана — пока только Hyprland (compositor/src/monitors.rs).
+    // Свой композитор Delta применяет режим, положение, масштаб, поворот и HDR, а
+    // остальной цвет, VRR и повтор экрана — пока только Hyprland (compositor/src/monitors.rs).
     readonly property bool fullSupport: !Quickshell.env("DELTA_COMPOSITOR")
     function setAutoHdr(on) {
         Settings.set("display.autoHdr", on);
@@ -261,7 +261,7 @@ Singleton {
         const m = fullSupport ? null : monitors.find(x => x.name === cfg.name);
         const old = m ? savedFor(m) : null;
         if (old) {
-            for (const k of ["vrr", "mirror", "hdr", "sdrBrightness", "sdrSaturation", "cm", "bitdepth", "icc"]) {
+            for (const k of ["vrr", "mirror", "sdrSaturation", "cm", "bitdepth", "icc"]) {
                 if (old[k] !== undefined) e[k] = old[k];
             }
         }

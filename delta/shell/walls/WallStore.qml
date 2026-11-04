@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.common
+import qs.wallpaper
 import "../wallpaper/media.js" as Media
 
 // Папка с обоями: список файлов, миниатюры и основной цвет каждого файла.
@@ -248,9 +249,52 @@ Singleton {
         onTriggered: root.finishColor()
     }
 
+    // --- супер и живые обои в общем списке: готовый кадр вместо файла ---
+    readonly property var superItems: SuperWalls.builtin.concat(SuperWalls.flows, SuperWalls.user).map(w => ({
+        path: SuperWalls.still(w),
+        name: w.id.startsWith("user:") ? w.title : I18n.tr(w.title),
+        video: false,
+        system: true,
+        key: "super:" + w.id,
+        thumb: SuperWalls.still(w),
+        mtime: 0,
+        superSpec: w
+    }))
+
+    // --- добавить свои: файлы копируются в папку обоев, первый сразу ставится ---
+    signal addFinished()
+    function addFiles() {
+        if (addProc.running) return;
+        addProc.command = ["sh", "-c",
+            "command -v zenity >/dev/null || exit 3; d=$1; mkdir -p \"$d\" || exit 1; " +
+            "zenity --file-selection --multiple --separator='\n' --title=\"$2\" " +
+            "--file-filter=\"$2 | *.jpg *.jpeg *.png *.webp *.bmp *.gif *.mp4 *.webm *.mkv *.mov *.m4v *.JPG *.JPEG *.PNG *.MP4 *.MOV\" 2>/dev/null | " +
+            "while IFS= read -r f; do [ -f \"$f\" ] || continue; b=$(basename -- \"$f\"); t=\"$d/$b\"; n=2; " +
+            "while [ -e \"$t\" ] && ! cmp -s -- \"$f\" \"$t\"; do t=\"$d/${b%.*}-$n.${b##*.}\"; n=$((n + 1)); done; " +
+            "[ -e \"$t\" ] || cp -- \"$f\" \"$t\" || continue; printf '%s\\n' \"$t\"; done",
+            "sh", folder, I18n.tr("Добавить свои обои")];
+        addProc.running = true;
+    }
+    Process {
+        id: addProc
+        stdout: StdioCollector { id: addOut }
+        onExited: code => {
+            const first = addOut.text.trim().split("\n")[0];
+            if (code === 0 && first) {
+                root.apply({ path: first, video: Media.isVideo(first) });
+                root.scan();
+            }
+            root.addFinished();
+        }
+    }
+
     // --- применить ---
     function apply(item) {
         if (!item) return;
+        if (item.superSpec) {
+            SuperWalls.apply(item.superSpec);
+            return;
+        }
         // сначала признак видео, потом путь: обои реагируют на смену пути
         Settings.set("wallpaper.super", "");
         Settings.set("wallpaper.video", item.video);

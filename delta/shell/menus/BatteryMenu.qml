@@ -111,19 +111,13 @@ Item {
             subtitle: I18n.tr("Батарея не найдена")
         }
 
-        // режим питания
-        Label {
-            visible: root.profilesAvailable
-            text: I18n.tr("Режим питания"); size: "small"; tone: 3
-            Layout.topMargin: 2
-        }
-        Chips {
-            visible: root.profilesAvailable
-            Layout.fillWidth: true
-            current: PowerProfiles.profile
-            model: [{ value: PowerProfile.PowerSaver, label: I18n.tr("Экономия") }, { value: PowerProfile.Balanced, label: I18n.tr("Баланс") }]
-                .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: I18n.tr("Производительность") }] : [])
-            onPicked: v => PowerProfiles.profile = v
+        // режим работы один на систему, он в настройках
+        Btn {
+            Layout.alignment: Qt.AlignLeft
+            kind: "ghost"
+            icon: "gauge"
+            text: I18n.tr("Производительность")
+            onClicked: { ShellState.openSettings("performance", null); root.close(); }
         }
         Label {
             visible: root.profilesAvailable && PowerProfiles.degradationReason !== PerformanceDegradationReason.None

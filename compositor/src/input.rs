@@ -41,6 +41,8 @@ pub enum Action {
     Quit,
     /// Ctrl+Alt+F1…F12 — другая консоль (только в настоящей сессии)
     Vt(i32),
+    /// Ctrl+Alt+Shift+H — выключить HDR, если монитор с ним погас
+    HdrOff,
     /// сочетание Delta: «delta:lock», «delta:volume-up»…
     Global(&'static str),
     Exec(&'static str),
@@ -54,7 +56,7 @@ impl Action {
     /// бы обход замка, если сессию запустили из консоли.
     fn allowed_when_locked(&self) -> bool {
         match self {
-            Action::Vt(_) | Action::Exec(_) => true,
+            Action::Vt(_) | Action::Exec(_) | Action::HdrOff => true,
             Action::Global(name) => matches!(
                 *name,
                 "delta:volume-up"
@@ -79,6 +81,9 @@ fn binding(mods: &ModifiersState, sym: Keysym, modified: Keysym) -> Option<Actio
     // аварийный выход, если оболочка «зависла» для программ: Ctrl+Alt+Backspace
     if mods.ctrl && mods.alt && sym == Keysym::BackSpace {
         return Some(Action::Quit);
+    }
+    if mods.ctrl && mods.alt && mods.shift && (sym == Keysym::h || sym == Keysym::H) {
+        return Some(Action::HdrOff);
     }
     // мультимедийные клавиши — без Super, и на экране блокировки тоже
     let media = match sym {
@@ -237,7 +242,12 @@ impl Shell {
                         keyboard.set_focus(self, Some(layer.wl_surface().clone().into()), serial);
                     }
                 } else if button_state == ButtonState::Pressed && !pointer.is_grabbed() {
-                    if let Some((window, _)) = self.space.element_under(location).map(|(w, l)| (w.clone(), l)) {
+                    let under = self.space.element_under(location).map(|(w, _)| w.clone());
+                    // меню X11 (Steam и другие): фокус остаётся у окна меню. Иначе окно
+                    // теряет фокус, закрывает меню, и щелчок по пункту пропадает
+                    let x11_menu = under.as_ref().is_some_and(|w| w.x11_surface().is_some_and(|x| x.is_override_redirect()));
+                    if x11_menu {
+                    } else if let Some(window) = under {
                         // щелчок по окну: оно впереди всех и получает клавиатуру
                         self.focus_window(&window, serial);
                         // Super + левая кнопка: тащим окно за любое место
@@ -470,6 +480,19 @@ impl Shell {
             }
             Action::Quit => self.loop_signal.stop(),
             Action::Vt(vt) => self.change_vt(vt),
+            Action::HdrOff => self.hdr_emergency_off(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hdr_off_chord() {
+        let mods = ModifiersState { ctrl: true, alt: true, shift: true, ..Default::default() };
+        assert!(matches!(binding(&mods, Keysym::h, Keysym::H), Some(Action::HdrOff)));
+        assert!(Action::HdrOff.allowed_when_locked());
     }
 }

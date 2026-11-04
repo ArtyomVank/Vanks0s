@@ -29,7 +29,7 @@ Item {
     Loader {
         anchors.fill: parent
         sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : holeC)
-            : root.kind === "flow" ? flowC : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : null
+            : root.kind === "flow" ? flowC : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : root.kind === "live" ? liveC : null
     }
 
     Component {
@@ -64,10 +64,12 @@ Item {
         ShaderEffect {
             property vector2d res: Qt.vector2d(width, height)
             property real intro: SuperWalls.intro
+            property real zoom: root.progress
+            property real time: SuperWalls.time
             property color colorA: root.spec.a
             property color colorB: root.spec.b
             property color colorC: root.spec.c
-            fragmentShader: "super/flow.frag.qsb"
+            fragmentShader: "super/circles.frag.qsb"
         }
     }
 
@@ -90,6 +92,40 @@ Item {
                 asynchronous: true
                 scale: 1 + root.progress * 0.08
                 opacity: Math.min(1, Math.max(0, (root.progress - 0.2) / 0.5))
+            }
+        }
+    }
+
+    // анимированные: ролик крутится и на блокировке, и на столе; камера подъезжает ближе
+    Component {
+        id: liveC
+        Item {
+            id: lbox
+            scale: 1 + root.progress * 0.22
+            readonly property bool wanted: visible && !SuperWalls.covered
+                && (root.live ? ShellState.desktopShown : !ShellState.desktopShown)
+            onWantedChanged: sync()
+            Component.onCompleted: sync()
+            function sync() {
+                if (wanted) livePlayer.play();
+                else livePlayer.pause();
+            }
+            Image {
+                anchors.fill: parent
+                source: Media.fileUrl(root.spec.far)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+            }
+            MediaPlayer {
+                id: livePlayer
+                source: Media.fileUrl(root.spec.clip)
+                videoOutput: liveOut
+                loops: MediaPlayer.Infinite
+            }
+            VideoOutput {
+                id: liveOut
+                anchors.fill: parent
+                fillMode: VideoOutput.PreserveAspectCrop
             }
         }
     }

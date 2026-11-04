@@ -9,14 +9,14 @@ import qs.common.ui
 import qs.lock
 import qs.settings
 
-// Питание: режим (power-profiles-daemon), гашение экрана и сон по простою,
+// Питание: гашение экрана и сон по простою (режим работы — в «Производительности»),
 // крышка ноутбука (logind, нужен root), батарея (UPower).
 ColumnLayout {
     id: root
 
     property string title: I18n.tr("Питание")
     property string icon: "power"
-    property string keywords: "батарея сон гибернация крышка энергия профиль экономия производительность экран гаснет"
+    property string keywords: "батарея сон гибернация крышка энергия экран гаснет"
     spacing: 18
 
     readonly property var bat: UPower.displayDevice
@@ -32,22 +32,6 @@ ColumnLayout {
 
     readonly property var timeChips: [{ value: 60, label: I18n.tr("1 мин") }, { value: 300, label: I18n.tr("5 мин") }, { value: 600, label: I18n.tr("10 мин") },
         { value: 900, label: I18n.tr("15 мин") }, { value: 1800, label: I18n.tr("30 мин") }, { value: 3600, label: I18n.tr("1 ч") }, { value: 0, label: I18n.tr("Никогда") }]
-
-    Card {
-        title: I18n.tr("Режим питания")
-        SettingRow {
-            icon: "cpu"; title: I18n.tr("Режим"); wide: true
-            subtitle: PowerProfiles.degradationReason !== PerformanceDegradationReason.None
-                ? "Производительность снижена: " + PerformanceDegradationReason.toString(PowerProfiles.degradationReason)
-                : "Режим выбирает служба power-profiles-daemon"
-            Chips {
-                current: PowerProfiles.profile
-                model: [{ value: PowerProfile.PowerSaver, label: I18n.tr("Экономия") }, { value: PowerProfile.Balanced, label: I18n.tr("Баланс") }]
-                    .concat(PowerProfiles.hasPerformanceProfile ? [{ value: PowerProfile.Performance, label: I18n.tr("Производительность") }] : [])
-                onPicked: v => { if (Exec.dryRun) console.info("[delta-settings] пробный режим: профиль " + v); else PowerProfiles.profile = v; }
-            }
-        }
-    }
 
     Card {
         title: I18n.tr("Экран и сон")

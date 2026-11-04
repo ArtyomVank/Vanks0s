@@ -1,0 +1,71 @@
+#version 440
+// Живые обои при запуске: большие круги распускаются один за другим от края к
+// середине и замирают. intro идёт от 0 до 1 один раз за сессию, zoom — полёт при
+// разблокировке, time — лёгкое дыхание, если включена анимация обоев. Ни один не
+// меняется — кадр неподвижен и не тратит видеокарту.
+// Цвета задаёт SuperWalls.qml. После правки: tools/delta-shaders.sh.
+
+layout(location = 0) in vec2 qt_TexCoord0;
+layout(location = 0) out vec4 fragColor;
+
+layout(std140, binding = 0) uniform buf {
+    mat4 qt_Matrix;
+    float qt_Opacity;
+    vec2 res;
+    float intro;
+    float zoom;
+    float time;
+    vec4 colorA;   // глубина
+    vec4 colorB;   // тело кругов
+    vec4 colorC;   // блик
+};
+
+// перелёт: круг вырастает чуть больше нужного и садится на место
+float back(float t) {
+    t = clamp(t, 0.0, 1.0);
+    float u = t - 1.0;
+    return 1.0 + 2.2 * u * u * u + 1.2 * u * u;
+}
+
+float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
+void main() {
+    vec2 p = (qt_TexCoord0 * 2.0 - 1.0) * vec2(res.x / res.y, -1.0);
+    p *= mix(1.0, 0.86, zoom);
+    float t = clamp(intro, 0.0, 1.0);
+
+    // сначала почти чёрно, свет разгорается вместе с кругами
+    vec2 g = p - vec2(0.55, -0.35);
+    vec3 col = mix(colorA.rgb * 0.30, colorA.rgb * 1.20, exp(-dot(g, g) * 0.35) * smoothstep(0.0, 0.45, t));
+
+    const int N = 7;
+    float px = 2.0 / res.y;
+    for (int k = N - 1; k >= 0; k--) {
+        float i = float(k) / float(N - 1);   // 1 — самый большой, он появляется первым
+        vec2 c = vec2(0.66, -0.46) + vec2(-0.11, 0.075) * float(k);
+        float start = (1.0 - i) * 0.58;
+        float grow = back((t - start) / 0.42);
+        float breath = 1.0 + 0.012 * sin(time * 0.55 + float(k) * 1.3);
+        float r = (0.26 + 2.05 * i * i * 0.62 + 0.30 * i) * grow * breath;
+        float d = length(p - c) - r;
+
+        // мягкая тень на том, что позади
+        col *= 1.0 - 0.42 * exp(-max(d, 0.0) * 5.5) * smoothstep(0.0, 0.06, r);
+
+        // свет падает сверху слева; внутренние круги светлее
+        float lit = clamp(dot((p - c) / max(r, 0.01), vec2(-0.6, 0.8)) * 0.5 + 0.5, 0.0, 1.0);
+        vec3 body = mix(mix(colorA.rgb, colorB.rgb, 0.50), colorB.rgb * 1.12, 1.0 - i * 0.92);
+        vec3 fill = body * (0.70 + 0.46 * lit);
+        // внутри круга к середине глубже, у края — стеклянная кромка
+        fill *= mix(0.86, 1.0, smoothstep(-0.55, 0.0, d));
+        fill += colorC.rgb * 0.34 * exp(min(d, 0.0) * 26.0) * (0.25 + 0.75 * lit);
+        fill += colorC.rgb * 0.05 * exp(min(d, 0.0) * 4.0);
+
+        col = mix(col, fill, 1.0 - smoothstep(-px, px, d));
+    }
+
+    // края темнее; шум убирает полосы на плавных переходах
+    col *= 1.0 - 0.20 * smoothstep(0.7, 2.1, length(p));
+    col += (noise(qt_TexCoord0 * res) - 0.5) / 255.0 * 1.5;
+    fragColor = vec4(col, 1.0) * qt_Opacity;
+}

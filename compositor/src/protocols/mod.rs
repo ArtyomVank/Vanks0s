@@ -2,6 +2,7 @@
 //! которыми пользуется Quickshell и Delta. Код протокола генерирует
 //! wayland-scanner из XML; поведение — в соседних модулях.
 
+pub mod color_management;
 pub mod focus_grab;
 pub mod foreign_toplevel;
 pub mod global_shortcuts;

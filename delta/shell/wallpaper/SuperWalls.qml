@@ -4,6 +4,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
+import Quickshell.Services.UPower
 import qs.common
 
 // Супер обои: издалека на экране блокировки, при входе на стол камера летит к
@@ -14,12 +16,12 @@ Singleton {
 
     readonly property string dir: Qt.resolvedUrl("super/").toString().replace(/^file:\/\//, "")
 
-    // kind: shader — считает видеокарта; photos, video — свои (delta-superwall)
+    // kind: shader — считает видеокарта; photos, video, live — свои (delta-superwall)
     readonly property var builtin: [
         { id: "blackhole", kind: "shader", title: "Чёрная дыра", frag: "blackhole" },
         { id: "moon",      kind: "shader", title: "Луна",        frag: "moon" }
     ]
-    // живые обои при запуске: один рисунок в четырёх цветах (A — глубина, B — полотна, C — блик)
+    // живые обои при запуске: один рисунок в четырёх цветах (A — глубина, B — круги, C — блик)
     readonly property var flows: [
         { id: "flow-blue",   kind: "flow", title: "Синие",      a: "#0a1c4a", b: "#1f6dff", c: "#9fdcff" },
         { id: "flow-violet", kind: "flow", title: "Фиолетовые", a: "#1d0d47", b: "#7a3cff", c: "#e2b8ff" },
@@ -46,11 +48,19 @@ Singleton {
     // обои сменили на обычные (WallStore.apply и «Убрать»)
     function clear() { if (currentId) Settings.set("wallpaper.super", ""); }
 
-    // --- время сцены: идёт на экране блокировки и в полёте, на столе кадр стоит ---
+    // --- анимация на столе: включается в настройках, тратит видеокарту постоянно ---
+    readonly property bool animated: Settings.get("wallpaper.superAnimated", false) === true
+    // окно на весь экран закрывает обои, а на батарее (по настройке) их незачем крутить
+    readonly property bool covered: Hyprland.focusedMonitor?.activeWorkspace?.hasFullscreen ?? false
+    readonly property bool mayAnimate: animated && !covered
+        && !(UPower.onBattery && Settings.get("wallpaper.pauseOnBattery", true) !== false)
+
+    // --- время сцены: идёт на экране блокировки и в полёте, на столе — по настройке ---
     property real time: 0
     property bool flying: false
-    readonly property bool shaderOn: current !== null && current.kind === "shader"
-    readonly property bool ticking: shaderOn && (!ShellState.desktopShown || flying)
+    readonly property string currentKind: current ? current.kind : ""
+    readonly property bool ticking: (currentKind === "shader" && (!ShellState.desktopShown || flying))
+        || ((currentKind === "shader" || currentKind === "flow") && mayAnimate)
     Connections {
         target: ShellState
         function onDesktopShownChanged() { root.flying = true; flightEnd.restart(); }
@@ -58,7 +68,8 @@ Singleton {
     Timer { id: flightEnd; interval: 1900; onTriggered: root.flying = false }
     property real lastTick: 0
     Timer {
-        interval: 16
+        // на столе хватает 30 кадров: движение медленное, видеокарте легче
+        interval: ShellState.desktopShown && !root.flying ? 33 : 16
         repeat: true
         running: root.ticking
         onRunningChanged: root.lastTick = Date.now()
@@ -70,18 +81,26 @@ Singleton {
     }
 
     // --- живые обои: играют один раз при запуске системы ---
-    // до заставки кадр ждёт в самом начале; после запуска оболочки заново не играют
+    // До заставки кадр ждёт в самом начале, после запуска оболочки заново не играют.
+    // Время считается по кадрам: при запуске система занята, и по часам анимация
+    // успела бы пройти, пока кадры не выходят
+    readonly property real introSeconds: 7
     property real intro: Quickshell.env("DELTA_SESSION_START") === "1" ? 0 : 1
-    NumberAnimation {
-        id: introAnim
-        target: root
-        property: "intro"
-        from: 0
-        to: 1
-        duration: 6500
-        easing.type: Easing.Linear
+    property real introLast: 0
+    Timer {
+        id: introTimer
+        interval: 16
+        repeat: true
+        onRunningChanged: root.introLast = Date.now()
+        onTriggered: {
+            const now = Date.now();
+            const dt = Math.min(1 / 30, (now - root.introLast) / 1000);
+            root.introLast = now;
+            root.intro = Math.min(1, root.intro + dt / root.introSeconds);
+            if (root.intro >= 1) running = false;
+        }
     }
-    function playIntro() { introAnim.restart(); }
+    function playIntro() { intro = 0; introTimer.restart(); }
 
     // --- свои супер обои ---
     function reload() { listProc.running = true; }

@@ -41,7 +41,7 @@ use smithay::{
 use crate::{
     fx::{
         self,
-        elements::{Backdrop, ClipSurface, GlassSurface, JellyParams, Mesh, MeshElement, RevealParams},
+        elements::{Backdrop, ClipSurface, ColorSurface, GlassSurface, JellyParams, Mesh, MeshElement, RevealParams},
         Closing, Glass, Open, Params, Programs, Spring, WsAnim,
     },
     workspaces::{data, Mode},
@@ -55,6 +55,7 @@ render_elements! {
     pub OutputElement<=GlesRenderer>;
     Surface = Surface,
     Clip = ClipSurface,
+    Color = ColorSurface,
     Glass = GlassSurface,
     Decor = PixelShaderElement,
     Backdrop = Backdrop,
@@ -65,6 +66,37 @@ render_elements! {
 /// Элементы кадра выхода — спереди назад: курсор, затем окна или, при
 /// блокировке, только замок. Курсор в окне отладки рисует сессия вокруг.
 pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cursor: bool) -> Vec<OutputElement> {
+    let elements = scene_elements(renderer, shell, output, draw_cursor);
+    let colored = shell.colored_surfaces();
+    if colored.is_empty() {
+        return elements;
+    }
+    // поверхности в своём цвете: перевод в рабочее пространство кадра
+    let Some(programs) = shell.fx.programs.clone() else { return elements };
+    let white = crate::hdr::output_white(output).unwrap_or(crate::hdr::SDR_WHITE);
+    let desc_of = |id: &Id| colored.iter().find(|(s, _)| Id::from(s) == *id).map(|(_, d)| *d);
+    let wrap = |inner, desc| OutputElement::Color(ColorSurface { inner, desc, white, programs: programs.clone() });
+    elements
+        .into_iter()
+        .map(|e| match e {
+            OutputElement::Surface(s) => match desc_of(s.id()) {
+                Some(d) => wrap(s, d),
+                None => OutputElement::Surface(s),
+            },
+            OutputElement::Clip(c) => match desc_of(c.inner.id()) {
+                Some(d) => wrap(c.inner, d),
+                None => OutputElement::Clip(c),
+            },
+            OutputElement::Glass(g) => match desc_of(g.inner.id()) {
+                Some(d) => wrap(g.inner, d),
+                None => OutputElement::Glass(g),
+            },
+            other => other,
+        })
+        .collect()
+}
+
+fn scene_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cursor: bool) -> Vec<OutputElement> {
     let mut elements = Vec::new();
     let Some(geo) = shell.space.output_geometry(output) else { return elements };
     let scale = Scale::from(output.current_scale().fractional_scale());
