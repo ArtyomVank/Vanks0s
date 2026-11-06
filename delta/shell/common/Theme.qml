@@ -63,7 +63,9 @@ Singleton {
     //   delta  — тонированное стекло с размытием (как было);
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
     //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen);
-    //   material — Material You, как на Pixel: плотные панели, цвета от темы.
+    //   material — Material You, как на Pixel: плотные панели, цвета от темы;
+    //   nothing — как Nothing OS: чёрное и белое без оттенков, тонкие рамки,
+    //             красный акцент, часы из точек.
     // preset — что ставится при выборе стиля (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
@@ -73,12 +75,15 @@ Singleton {
         { id: "liquid", name: "Жидкое стекло",  note: "Стекло-линза: фон у края изгибается",
           preset: { glass: 0.4, frost: 0.3, radius: 30, rounding: 24, blur: true, border: 1, clock: "tall" } },
         { id: "material", name: "Material You", note: "Цвета от темы, резкие пружинистые анимации",
-          preset: { glass: 0.97, radius: 26, rounding: 20, blur: false, border: 0, clock: "stack" } }
+          preset: { glass: 0.97, radius: 28, rounding: 22, blur: false, border: 0, clock: "stack" } },
+        { id: "nothing", name: "Nothing", note: "Монохром, тонкие рамки, красный акцент и часы из точек",
+          preset: { glass: 1, radius: 20, rounding: 16, blur: false, border: 1, clock: "dots", accent: "#D71921" } }
     ]
     readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
     readonly property bool flat: style === "gnome"
     readonly property bool liquid: style === "liquid"
     readonly property bool material: style === "material"
+    readonly property bool nothing: style === "nothing"
     // сессия на своём композиторе: стекло, линзу и анимации окон делает он
     readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
     // выбрать стиль: вместе с ним — прозрачность, скругления, размытие и рамка окон
@@ -95,6 +100,7 @@ Singleton {
         Settings.set("windows.border", p.border);
         // часы у каждого стиля свои; виджеты со своим видом (item.style) не меняются
         Settings.set("clock.style", p.clock);
+        if (p.accent) Settings.set("appearance.accent", p.accent);
     }
 
     // Матовость (appearance.frost, 0…1) — сила размытия под панелями (её
@@ -102,7 +108,7 @@ Singleton {
     // едва тонировано, матовое — молочная дымка. У Delta подложку задаёт
     // прозрачность (appearance.glass), а матовость — только размытие.
     readonly property real frost: Math.max(0, Math.min(1, Number(appearance.frost ?? 0.5)))
-    readonly property real opacity: flat ? 1
+    readonly property real opacity: flat || nothing ? 1
         : material ? 0.97
         : liquid ? 0.12 + 0.26 * frost
         : Math.max(0.2, Math.min(1, appearance.glass ?? 0.62))
@@ -156,7 +162,8 @@ Singleton {
         interval: 1500
         onTriggered: {
             const hex = String(root.wallAccent).toUpperCase();
-            if (root.wallTheme && String(root.appearance.accent || "").toUpperCase() !== hex)
+            // у Nothing акцент свой (красный), обои его не трогают
+            if (root.wallTheme && !root.nothing && String(root.appearance.accent || "").toUpperCase() !== hex)
                 Settings.set("appearance.accent", hex);
         }
     }
@@ -176,16 +183,19 @@ Singleton {
     readonly property string baseRgb: [base.r, base.g, base.b].map(v => Math.round(v * 255)).join(",")
 
     // у GNOME панели нейтрально-серые (Adwaita), цвет темы остаётся в акценте
-    readonly property color base: flat ? (light ? "#FAFAFB" : "#242428")
+    // у Nothing — чистые чёрный и белый, без оттенка темы
+    readonly property color base: nothing ? (light ? "#F2F2F2" : "#0B0B0C")
+                                : flat ? (light ? "#FAFAFB" : "#242428")
                                 : material ? materialBase
                                 : wallTheme ? (light ? wallBaseLight : wallBaseDark)
                                 : themeColor
     readonly property color glass: Qt.rgba(base.r, base.g, base.b, opacity)
-    readonly property color glass2: flat ? (light ? "#FFFFFF" : "#303034")
+    readonly property color glass2: nothing ? (light ? "#FFFFFF" : "#1B1B1D")
+                                  : flat ? (light ? "#FFFFFF" : "#303034")
                                   : material ? Qt.hsla(seedHue, base.hslSaturation, light ? 0.90 : 0.17, 1)
                                   : glowTiles ? Qt.rgba(base.r * 0.86 + accent.r * 0.14, base.g * 0.86 + accent.g * 0.14, base.b * 0.86 + accent.b * 0.14, Math.min(0.98, opacity + 0.14))
                                   : Qt.rgba(base.r, base.g, base.b, Math.min(0.98, opacity + 0.14))
-    readonly property color accent: material || wallTheme ? materialAccent : userAccent
+    readonly property color accent: !nothing && (material || wallTheme) ? materialAccent : userAccent
 
     // Подсветка в стиле Delta (appearance.highlight): off · text — текст ярче и
     // со свечением акцента · tiles — плитки под текстом подкрашены акцентом.
@@ -195,17 +205,18 @@ Singleton {
     readonly property color textGlow: Qt.rgba(accent.r, accent.g, accent.b, light ? 0.24 : 0.40)
     function tint(alpha) { return Qt.rgba(accent.r, accent.g, accent.b, alpha); }
 
-    readonly property color fg:    glowText ? (light ? "#0B0812" : "#FFFFFF") : light ? "#17131F" : "#ECE9F7"
-    readonly property color fg2:   glowText ? (light ? "#201B2E" : "#EDEAF8") : light ? "#433E57" : liquid ? "#E6E3F2" : "#C9C3E0"
-    readonly property color fg3:   glowText ? (light ? "#3A354A" : "#CFCAE4") : light ? "#5C576E" : liquid ? "#D2CEE3" : "#A9A3C2"
-    readonly property color line:  material ? "transparent"
+    readonly property color fg:    nothing ? (light ? "#000000" : "#FFFFFF") : glowText ? (light ? "#0B0812" : "#FFFFFF") : light ? "#17131F" : "#ECE9F7"
+    readonly property color fg2:   nothing ? (light ? "#3A3A3A" : "#C8C8C8") : glowText ? (light ? "#201B2E" : "#EDEAF8") : light ? "#433E57" : liquid ? "#E6E3F2" : "#C9C3E0"
+    readonly property color fg3:   nothing ? (light ? "#6B6B6B" : "#8E8E8E") : glowText ? (light ? "#3A354A" : "#CFCAE4") : light ? "#5C576E" : liquid ? "#D2CEE3" : "#A9A3C2"
+    readonly property color line:  nothing ? (light ? Qt.rgba(0, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.16))
+        : material ? "transparent"
         : glowTiles ? tint(light ? 0.45 : 0.38)
         : light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
     readonly property color soft:  glowTiles ? tint(light ? 0.14 : 0.16)
         : light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
     readonly property color soft2: glowTiles ? tint(light ? 0.22 : 0.26)
         : light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.10)
-    readonly property color inv:   light ? "#FFFFFF" : "#140F26"
+    readonly property color inv:   nothing ? (light ? "#FFFFFF" : "#000000") : light ? "#FFFFFF" : "#140F26"
 
     // Текст и значки поверх цвета: на светлом (белый, пастельный акцент) —
     // тёмные, иначе белые. Яркость — относительная (sRGB, как в WCAG).

@@ -52,7 +52,12 @@ impl Programs {
         let color = renderer
             .compile_custom_texture_shader(
                 shaders::COLOR_IN,
-                &[u("tf", UniformType::_1f), u("white", UniformType::_1f), u("to709", UniformType::Matrix3x3)],
+                &[
+                    u("tf", UniformType::_1f),
+                    u("white", UniformType::_1f),
+                    u("sat", UniformType::_1f),
+                    u("to709", UniformType::Matrix3x3),
+                ],
             )
             .map_err(|e| format!("color: {e:?}"))?;
         let glass = renderer
@@ -258,6 +263,8 @@ pub struct ColorSurface {
     pub desc: ColorDesc,
     /// белый этого монитора, кд/м²
     pub white: f32,
+    /// насыщенность обычной картинки в HDR (её снимаем, см. COLOR_IN)
+    pub saturation: f32,
     pub programs: Rc<Programs>,
 }
 
@@ -308,6 +315,7 @@ impl RenderElement<R> for ColorSurface {
             vec![
                 Uniform::new("tf", self.desc.tf_uniform()),
                 Uniform::new("white", self.white),
+                Uniform::new("sat", self.saturation),
                 Uniform::new("to709", UniformValue::Matrix3x3 { matrices: vec![self.desc.to_709()], transpose: false }),
             ],
         );

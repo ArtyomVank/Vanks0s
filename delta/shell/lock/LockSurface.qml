@@ -500,8 +500,9 @@ Item {
         else gridLoader.opacity = login.opacity = 0;
     }
     function playExit() {
-        enterAnim.stop();
-        contentIn.stop();
+        // поверхность уже разбирается (разблокировка на другом мониторе) — анимаций нет
+        enterAnim?.stop();
+        contentIn?.stop();
         confirm = "";
         ring.c = login.visible ? field.mapToItem(root, field.width / 2, field.height / 2) : Qt.point(width / 2, height * 0.8);
         startFly();

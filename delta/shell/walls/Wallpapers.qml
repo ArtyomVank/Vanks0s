@@ -24,7 +24,7 @@ Scope {
     id: root
 
     readonly property bool open: ShellState.overlay === "wallpapers"
-    property string type: "all"     // all | photo | video | super
+    property string type: "all"     // all | photo | video | super | live
     property string tint: "all"     // all | id из WallStore.buckets
     property string query: ""
     // name — по имени, recent — сначала недавно добавленные
@@ -47,13 +47,20 @@ Scope {
         const q = query.trim();
         const cols = WallStore.colors;
         const out = [];
+        // живые и супер обои — разное: живые оживают при входе, к супер летит камера
+        if ((type === "all" || type === "live") && tint === "all") {
+            for (const it of WallStore.liveItems) {
+                if (q.length && Fuzzy.score(q, [[it.name, 1]]) < 30) continue;
+                out.push(it);
+            }
+        }
         if ((type === "all" || type === "super") && tint === "all") {
             for (const it of WallStore.superItems) {
                 if (q.length && Fuzzy.score(q, [[it.name, 1]]) < 30) continue;
                 out.push(it);
             }
         }
-        if (type === "super") return out;
+        if (type === "super" || type === "live") return out;
         for (const it of WallStore.items) {
             if (type === "photo" && it.video) continue;
             if (type === "video" && !it.video) continue;
@@ -318,7 +325,12 @@ Scope {
                         onClicked: root.type = root.type === "video" ? "all" : "video"
                     }
                     BarBtn {
-                        icon: "rocket"; hint: "Супер и живые обои"
+                        icon: "layers"; hint: "Живые обои"
+                        on: root.type === "live"
+                        onClicked: root.type = root.type === "live" ? "all" : "live"
+                    }
+                    BarBtn {
+                        icon: "rocket"; hint: "Супер обои"
                         on: root.type === "super"
                         onClicked: root.type = root.type === "super" ? "all" : "super"
                     }
@@ -516,8 +528,9 @@ Scope {
                                         id: badge
                                         anchors.centerIn: parent
                                         spacing: 4
-                                        Sym { name: card.modelData.video ? "play" : "rocket"; size: 10; color: "#ffffff"; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: card.modelData.video ? "Видео" : "Супер"; color: "#ffffff"; font.family: Theme.font; font.pixelSize: 11; font.weight: Font.Bold }
+                                        readonly property bool live: card.modelData.superSpec?.kind === "flow"
+                                        Sym { name: card.modelData.video ? "play" : badge.live ? "layers" : "rocket"; size: 10; color: "#ffffff"; anchors.verticalCenter: parent.verticalCenter }
+                                        Text { text: I18n.tr(card.modelData.video ? "Видео" : badge.live ? "Живые" : "Супер"); color: "#ffffff"; font.family: Theme.font; font.pixelSize: 11; font.weight: Font.Bold }
                                     }
                                 }
                                 // текущие обои — галочка

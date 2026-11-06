@@ -321,6 +321,7 @@ impl Shell {
                     "currentFormat": if crate::hdr::output_white(o).is_some() { "XBGR2101010" } else { "XRGB8888" },
                     "colorManagementPreset": if crate::hdr::output_white(o).is_some() { "hdr" } else { "srgb" },
                     "sdrBrightness": crate::hdr::output_white(o).map_or(1.0, |w| w / crate::hdr::SDR_WHITE),
+                    "sdrSaturation": crate::hdr::output_saturation(o),
                     "mirrorOf": "none",
                     "availableModes": modes,
                 })

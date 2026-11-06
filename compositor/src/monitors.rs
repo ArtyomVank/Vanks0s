@@ -27,6 +27,8 @@ pub struct MonitorRule {
     pub hdr: Option<bool>,
     /// яркость обычной картинки в HDR, множитель к 203 кд/м²
     pub sdr_brightness: Option<f64>,
+    /// насыщенность обычной картинки в HDR (sdrSaturation)
+    pub sdr_saturation: Option<f64>,
 }
 
 /// «1920x1080@200.00Hz», «1920x1080»; «preferred» и прочие слова — None.
@@ -63,6 +65,11 @@ impl MonitorRule {
                 .or_else(|| v.get("sdrbrightness"))
                 .and_then(Value::as_f64)
                 .map(|b| b.clamp(0.5, 3.0)),
+            sdr_saturation: v
+                .get("sdrSaturation")
+                .or_else(|| v.get("sdrsaturation"))
+                .and_then(Value::as_f64)
+                .map(|s| s.clamp(0.0, 2.0)),
         })
     }
 
@@ -199,6 +206,7 @@ impl Shell {
     }
 
     fn apply_rule(&mut self, output: &Output, rule: &MonitorRule) -> Result<(), String> {
+        crate::hdr::set_output_saturation(output, rule.sdr_saturation.unwrap_or(1.0) as f32);
         self.set_output_hdr(output, rule.hdr == Some(true), rule.sdr_brightness.unwrap_or(1.0));
         let mode = match rule.mode {
             Some(want) => self.set_output_mode(output, want)?,

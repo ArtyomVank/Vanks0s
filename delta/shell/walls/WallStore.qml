@@ -250,7 +250,10 @@ Singleton {
     }
 
     // --- супер и живые обои в общем списке: готовый кадр вместо файла ---
-    readonly property var superItems: SuperWalls.builtin.concat(SuperWalls.flows, SuperWalls.user).map(w => ({
+    readonly property var superItems: SuperWalls.builtin.concat(SuperWalls.user).map(specItem)
+    readonly property var liveItems: SuperWalls.flows.map(specItem)
+    function specItem(w) {
+        return {
         path: SuperWalls.still(w),
         name: w.id.startsWith("user:") ? w.title : I18n.tr(w.title),
         video: false,
@@ -259,7 +262,8 @@ Singleton {
         thumb: SuperWalls.still(w),
         mtime: 0,
         superSpec: w
-    }))
+        };
+    }
 
     // --- добавить свои: файлы копируются в папку обоев, первый сразу ставится ---
     signal addFinished()

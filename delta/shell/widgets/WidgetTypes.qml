@@ -87,7 +87,7 @@ Singleton {
         { value: "neon", label: "Неон" }, { value: "stack", label: "Столбиком" },
         { value: "serif", label: "С засечками" }, { value: "wide", label: "Разрядка" },
         { value: "outline", label: "Контур" }, { value: "minimal", label: "Минимум" },
-        { value: "tall", label: "Длинные" }
+        { value: "tall", label: "Длинные" }, { value: "dots", label: "Точки" }
     ]
     readonly property var clockColors: [
         { value: "white", label: "Белые" }, { value: "accent", label: "Акцент" },

@@ -161,8 +161,14 @@ impl Shell {
     ) -> Option<(WlSurface, smithay::utils::Point<f64, smithay::utils::Logical>, LayerSurface)> {
         let output = self.space.output_under(pos).next()?;
         let output_geo = self.space.output_geometry(output)?;
+        // окно на весь экран закрывает верхний слой — мышь до него тоже не достаёт
+        // (иначе невидимый док под игрой ловит щелчки и сбивает захват мыши)
+        let fullscreen = self.fullscreen_on(output);
         let map = layer_map_for_output(output);
         for &level in layers {
+            if level == Layer::Top && fullscreen {
+                continue;
+            }
             for layer in map.layers_on(level).rev() {
                 let Some(geo) = map.layer_geometry(layer) else { continue };
                 let local = pos - output_geo.loc.to_f64() - geo.loc.to_f64();

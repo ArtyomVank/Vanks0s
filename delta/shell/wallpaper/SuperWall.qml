@@ -28,7 +28,7 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : holeC)
+        sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : root.spec.frag === "earth" ? earthC : holeC)
             : root.kind === "flow" ? flowC : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : root.kind === "live" ? liveC : null
     }
 
@@ -60,16 +60,28 @@ Item {
         }
     }
     Component {
+        id: earthC
+        ShaderEffect {
+            property vector2d res: Qt.vector2d(width, height)
+            property real zoom: root.progress
+            property real time: SuperWalls.time
+            fragmentShader: "super/earth.frag.qsb"
+        }
+    }
+    // живые обои: полёта нет, при входе лишь чуть приближаются (zoom)
+    Component {
         id: flowC
         ShaderEffect {
             property vector2d res: Qt.vector2d(width, height)
             property real intro: SuperWalls.intro
             property real zoom: root.progress
             property real time: SuperWalls.time
+            property real material: root.spec.material ?? 0
             property color colorA: root.spec.a
             property color colorB: root.spec.b
             property color colorC: root.spec.c
-            fragmentShader: "super/circles.frag.qsb"
+            property color colorD: root.spec.d ?? root.spec.b
+            fragmentShader: "super/" + (root.spec.frag ?? "circles") + ".frag.qsb"
         }
     }
 

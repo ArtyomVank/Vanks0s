@@ -7,7 +7,7 @@ import qs.common.ui
 import qs.widgets.parts as WParts
 
 // Большие часы экрана блокировки — стили и цвета как в концепте.
-//   style: ios · thin · mono · neon · stack · serif · wide · outline · minimal · tall
+//   style: ios · thin · mono · neon · stack · serif · wide · outline · minimal · tall · dots
 //   tint:  white · accent · gradient · glass
 //     BigClock { style: "neon"; tint: "accent"; size: 152 }
 // size — кегль цифр для стиля ios, остальные стили пересчитываются от него.
@@ -48,6 +48,8 @@ Item {
     // «Длинные», как в iOS 26: тонкие высокие цифры, нарисованные линиями
     // (widgets/parts/TallDigits.qml)
     readonly property bool tall: style === "tall"
+    // «Точки», как в Nothing OS (widgets/parts/DotDigits.qml)
+    readonly property bool dots: style === "dots"
     readonly property real px: minimal ? size * 0.58
         : style === "mono" ? size * 0.84
         : stack ? size * 0.74
@@ -64,14 +66,14 @@ Item {
     readonly property real spacing: px * (wide ? 0.075 : serif ? 0.005 : style === "mono" ? -0.04 : style === "thin" ? -0.02 : -0.035)
 
     // контур и стекло — GlassFace
-    readonly property bool faced: !tall && t !== "gradient" && (outline || t === "glass")
+    readonly property bool faced: !tall && !dots && t !== "gradient" && (outline || t === "glass")
     readonly property color faceColor: tint === "accent" ? Theme.accent
         : tint === "glass" ? Qt.rgba(1, 1, 1, 0.14)
         : tint === "gradient" ? "#ffffff" : Qt.rgba(1, 1, 1, 0.93)
     // тень для обычных стилей, свечение для неона
     readonly property color shadowColor: glow ? (tint === "accent" ? Theme.accent : "#ffffff") : Qt.rgba(0, 0, 0, 0.3)
 
-    implicitWidth: Math.max(tall ? tallBox.width : face.width, date.implicitWidth)
+    implicitWidth: Math.max(tall ? tallBox.width : dots ? dotFace.width : face.width, date.implicitWidth)
     implicitHeight: col.implicitHeight
 
     Column {
@@ -165,8 +167,27 @@ Item {
             }
         }
 
+        WParts.DotDigits {
+            id: dotFace
+            visible: root.dots
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: root.hh + ":" + root.mm
+            digitHeight: root.size * 0.92
+            color: root.t === "accent" ? Theme.accent : Qt.rgba(1, 1, 1, 0.95)
+            // «Стекло» — видна вся сетка, горят только нужные точки
+            ghost: root.t === "glass" ? 0.16 : 0
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.3)
+                shadowBlur: 0.8
+                shadowVerticalOffset: 3
+                blurMax: 24
+            }
+        }
+
         Item {
-            visible: !root.tall
+            visible: !root.tall && !root.dots
             anchors.horizontalCenter: parent.horizontalCenter
             width: face.width
             height: face.height

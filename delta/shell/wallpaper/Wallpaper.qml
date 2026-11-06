@@ -185,6 +185,32 @@ PanelWindow {
                 if (root.playing) { if (player.playbackState !== MediaPlayer.PlayingState) player.play(); }
                 else if (player.playbackState === MediaPlayer.PlayingState) player.pause();
             }
+
+            // Сторож: обои должны играть, а время ролика стоит (декодер завис после
+            // смены режима экрана, сна или разблокировки) — открываем файл заново
+            property real lastPosition: -1
+            property int stalls: 0
+            Timer {
+                interval: 3000
+                repeat: true
+                running: root.playing
+                onRunningChanged: { vbox.lastPosition = -1; vbox.stalls = 0; }
+                onTriggered: {
+                    const pos = player.position;
+                    const stuck = player.playbackState !== MediaPlayer.PlayingState
+                        || (vbox.lastPosition >= 0 && pos === vbox.lastPosition && player.duration > 0);
+                    vbox.lastPosition = pos;
+                    // два раза подряд: файл мог ещё открываться
+                    vbox.stalls = stuck ? vbox.stalls + 1 : 0;
+                    if (vbox.stalls < 2) return;
+                    console.warn("[delta] видеообои стоят — открываю файл заново");
+                    vbox.stalls = 0;
+                    vbox.lastPosition = -1;
+                    player.stop();
+                    player.source = "";
+                    player.source = Qt.binding(() => Media.fileUrl(root.file));
+                }
+            }
             Connections {
                 target: root
                 function onPlayingChanged() { vbox.sync(); }

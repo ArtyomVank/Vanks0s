@@ -16,6 +16,8 @@ use smithay::{
     wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
 
+use smithay::desktop::WindowSurfaceType;
+use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::shell::wlr_layer::Layer;
 
 use crate::{
@@ -228,6 +230,12 @@ impl Shell {
                     pointer.frame(self);
                     return;
                 }
+                // игра держит мышь (поворот камеры): щелчок — ей, фокус не меняется
+                if self.pointer_held().is_some() {
+                    pointer.button(self, &ButtonEvent { button, state: button_state, serial, time: event.time_msec() });
+                    pointer.frame(self);
+                    return;
+                }
                 // щелчок мимо меню Delta с захватом — меню закрывается
                 if button_state == ButtonState::Pressed {
                     let under = self.surface_under(location).map(|(s, _)| s);
@@ -401,7 +409,8 @@ impl Shell {
     fn pointer_motion_relative(&mut self, delta: Point<f64, Logical>, delta_unaccel: Point<f64, Logical>, utime: u64, time: u32) {
         let pointer = self.seat.get_pointer().unwrap();
         let pos = pointer.current_location();
-        let under = self.surface_under(pos);
+        // игра держит мышь — сдвиги только ей, даже если сверху что-то появилось
+        let under = self.pointer_held().or_else(|| self.surface_under(pos));
 
         let mut locked = false;
         let mut confined = None;
@@ -436,6 +445,25 @@ impl Shell {
             }
         }
         self.pointer_moved(new, time);
+    }
+
+    /// Поверхность под мышью с действующим захватом (или «загоном» в окно) и
+    /// где она на столе. Пока захват действует, мышь остаётся у неё.
+    fn pointer_held(&self) -> Option<(WlSurface, Point<f64, Logical>)> {
+        let pointer = self.seat.get_pointer()?;
+        let surface = pointer.current_focus()?;
+        let active = with_pointer_constraint(&surface, &pointer, |c| c.is_some_and(|c| c.is_active()));
+        if !active || self.is_locked() {
+            return None;
+        }
+        let pos = pointer.current_location();
+        self.space.elements().find_map(|window| {
+            let loc = self.space.element_location(window)?.to_f64();
+            match window.surface_under(pos - loc, WindowSurfaceType::ALL) {
+                Some((s, at)) if s == surface => Some((s, at.to_f64() + loc)),
+                _ => None,
+            }
+        })
     }
 
     fn pointer_moved(&mut self, pos: Point<f64, Logical>, time: u32) {

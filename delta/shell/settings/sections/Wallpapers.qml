@@ -187,28 +187,41 @@ ColumnLayout {
     }
 
     Card {
-        title: I18n.tr("Живые обои при запуске")
+        title: I18n.tr("Живые обои")
         Label {
             Layout.fillWidth: true
             Layout.leftMargin: 14
             Layout.rightMargin: 14
-            text: I18n.tr("При включении компьютера рисунок оживает на экране блокировки и замирает. Дальше это обычные неподвижные обои.")
+            text: I18n.tr("Оживают, когда вы входите на рабочий стол: после включения компьютера и после каждой разблокировки. Потом замирают и не нагружают видеокарту.")
             size: "small"
             tone: 2
             wrapMode: Text.WordWrap
         }
-        Flow {
-            Layout.fillWidth: true
-            Layout.margins: 12
-            spacing: 10
-            Repeater {
-                model: SuperWalls.flows
-                delegate: SuperTile {
-                    required property var modelData
-                    wall: modelData
+        Repeater {
+            model: SuperWalls.groups
+            delegate: ColumnLayout {
+                id: family
+                required property var modelData
+                Layout.fillWidth: true
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.topMargin: 6
+                spacing: 8
+                Label { text: I18n.tr(family.modelData.title); font.weight: Font.DemiBold; size: "small" }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Repeater {
+                        model: SuperWalls.flows.filter(w => w.group === family.modelData.id)
+                        delegate: SuperTile {
+                            required property var modelData
+                            wall: modelData
+                        }
+                    }
                 }
             }
         }
+        Item { Layout.preferredHeight: 4 }
         SettingRow {
             visible: SuperWalls.current !== null && SuperWalls.current.kind === "flow"
             icon: "refresh"

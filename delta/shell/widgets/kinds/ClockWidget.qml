@@ -29,6 +29,9 @@ Base {
     // «Длинные», как в iOS 26: тонкие высокие цифры на всю высоту виджета
     // (рисуются линиями — widgets/parts/TallDigits.qml)
     readonly property bool tall: style === "tall"
+    // «Точки», как в Nothing OS: строка «00:00» — 23 клетки в ширину и 7 в высоту
+    readonly property bool dots: style === "dots"
+    readonly property real dotH: Math.min(84 * ch - dateLine.height, 92 * cw * 7 / 23, 46 * ch)
     // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над минутами
     readonly property string tallKind: opt("tallKind", "line")
     readonly property real tallThick: Math.max(0.5, Math.min(2.4, Number(opt("tallThick", 1)) || 1))
@@ -52,7 +55,7 @@ Base {
 
     readonly property string timeText: hh + ":" + mm
     // цифры шрифтом рисует GlassFace: контур и стекло
-    readonly property bool faced: !tall && tint !== "gradient" && (outline || tint === "glass")
+    readonly property bool faced: !tall && !dots && tint !== "gradient" && (outline || tint === "glass")
     // «Длинные» вписываются в виджет: высота — всё место под датой, ширина
     // цифр — сколько влезает в ширину, но не больше ползунка «ширина цифр»
     // (item.tallWidth, иначе общая clock.tallWidth). Считаем по «00:00» —
@@ -95,8 +98,26 @@ Base {
 
             Item {
                 id: face
-                width: root.tall ? Math.max(tallFace.implicitWidth, root.tallStack ? tallFace2.implicitWidth : 0) : digits.implicitWidth
-                height: root.tall ? tallFace.implicitHeight + (root.tallStack ? root.tallGap + tallFace2.implicitHeight : 0) : digits.implicitHeight
+                width: root.dots ? dotFace.width : root.tall ? Math.max(tallFace.implicitWidth, root.tallStack ? tallFace2.implicitWidth : 0) : digits.implicitWidth
+                height: root.dots ? dotFace.height : root.tall ? tallFace.implicitHeight + (root.tallStack ? root.tallGap + tallFace2.implicitHeight : 0) : digits.implicitHeight
+
+                DotDigits {
+                    id: dotFace
+                    visible: root.dots
+                    text: root.timeText
+                    digitHeight: root.dotH
+                    color: root.tint === "accent" ? Theme.accent : Qt.rgba(1, 1, 1, 0.95)
+                    // «Стекло» — видна вся сетка, горят только нужные точки
+                    ghost: root.tint === "glass" ? 0.16 : 0
+                    layer.enabled: visible
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        blurMax: 16
+                        shadowBlur: 0.8
+                        shadowColor: Qt.rgba(0, 0, 0, 0.25)
+                        shadowVerticalOffset: 2
+                    }
+                }
 
                 TallDigits {
                     id: tallFace
@@ -158,7 +179,7 @@ Base {
                     // контур и стекло рисует GlassFace ниже — по форме цифр целиком
                     color: root.tint === "accent" && !root.faced ? Theme.accent : root.faced ? "#ffffff" : Qt.rgba(1, 1, 1, 0.93)
                     // градиент рисуем маской ниже, сами цифры тогда не видны
-                    visible: !root.tall && root.tint !== "gradient"
+                    visible: !root.tall && !root.dots && root.tint !== "gradient"
 
                     // тень или неоновое свечение (контуру тень не нужна)
                     layer.enabled: !root.outline && (root.tint === "white" || root.tint === "accent")
@@ -188,7 +209,7 @@ Base {
                 // хотя сами элементы спрятаны.
                 Loader {
                     anchors.fill: parent
-                    active: root.tint === "gradient"
+                    active: root.tint === "gradient" && !root.dots
                     sourceComponent: Item {
                         Item {
                             id: mask

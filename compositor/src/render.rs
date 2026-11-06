@@ -75,7 +75,8 @@ pub fn output_elements(renderer: &mut R, shell: &mut Shell, output: &Output, dra
     let Some(programs) = shell.fx.programs.clone() else { return elements };
     let white = crate::hdr::output_white(output).unwrap_or(crate::hdr::SDR_WHITE);
     let desc_of = |id: &Id| colored.iter().find(|(s, _)| Id::from(s) == *id).map(|(_, d)| *d);
-    let wrap = |inner, desc| OutputElement::Color(ColorSurface { inner, desc, white, programs: programs.clone() });
+    let saturation = crate::hdr::output_saturation(output);
+    let wrap = |inner, desc| OutputElement::Color(ColorSurface { inner, desc, white, saturation, programs: programs.clone() });
     elements
         .into_iter()
         .map(|e| match e {
@@ -160,10 +161,7 @@ fn scene_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cur
     shell.update_scene();
 
     let area = geo;
-    let fullscreen = shell
-        .space
-        .elements()
-        .any(|w| data(w).mode == Mode::Fullscreen && shell.space.element_location(w).is_some_and(|l| area.contains(l)));
+    let fullscreen = shell.fullscreen_on(output);
 
     // слои поверх окон; окно на весь экран закрывает верхний слой (как у Hyprland)
     push_layers(renderer, shell, output, Layer::Overlay, &programs, &params, &mut elements);

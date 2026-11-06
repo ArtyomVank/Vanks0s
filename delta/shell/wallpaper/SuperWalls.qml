@@ -19,14 +19,40 @@ Singleton {
     // kind: shader — считает видеокарта; photos, video, live — свои (delta-superwall)
     readonly property var builtin: [
         { id: "blackhole", kind: "shader", title: "Чёрная дыра", frag: "blackhole" },
-        { id: "moon",      kind: "shader", title: "Луна",        frag: "moon" }
+        { id: "moon",      kind: "shader", title: "Луна",        frag: "moon" },
+        { id: "earth",     kind: "shader", title: "Земля",       frag: "earth" }
     ]
-    // живые обои при запуске: один рисунок в четырёх цветах (A — глубина, B — круги, C — блик)
+    // Живые обои (kind flow): оживают при входе — после запуска системы и после
+    // каждой разблокировки — и замирают. Это не супер обои: камера к ним не
+    // летит, а на экране блокировки видна только часть рисунка (lockPose).
+    // frag — шейдер, group — семейство в списке; a…d — цвета, material — у волн.
+    readonly property var groups: [
+        { id: "circles", title: "Круги" },
+        { id: "you",     title: "Material You" },
+        { id: "glass",   title: "Жидкое стекло" },
+        { id: "waves",   title: "Волны" },
+        { id: "nothing", title: "Nothing" }
+    ]
     readonly property var flows: [
-        { id: "flow-blue",   kind: "flow", title: "Синие",      a: "#0a1c4a", b: "#1f6dff", c: "#9fdcff" },
-        { id: "flow-violet", kind: "flow", title: "Фиолетовые", a: "#1d0d47", b: "#7a3cff", c: "#e2b8ff" },
-        { id: "flow-coral",  kind: "flow", title: "Коралловые", a: "#3d0d1c", b: "#f0523f", c: "#ffd2a8" },
-        { id: "flow-green",  kind: "flow", title: "Зелёные",    a: "#04302b", b: "#14b48a", c: "#c4ffd9" }
+        { id: "flow-blue",    kind: "flow", group: "circles", frag: "circles", title: "Синие",      a: "#0a1c4a", b: "#1f6dff", c: "#9fdcff", d: "#36c6ff" },
+        { id: "flow-violet",  kind: "flow", group: "circles", frag: "circles", title: "Фиолетовые", a: "#1d0d47", b: "#7a3cff", c: "#e2b8ff", d: "#ff5fd2" },
+        { id: "flow-coral",   kind: "flow", group: "circles", frag: "circles", title: "Коралловые", a: "#3d0d1c", b: "#f0523f", c: "#ffd2a8", d: "#ffb03a" },
+        { id: "flow-green",   kind: "flow", group: "circles", frag: "circles", title: "Зелёные",    a: "#04302b", b: "#14b48a", c: "#c4ffd9", d: "#a6e84a" },
+        { id: "flow-sunset",  kind: "flow", group: "circles", frag: "circles", title: "Закат",      a: "#24062e", b: "#ff4f7b", c: "#ffe0b5", d: "#ffa63d" },
+        { id: "flow-aurora",  kind: "flow", group: "circles", frag: "circles", title: "Сияние",     a: "#031a2a", b: "#19c3a7", c: "#d8fff4", d: "#7a5cff" },
+        { id: "you-lavender", kind: "flow", group: "you", frag: "you", title: "Лаванда", a: "#ece1ff", b: "#6f43c0", c: "#c9b3ff", d: "#ff8fb1" },
+        { id: "you-mint",     kind: "flow", group: "you", frag: "you", title: "Мята",    a: "#d8f5e7", b: "#006c4f", c: "#8be0b8", d: "#ff9f7f" },
+        { id: "you-peach",    kind: "flow", group: "you", frag: "you", title: "Персик",  a: "#ffe6d8", b: "#9c4323", c: "#ffb68f", d: "#56703f" },
+        { id: "you-night",    kind: "flow", group: "you", frag: "you", title: "Ночь",    a: "#1c1b25", b: "#4b5bd6", c: "#bcc3ff", d: "#ffb4a9" },
+        { id: "glass-lagoon", kind: "flow", group: "glass", frag: "glass", title: "Лагуна",  a: "#04161f", b: "#00a6c8", c: "#3b5bff", d: "#8cf2d0" },
+        { id: "glass-dawn",   kind: "flow", group: "glass", frag: "glass", title: "Рассвет", a: "#1a0a1c", b: "#ff6a88", c: "#ffb35c", d: "#a77bff" },
+        { id: "glass-night",  kind: "flow", group: "glass", frag: "glass", title: "Полночь", a: "#05060d", b: "#3a46a8", c: "#8a2fa0", d: "#1f8fa3" },
+        { id: "waves-matte",  kind: "flow", group: "waves", frag: "waves", material: 0, title: "Матовые",    a: "#0b1630", b: "#2f6bd8", c: "#a8d4ff", d: "#7f5cf0" },
+        { id: "waves-glass",  kind: "flow", group: "waves", frag: "waves", material: 1, title: "Стеклянные", a: "#071a24", b: "#19b3c9", c: "#e0fbff", d: "#6a7dff" },
+        { id: "waves-metal",  kind: "flow", group: "waves", frag: "waves", material: 2, title: "Металл",     a: "#0d0d10", b: "#8a6b3d", c: "#fff1d0", d: "#4e5566" },
+        { id: "waves-silk",   kind: "flow", group: "waves", frag: "waves", material: 2, title: "Шёлк",       a: "#26071a", b: "#c2275b", c: "#ffd1e0", d: "#ff8a3d" },
+        { id: "dots-black",   kind: "flow", group: "nothing", frag: "dots", title: "Чёрные", a: "#000000", b: "#f2f2f2", c: "#d71921", d: "#262626" },
+        { id: "dots-white",   kind: "flow", group: "nothing", frag: "dots", title: "Белые",  a: "#f0f0f0", b: "#111111", c: "#d71921", d: "#d4d4d4" }
     ]
     // свои: [{ id: "user:…", kind, title, far, near, clip }]
     property var user: []
@@ -65,6 +91,7 @@ Singleton {
         target: ShellState
         function onDesktopShownChanged() { root.flying = true; flightEnd.restart(); }
     }
+    function groupTitle(id) { return groups.find(g => g.id === id)?.title ?? ""; }
     Timer { id: flightEnd; interval: 1900; onTriggered: root.flying = false }
     property real lastTick: 0
     Timer {
@@ -80,12 +107,16 @@ Singleton {
         }
     }
 
-    // --- живые обои: играют один раз при запуске системы ---
-    // До заставки кадр ждёт в самом начале, после запуска оболочки заново не играют.
-    // Время считается по кадрам: при запуске система занята, и по часам анимация
-    // успела бы пройти, пока кадры не выходят
-    readonly property real introSeconds: 7
+    // --- живые обои: оживают при каждом входе на стол ---
+    // На экране блокировки рисунок стоит в позе lockPose (видна только часть),
+    // при входе — после запуска системы и после разблокировки — доигрывает до
+    // конца; при блокировке быстро сворачивается обратно. До заставки запуска
+    // кадр ждёт в самом начале (StartCover.qml). Время считается по кадрам: при
+    // запуске система занята, и по часам анимация прошла бы, пока кадры не выходят.
+    readonly property real introSeconds: 6
+    readonly property real lockPose: 0.3
     property real intro: Quickshell.env("DELTA_SESSION_START") === "1" ? 0 : 1
+    property real introTarget: 1
     property real introLast: 0
     Timer {
         id: introTimer
@@ -96,11 +127,28 @@ Singleton {
             const now = Date.now();
             const dt = Math.min(1 / 30, (now - root.introLast) / 1000);
             root.introLast = now;
-            root.intro = Math.min(1, root.intro + dt / root.introSeconds);
-            if (root.intro >= 1) running = false;
+            // назад — в восемь раз быстрее: блокировка не ждёт
+            const step = dt / root.introSeconds * (root.introTarget < root.intro ? 8 : 1);
+            root.intro = root.introTarget > root.intro ? Math.min(root.introTarget, root.intro + step)
+                                                       : Math.max(root.introTarget, root.intro - step);
+            if (root.intro === root.introTarget) running = false;
         }
     }
-    function playIntro() { intro = 0; introTimer.restart(); }
+    function introTo(target) {
+        introTarget = target;
+        if (intro !== target) introTimer.restart();
+    }
+    // с начала: при выборе обоев и после заставки запуска
+    function playIntro() {
+        intro = 0;
+        introTo(ShellState.desktopShown ? 1 : lockPose);
+    }
+    Connections {
+        target: ShellState
+        function onDesktopShownChanged() {
+            if (root.currentKind === "flow") root.introTo(ShellState.desktopShown ? 1 : root.lockPose);
+        }
+    }
 
     // --- свои супер обои ---
     function reload() { listProc.running = true; }

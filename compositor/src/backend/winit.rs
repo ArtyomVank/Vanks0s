@@ -146,6 +146,7 @@ pub fn init(event_loop: &mut EventLoop<CalloopData>, data: &mut CalloopData) -> 
                         }
                         if let Some(pass) = hdr_pass.as_mut() {
                             pass.set_white(white);
+                            pass.set_saturation(crate::hdr::output_saturation(&output));
                             hdr_states = pass.render(backend.renderer(), &elements).map_err(|e| tracing::warn!("{e}")).ok();
                         }
                     }

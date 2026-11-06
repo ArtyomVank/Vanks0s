@@ -469,10 +469,11 @@ ColumnLayout {
             }
         }
         Maybe {
-            show: Displays.fullSupport && page.cfg !== null && page.cfg.hdr
+            show: page.cfg !== null && page.cfg.hdr
             SettingRow {
                 icon: "palette"
                 title: I18n.tr("Насыщенность обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrSaturation * 100) : 100) + " %"
+                subtitle: I18n.tr("Цвета окон и обоев в HDR. Игры и видео в HDR не меняются")
                 wide: true
                 Slider {
                     from: 0.5; to: 1.5; step: 0.05

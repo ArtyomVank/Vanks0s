@@ -430,6 +430,7 @@ impl Shell {
         }
         self.schedule_render(crtc, Duration::ZERO);
         if let Some(rule) = rule {
+            crate::hdr::set_output_saturation(&output, rule.sdr_saturation.unwrap_or(1.0) as f32);
             self.set_output_hdr(&output, wants_hdr, rule.sdr_brightness.unwrap_or(1.0));
         }
         Ok(())
@@ -702,6 +703,7 @@ impl Shell {
                 );
             }
             let pass = screen.hdr.as_mut().expect("проверено выше");
+            pass.set_saturation(crate::hdr::output_saturation(&screen.output));
             let states = pass.render(renderer, &elements).map_err(|e| SwapBuffersError::TemporaryFailure(e.into()))?;
             let frame = [pass.frame()];
             let result = screen

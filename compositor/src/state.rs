@@ -327,6 +327,16 @@ impl Shell {
         window.or_else(|| self.layer_surface_under(pos, &[Layer::Bottom, Layer::Background]).map(|(s, at, _)| (s, at)))
     }
 
+    /// На мониторе окно на весь экран: оно закрывает верхний слой панелей и при
+    /// отрисовке, и для мыши (как у Hyprland).
+    pub fn fullscreen_on(&self, output: &smithay::output::Output) -> bool {
+        let Some(area) = self.space.output_geometry(output) else { return false };
+        self.space.elements().any(|w| {
+            crate::workspaces::data(w).mode == crate::workspaces::Mode::Fullscreen
+                && self.space.element_location(w).is_some_and(|l| area.contains(l))
+        })
+    }
+
     /// Место для окон на мониторе: без краёв, занятых панелями.
     pub fn usable_area(&self, output: &smithay::output::Output) -> smithay::utils::Rectangle<i32, Logical> {
         let geo = self.space.output_geometry(output).unwrap_or_default();

@@ -261,7 +261,7 @@ Singleton {
         const m = fullSupport ? null : monitors.find(x => x.name === cfg.name);
         const old = m ? savedFor(m) : null;
         if (old) {
-            for (const k of ["vrr", "mirror", "sdrSaturation", "cm", "bitdepth", "icc"]) {
+            for (const k of ["vrr", "mirror", "cm", "bitdepth", "icc"]) {
                 if (old[k] !== undefined) e[k] = old[k];
             }
         }

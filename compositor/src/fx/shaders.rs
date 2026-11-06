@@ -114,19 +114,30 @@ void main() {
             n *= near * near;
             // свет сверху слева: край под ним светлее, напротив — слабый отблеск
             float lit = dot(normalize(n + 1e-4), vec2(0.45, 0.89));
-            rim = near * near * near * (0.70 * max(0.0, lit) + 0.38 * max(0.0, -lit));
+            float n3 = near * near * near;
+            // мягкое свечение по скосу и тонкая яркая линия по самой кромке
+            rim = n3 * (0.42 * max(0.0, lit) + 0.20 * max(0.0, -lit))
+                + pow(near, 10.0) * (0.85 * max(0.0, lit) + 0.45 * max(0.0, -lit) + 0.12);
             // толщина стекла: у кромки со стороны от света оно темнее
-            edge = near * near * near * near * near * (1.0 - max(0.0, lit));
+            edge = n3 * near * near * (1.0 - max(0.0, lit));
         }
-        vec2 frag = gl_FragCoord.xy + vec2(n.x, n.y * y_sign) * lens;
+        vec2 shift = vec2(n.x, n.y * y_sign) * lens;
+        vec2 frag = gl_FragCoord.xy + shift;
         vec2 uv = clamp((frag - blur_map.xy) * blur_map.zw, blur_clamp.xy, blur_clamp.zw);
         vec3 back = texture2D(blur_tex, uv).rgb;
+        if (lens > 0.0) {
+            // дисперсия: на скосе красный гнётся сильнее синего — радужная кромка
+            vec2 uvR = clamp((frag + shift * 0.14 - blur_map.xy) * blur_map.zw, blur_clamp.xy, blur_clamp.zw);
+            vec2 uvB = clamp((frag - shift * 0.14 - blur_map.xy) * blur_map.zw, blur_clamp.xy, blur_clamp.zw);
+            back.r = texture2D(blur_tex, uvR).r;
+            back.b = texture2D(blur_tex, uvB).b;
+        }
         float l = dot(back, vec3(0.2126, 0.7152, 0.0722));
         back = mix(vec3(l), back, saturation);
         if (lens > 0.0) {
             // как у Liquid Glass: яркий фон приглушён ради текста, тёмный — чуть светлее
-            back *= mix(1.08, 0.86, smoothstep(0.45, 0.85, l));
-            back *= 1.0 - 0.22 * edge;
+            back *= mix(1.10, 0.86, smoothstep(0.45, 0.85, l));
+            back *= 1.0 - 0.26 * edge;
         }
         back += rim;
         color = color + (1.0 - color.a) * vec4(back, 1.0) * mask;
@@ -445,6 +456,7 @@ pub const HDR_OUT: &str = concat!(
     tex_head!(),
     r#"
 uniform float white;
+uniform float sat;
 vec3 pq(vec3 nits) {
     vec3 y = pow(max(nits, 0.0) / 10000.0, vec3(0.1593017578125));
     return pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), vec3(78.84375));
@@ -452,6 +464,9 @@ vec3 pq(vec3 nits) {
 void main() {
     vec3 c = texture2D(tex, v_coords).rgb;
     vec3 light = sign(c) * pow(abs(c), vec3(2.2));
+    // насыщенность обычной картинки (в линейном BT.709, яркость не меняется)
+    float l = dot(light, vec3(0.2126, 0.7152, 0.0722));
+    light = l + (light - l) * sat;
     light = mat3(0.6274, 0.0691, 0.0164, 0.3293, 0.9195, 0.0880, 0.0433, 0.0113, 0.8956) * light;
     gl_FragColor = vec4(pq(light * white), 1.0);
 }
@@ -465,6 +480,7 @@ pub const COLOR_IN: &str = concat!(
     r#"
 uniform float tf;
 uniform float white;
+uniform float sat;
 uniform mat3 to709;
 vec3 from_pq(vec3 e) {
     vec3 p = pow(max(e, 0.0), vec3(1.0 / 78.84375));
@@ -483,6 +499,10 @@ void main() {
     else if (tf < 2.5) light = e * 80.0 / white;
     else light = pow(max(e, 0.0), vec3(2.4));
     light = to709 * light;
+    // проход HDR добавит насыщенности всему кадру — у такой поверхности её
+    // заранее убираем, и её цвета доходят до монитора как есть
+    float l = dot(light, vec3(0.2126, 0.7152, 0.0722));
+    light = l + (light - l) / sat;
     vec3 o = sign(light) * pow(abs(light), vec3(1.0 / 2.2));
     gl_FragColor = vec4(o * c.a, c.a) * alpha;
 }

@@ -31,6 +31,20 @@ pub fn output_white(output: &Output) -> Option<f32> {
     output.user_data().get::<OutputWhite>().and_then(|w| w.0.get())
 }
 
+/// Насыщенность обычной картинки в HDR (1 — как есть).
+struct OutputSaturation(Cell<f32>);
+
+pub fn output_saturation(output: &Output) -> f32 {
+    output.user_data().get::<OutputSaturation>().map_or(1.0, |s| s.0.get())
+}
+
+pub fn set_output_saturation(output: &Output, saturation: f32) {
+    output.user_data().insert_if_missing(|| OutputSaturation(Cell::new(1.0)));
+    if let Some(s) = output.user_data().get::<OutputSaturation>() {
+        s.0.set(saturation);
+    }
+}
+
 pub fn set_output_white(output: &Output, white: Option<f32>) {
     output.user_data().insert_if_missing(|| OutputWhite(Cell::new(None)));
     if let Some(w) = output.user_data().get::<OutputWhite>() {
@@ -74,6 +88,8 @@ pub struct HdrPass {
     age: usize,
     /// яркость белого обычной картинки, кд/м²
     pub white: f32,
+    /// её насыщенность
+    saturation: f32,
 }
 
 impl HdrPass {
@@ -84,7 +100,7 @@ impl HdrPass {
             .find_map(|format| Offscreen::<GlesTexture>::create_buffer(renderer, *format, buffer).ok())
             .ok_or("видеокарта не даёт текстуру HDR")?;
         let program = renderer
-            .compile_custom_texture_shader(shaders::HDR_OUT, &[UniformName::new("white", UniformType::_1f)])
+            .compile_custom_texture_shader(shaders::HDR_OUT, &[UniformName::new("white", UniformType::_1f), UniformName::new("sat", UniformType::_1f)])
             .map_err(|e| format!("шейдер HDR: {e:?}"))?;
         Ok(Self {
             id: Id::new(),
@@ -96,6 +112,7 @@ impl HdrPass {
             scale,
             age: 0,
             white,
+            saturation: 1.0,
         })
     }
 
@@ -107,6 +124,13 @@ impl HdrPass {
     pub fn set_white(&mut self, white: f32) {
         if (self.white - white).abs() > f32::EPSILON {
             self.white = white;
+            self.damage.add([Rectangle::from_size(self.size)]);
+        }
+    }
+
+    pub fn set_saturation(&mut self, saturation: f32) {
+        if (self.saturation - saturation).abs() > f32::EPSILON {
+            self.saturation = saturation;
             self.damage.add([Rectangle::from_size(self.size)]);
         }
     }
@@ -185,7 +209,7 @@ impl RenderElement<GlesRenderer> for HdrFrame<'_> {
             Transform::Normal,
             1.0,
             Some(&self.pass.program),
-            &[Uniform::new("white", self.pass.white)],
+            &[Uniform::new("white", self.pass.white), Uniform::new("sat", self.pass.saturation)],
         )
     }
 

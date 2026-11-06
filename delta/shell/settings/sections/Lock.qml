@@ -151,7 +151,7 @@ ColumnLayout {
                         { value: "neon", label: I18n.tr("Неон") }, { value: "stack", label: I18n.tr("Столбиком") },
                         { value: "serif", label: I18n.tr("С засечками") }, { value: "wide", label: I18n.tr("Разрядка") },
                         { value: "outline", label: I18n.tr("Контур") }, { value: "minimal", label: I18n.tr("Минимум") },
-                        { value: "tall", label: I18n.tr("Длинные") }]
+                        { value: "tall", label: I18n.tr("Длинные") }, { value: "dots", label: I18n.tr("Точки") }]
                 onPicked: v => root.setClock("style", v)
             }
         }
