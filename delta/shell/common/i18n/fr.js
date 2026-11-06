@@ -1244,4 +1244,23 @@ var strings = {
     "Создать цвет": "Créer la couleur",
     "Цвет удалён": "Couleur supprimée",
     "Мой цвет": "Ma couleur",
+
+    // --- 1.9: обои «Горы» и «Стеклянные грани», меню программ Windows, центр управления ---
+    "Сразу на экране блокировки": "Dès l’écran de verrouillage",
+    "Обои оживают целиком уже на блокировке, при каждой блокировке. Иначе на ней видно начало, а доигрывают после входа": "Le fond d’écran se joue en entier dès l’écran de verrouillage, à chaque verrouillage. Sinon on n’y voit que le début, la suite après la connexion",
+    "Горы": "Montagnes",
+    "День": "Jour",
+    "Стеклянные грани": "Facettes de verre",
+    "Свет и звук": "Lumière et son",
+    "Показать окно": "Afficher la fenêtre",
+    "Закрыть окно": "Fermer la fenêtre",
+    "Программа может спросить о сохранении": "L’application peut demander d’enregistrer",
+    "Завершить": "Quitter",
+    "Точно завершить?": "Vraiment quitter ?",
+    "Несохранённое пропадёт. Нажмите ещё раз": "Les données non enregistrées seront perdues. Appuyez encore",
+    "Процессов: ": "Processus : ",
+    "Открыть папку программы": "Ouvrir le dossier du programme",
+    "Программы Windows…": "Programmes Windows…",
+    "Программа закрыта": "Programme fermé",
+    "Её больше нет среди запущенных": "Il ne tourne plus",
 };

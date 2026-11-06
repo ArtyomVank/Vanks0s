@@ -1254,4 +1254,23 @@ var strings = {
     "Создать цвет": "Create color",
     "Цвет удалён": "Color deleted",
     "Мой цвет": "My color",
+
+    // --- 1.9: обои «Горы» и «Стеклянные грани», меню программ Windows, центр управления ---
+    "Сразу на экране блокировки": "Right on the lock screen",
+    "Обои оживают целиком уже на блокировке, при каждой блокировке. Иначе на ней видно начало, а доигрывают после входа": "The wallpaper plays in full already on the lock screen, every time you lock. Otherwise the lock screen shows the beginning and the rest plays after login",
+    "Горы": "Mountains",
+    "День": "Day",
+    "Стеклянные грани": "Glass facets",
+    "Свет и звук": "Light and sound",
+    "Показать окно": "Show window",
+    "Закрыть окно": "Close window",
+    "Программа может спросить о сохранении": "The app may ask to save your work",
+    "Завершить": "Quit",
+    "Точно завершить?": "Really quit?",
+    "Несохранённое пропадёт. Нажмите ещё раз": "Unsaved work will be lost. Press again",
+    "Процессов: ": "Processes: ",
+    "Открыть папку программы": "Open app folder",
+    "Программы Windows…": "Windows apps…",
+    "Программа закрыта": "App closed",
+    "Её больше нет среди запущенных": "It is no longer running",
 };

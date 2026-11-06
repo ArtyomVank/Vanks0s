@@ -10,7 +10,12 @@ import qs.wallpaper
 // Кадры супер обоев без виджетов и доков: готовые картинки для wallpaper.path
 // (wallpaper/super/<id>.jpg) снимаются отсюда.
 //     DEV_SUPER=moon DEV_NEAR=1 qs -p shell/dev-super.qml; потом grim
+// DEV_INTRO=0.4 — живые обои в этой точке анимации входа, DEV_PLAY=1 — играть её.
 ShellRoot {
+    Component.onCompleted: {
+        if (Quickshell.env("DEV_PLAY") === "1") SuperWalls.playIntro();
+        else if (Quickshell.env("DEV_INTRO")) SuperWalls.intro = Number(Quickshell.env("DEV_INTRO"));
+    }
     PanelWindow {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "delta-dev-super"

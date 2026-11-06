@@ -223,6 +223,12 @@ ColumnLayout {
         }
         Item { Layout.preferredHeight: 4 }
         SettingRow {
+            icon: "lock"
+            title: I18n.tr("Сразу на экране блокировки")
+            subtitle: I18n.tr("Обои оживают целиком уже на блокировке, при каждой блокировке. Иначе на ней видно начало, а доигрывают после входа")
+            Toggle { checked: SuperWalls.onLock; onToggled: v => Settings.set("wallpaper.introOnLock", v) }
+        }
+        SettingRow {
             visible: SuperWalls.current !== null && SuperWalls.current.kind === "flow"
             icon: "refresh"
             title: I18n.tr("Показать ещё раз")

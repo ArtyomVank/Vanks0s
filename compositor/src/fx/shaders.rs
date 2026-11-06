@@ -80,6 +80,7 @@ uniform vec2 tex_px;
 uniform float ignore_alpha;
 uniform float lens;
 uniform float lens_reach;
+uniform float rim_k;
 uniform float y_sign;
 uniform float saturation;
 
@@ -98,17 +99,23 @@ void main() {
         float rim = 0.0;
         float edge = 0.0;
         if (lens > 0.0) {
-            vec2 r = tex_px * lens_reach;
+            // пробы на четырёх кольцах: с одним кольцом на глубине скоса была
+            // резкая граница — внутри панели виднелась вторая рамка
             float d = 0.7071;
-            n += vec2( 1.0,  0.0) * shape(v_coords + vec2( r.x, 0.0));
-            n += vec2(-1.0,  0.0) * shape(v_coords + vec2(-r.x, 0.0));
-            n += vec2( 0.0,  1.0) * shape(v_coords + vec2(0.0,  r.y));
-            n += vec2( 0.0, -1.0) * shape(v_coords + vec2(0.0, -r.y));
-            n += vec2( d,  d) * shape(v_coords + vec2( r.x,  r.y) * d);
-            n += vec2(-d,  d) * shape(v_coords + vec2(-r.x,  r.y) * d);
-            n += vec2( d, -d) * shape(v_coords + vec2( r.x, -r.y) * d);
-            n += vec2(-d, -d) * shape(v_coords + vec2(-r.x, -r.y) * d);
-            n /= 4.0;
+            for (int k = 1; k <= 4; k++) {
+                vec2 r = tex_px * lens_reach * (float(k) * 0.25);
+                vec2 m = vec2(0.0);
+                m += vec2( 1.0,  0.0) * shape(v_coords + vec2( r.x, 0.0));
+                m += vec2(-1.0,  0.0) * shape(v_coords + vec2(-r.x, 0.0));
+                m += vec2( 0.0,  1.0) * shape(v_coords + vec2(0.0,  r.y));
+                m += vec2( 0.0, -1.0) * shape(v_coords + vec2(0.0, -r.y));
+                m += vec2( d,  d) * shape(v_coords + vec2( r.x,  r.y) * d);
+                m += vec2(-d,  d) * shape(v_coords + vec2(-r.x,  r.y) * d);
+                m += vec2( d, -d) * shape(v_coords + vec2( r.x, -r.y) * d);
+                m += vec2(-d, -d) * shape(v_coords + vec2(-r.x, -r.y) * d);
+                n += m;
+            }
+            n /= 16.0;
             float near = clamp(length(n), 0.0, 1.0);
             // ближе к краю — сильнее изгиб: линза, а не ровный сдвиг
             n *= near * near;
@@ -139,7 +146,7 @@ void main() {
             back *= mix(1.10, 0.86, smoothstep(0.45, 0.85, l));
             back *= 1.0 - 0.26 * edge;
         }
-        back += rim;
+        back += rim * rim_k;
         color = color + (1.0 - color.a) * vec4(back, 1.0) * mask;
     }
     color *= alpha;

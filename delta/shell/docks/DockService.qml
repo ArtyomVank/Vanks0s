@@ -9,6 +9,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import Quickshell.Bluetooth
 import qs.common
+import qs.display
 
 // Общее для доков всех мониторов: каталог модулей верхнего дока,
 // состояние музыки (режим «плеер-пилюля»), всплывающие окна дока
@@ -417,6 +418,33 @@ Singleton {
     }
     // во вложенной сессии звук по-настоящему не выключается: здесь — каким он стал бы
     property var previewMuted: null
+    // и громкость не меняется (общий PipeWire с основной сессией): -1 — настоящая
+    property real previewVolume: -1
+    readonly property bool soundDry: (Quickshell.env("DELTA_NESTED") || "") !== "" || Quickshell.env("DELTA_DRY_RUN") === "1"
+
+    // Колесо и тачпад над модулями верхнего дока: громкость (звук) и яркость
+    // (питание, батарея). d — доля: щелчок колеса 0.05, тачпад — плавно, по
+    // чуть-чуть. Уровень показывает сам остров ({ kind: "level" }).
+    function adjustVolume(d) {
+        const a = sink?.audio;
+        if (!a) return;
+        const cur = soundDry && previewVolume >= 0 ? previewVolume : a.volume;
+        const v = Math.max(0, Math.min(1, Math.round((cur + d) * 1000) / 1000));
+        if (soundDry) { previewVolume = v; previewMuted = false; }
+        else { if (a.muted) a.muted = false; a.volume = v; }
+        showLevel("volume", v, false);
+        Sounds.play("audio-volume-change", 140);
+    }
+    function adjustBrightness(d) {
+        if (!Brightness.available) return;
+        Brightness.set(Brightness.value + d);
+        showLevel("brightness", Brightness.value, false);
+    }
+    function showLevel(kind, value, muted) {
+        notice = { kind: "level", level: kind, value: value, muted: muted === true, at: Date.now() };
+        noticeTimer.interval = 1400;
+        noticeTimer.restart();
+    }
 
     // выключили или включили звук откуда угодно (клавиша, меню, микшер)
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -557,6 +585,12 @@ Singleton {
             const key = (root.focusedScreen()?.name ?? "") + "/" + dock;
             if (u < 0) delete h[key]; else h[key] = u;
             ShellState.devHover = h;
+        }
+        // колесо над модулем для проверок: delta — как angleDelta (120 — щелчок)
+        //     delta-shell ipc call docks scroll volume 120 | brightness -40
+        function scroll(what: string, delta: real): void {
+            if (what === "brightness") root.adjustBrightness(delta / 120 * 0.05);
+            else root.adjustVolume(delta / 120 * 0.05);
         }
         function menu(id: string): void {
             if (ShellState.menu === id) ShellState.closeMenu();

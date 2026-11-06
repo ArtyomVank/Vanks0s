@@ -19,8 +19,8 @@ import qs.services
 //   • щит, пока включён VPN (services/Vpn.qml), — если у VPN-программы нет
 //     своего значка; щелчок — меню питания с переключателем VPN;
 //   • запущенные программы Windows (services/WinApps.qml): их значки трея
-//     старого вида (XEmbed), панели Wayland их не видят. Щелчок — окно
-//     программы, правый — «Программы Windows».
+//     старого вида (XEmbed), панели Wayland их не видят. Щелчок — меню
+//     программы (menus/WinappMenu.qml), средний — сразу её окно.
 //
 // Левый щелчок дока приходит через click(x, y) (ModuleGrid), правый и
 // средний его MouseArea пропускает — их ловит MouseArea модуля.
@@ -66,12 +66,16 @@ Item {
         const p = cell.mapToItem(null, 0, cell.height + 10);
         it.display(win, Math.round(p.x), Math.round(p.y));
     }
+    function winMenu(app) {
+        WinApps.menuApp = app;
+        ShellState.openMenu("winapp", root.screen);
+    }
     function click(x, y) {
         const c = itemAt(x, y);
         if (!c) return;
         if (c.virt) {
             if (c.virt.kind === "vpn") ShellState.openMenu("power", root.screen);
-            else WinApps.focus(c.virt.app);
+            else winMenu(c.virt.app);
             return;
         }
         // «+N» и программы «только меню» (onlyMenu) — меню, остальные — открыть
@@ -171,8 +175,9 @@ Item {
             const c = root.itemAt(m.x + list.x, m.y + list.y);
             if (!c) return;
             if (c.virt) {
-                if (c.virt.kind === "win") Quickshell.execDetached(["delta-exe", "--manager"]);
-                else ShellState.openMenu("power", root.screen);
+                if (c.virt.kind !== "win") ShellState.openMenu("power", root.screen);
+                else if (m.button === Qt.MiddleButton) WinApps.focus(c.virt.app);
+                else root.winMenu(c.virt.app);
                 return;
             }
             if (m.button === Qt.MiddleButton && c.trayItem) c.trayItem.secondaryActivate();

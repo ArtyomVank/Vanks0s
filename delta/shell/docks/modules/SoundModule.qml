@@ -7,7 +7,8 @@ import qs.docks
 import qs.docks.parts
 
 // Звук: значок по громкости; когда играет музыка — маленький эквалайзер.
-// Колесо мыши меняет громкость выхода по умолчанию.
+// Колесо мыши и тачпад меняют громкость выхода по умолчанию (5 % на щелчок,
+// тачпадом — плавно), уровень показывает остров дока.
 Item {
     id: root
 
@@ -17,7 +18,7 @@ Item {
     property bool hidden: false
 
     readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property real volume: sink?.audio?.volume ?? 0
+    readonly property real volume: DockService.previewVolume >= 0 ? DockService.previewVolume : sink?.audio?.volume ?? 0
     readonly property bool muted: sink?.audio?.muted ?? false
 
     PwObjectTracker { objects: root.sink ? [root.sink] : [] }
@@ -30,11 +31,7 @@ Item {
     Timer { id: unmuting; interval: 1100 }
     onShownMutedChanged: if (!shownMuted) unmuting.restart()
 
-    function wheel(dy) {
-        if (!sink?.audio) return;
-        if (sink.audio.muted) sink.audio.muted = false;
-        sink.audio.volume = Math.max(0, Math.min(1, Math.round((volume + (dy > 0 ? 0.05 : -0.05)) * 100) / 100));
-    }
+    function wheel(dir, delta) { DockService.adjustVolume((delta ? delta / 120 : dir) * 0.05); }
 
     implicitWidth: row.implicitWidth
     implicitHeight: 18
@@ -69,6 +66,16 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: 180 * Theme.anim.k } }
                 Behavior on scale { NumberAnimation { duration: 260 * Theme.anim.k; easing.type: Easing.OutBack } }
             }
+        }
+        // «Акрил»: рядом громкость цифрами, моноширинно (чипы как у Serpantinium)
+        Label {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Theme.acrylic && !root.vertical && root.full && root.sink !== null
+            text: root.shownMuted ? "—" : Math.round(root.volume * 100)
+            font.family: Theme.fontMono
+            font.pixelSize: 13
+            font.weight: Font.Medium
+            color: Theme.fg2
         }
         Eq {
             anchors.verticalCenter: parent.verticalCenter

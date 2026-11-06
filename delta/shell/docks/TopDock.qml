@@ -35,11 +35,13 @@ PanelWindow {
     // (колокольчик) или событие системы (значок, заголовок, подпись)
     readonly property bool noticing: DockService.notice !== null && !ShellState.dockEditing && !menuHere
     readonly property bool muteNotice: noticing && DockService.notice.kind === "mute"
+    // громкость или яркость колесом над доком — полоска уровня в острове
+    readonly property bool levelNotice: noticing && DockService.notice.kind === "level"
 
     readonly property real margin: 10
     readonly property real barThick: length === "compact" ? 42 : 48
     readonly property real thick: noticing ? 44 : transfer ? (vertical ? 44 : transferContent.height) : pill ? 44 : barThick
-    readonly property real along: noticing ? (vertical ? 150 : (muteNotice ? notice.implicitWidth : info.implicitWidth) + 40)
+    readonly property real along: noticing ? (vertical ? 150 : (muteNotice ? notice.implicitWidth : levelNotice ? level.implicitWidth : info.implicitWidth) + 40)
                                 : transfer ? (vertical ? transferContent.height : transferContent.width)
                                 : pill ? (vertical ? 200 : 340) : grid.implicitAlong
     // длина края — по самому окну: ShellScreen не всегда успевает за сменой масштаба
@@ -97,7 +99,8 @@ PanelWindow {
     // где открывать меню модуля id
     function anchorFor(id) {
         if (pill) return screenRect(pillContent);
-        const s = grid.slotFor(id);
+        // меню программы Windows — у трея, где её значок
+        const s = grid.slotFor(id === "winapp" ? "tray" : id);
         return s && s.visible ? screenRect(s) : screenRect(island.body);
     }
 
@@ -312,12 +315,12 @@ PanelWindow {
             id: info
             anchors.centerIn: parent
             spacing: 10
-            readonly property var n: DockService.notice && DockService.notice.kind !== "mute" ? DockService.notice : null
+            readonly property var n: DockService.notice && DockService.notice.kind !== "mute" && DockService.notice.kind !== "level" ? DockService.notice : null
             // пока остров сжимается, показываем прежнее событие
             property var shown: null
             onNChanged: if (n) shown = n
             readonly property color tint: shown && shown.color ? shown.color : Theme.fg
-            readonly property bool on: win.noticing && !win.muteNotice
+            readonly property bool on: win.noticing && !win.muteNotice && !win.levelNotice
             opacity: on ? 1 : 0
             visible: opacity > 0
             scale: on ? 1 : 0.84
@@ -366,6 +369,65 @@ PanelWindow {
                 tone: 2
                 elide: Text.ElideRight
                 width: Math.min(implicitWidth, 260)
+            }
+        }
+
+        // уровень громкости или яркости: значок, полоска, проценты
+        Row {
+            id: level
+            anchors.centerIn: parent
+            spacing: 12
+            readonly property var n: DockService.notice && DockService.notice.kind === "level" ? DockService.notice : null
+            property var shown: null
+            onNChanged: if (n) shown = n
+            readonly property real value: shown ? Math.max(0, Math.min(1, shown.value)) : 0
+            readonly property bool light: shown?.level === "brightness"
+            readonly property bool on: win.levelNotice
+            opacity: on ? 1 : 0
+            visible: opacity > 0
+            scale: on ? 1 : 0.84
+            Behavior on opacity {
+                SequentialAnimation {
+                    PauseAnimation { duration: (level.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (level.on ? 260 : 90) * Theme.anim.k; easing.type: Easing.OutCubic }
+                }
+            }
+            Behavior on scale {
+                SequentialAnimation {
+                    PauseAnimation { duration: (level.on ? 150 : 0) * Theme.anim.k }
+                    NumberAnimation { duration: (level.on ? 460 : 140) * Theme.anim.k; easing.type: level.on ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.6 }
+                }
+            }
+            Sym {
+                anchors.verticalCenter: parent.verticalCenter
+                name: level.light ? "sun" : level.value <= 0.001 ? "volume-mute" : level.value < 0.4 ? "volume-low" : "volume"
+                size: 20
+                color: Theme.fg
+                // солнце чуть растёт с яркостью
+                scale: level.light ? 0.85 + level.value * 0.25 : 1
+            }
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !win.vertical
+                width: 150
+                height: 6
+                radius: 3
+                color: Theme.soft2
+                Rectangle {
+                    width: Math.max(level.value > 0 ? height : 0, parent.width * level.value)
+                    height: parent.height
+                    radius: parent.radius
+                    color: Theme.accent
+                    Behavior on width { NumberAnimation { duration: 160 * Theme.anim.k; easing.type: Easing.OutCubic } }
+                }
+            }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 30
+                horizontalAlignment: Text.AlignRight
+                text: Math.round(level.value * 100)
+                font.weight: Font.Bold
+                num: true
             }
         }
     }

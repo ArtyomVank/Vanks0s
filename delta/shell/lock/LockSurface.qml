@@ -17,7 +17,7 @@ import qs.widgets.kinds
 //         busy, message, isError, prompt, echo, submit(text), сигнал failed()
 //
 // Анимация входа (enter) и разблокировки (playExit) — как в концепте:
-// кольцо от поля пароля, часы улетают вверх, вход уезжает вниз, размытие тает.
+// стеклянная волна из середины, часы улетают вверх, вход уезжает вниз, размытие тает.
 Item {
     id: root
 
@@ -94,6 +94,13 @@ Item {
         anchors.fill: parent
         blurred: 0
         sharp: root.fromDesktop ? 0 : 1
+    }
+    // разблокировка: стеклянная волна из середины экрана гнёт фон блокировки
+    GlassWave {
+        id: wave
+        anchors.fill: bg
+        target: bg
+        duration: 1150
     }
 
     // клик мимо элементов — вернуть фокус в поле пароля
@@ -309,25 +316,6 @@ Item {
         }
     }
 
-    // кольцо разблокировки — из центра поля пароля
-    // Растёт сам размер, а не scale: увеличенный в 90 раз круг 20 px рисуется
-    // многоугольником, а настоящий круг большого радиуса остаётся гладким.
-    Rectangle {
-        id: ring
-        property point c: Qt.point(0, 0)      // центр задаёт playExit(): mapToItem не пересчитывается сам
-        property real r: 10
-        x: c.x - r
-        y: c.y - r
-        width: r * 2
-        height: r * 2
-        radius: r
-        color: "transparent"
-        border.width: r / 5                  // толщина растёт вместе с кругом, как scale в концепте
-        border.color: "#ffffff"
-        opacity: 0
-        antialiasing: true
-    }
-
     // ---------- питание ----------
     property string confirm: ""
 
@@ -489,9 +477,6 @@ Item {
         NumberAnimation { target: gridLoader; property: "opacity"; to: 0; duration: 450; easing.type: Easing.InOutQuad }
         NumberAnimation { target: gridBlur; property: "v"; to: 1; duration: 500 }
         NumberAnimation { targets: [notes, powerRow]; property: "opacity"; to: 0; duration: 300 }
-        // кольцо расходится от поля пароля
-        NumberAnimation { target: ring; property: "r"; from: 10; to: 900; duration: 900; easing.type: Easing.OutQuad }
-        NumberAnimation { target: ring; property: "opacity"; from: 0.9; to: 0; duration: 900; easing.type: Easing.OutQuad }
     }
 
     function playEnter() {
@@ -504,9 +489,9 @@ Item {
         enterAnim?.stop();
         contentIn?.stop();
         confirm = "";
-        ring.c = login.visible ? field.mapToItem(root, field.width / 2, field.height / 2) : Qt.point(width / 2, height * 0.8);
         startFly();
         exitAnim.restart();
+        wave.play(Qt.point(width / 2, height / 2), 1);
     }
     // вернуть всё на место (после предпросмотра анимации или неудачного запуска сессии)
     function reset() {
@@ -518,7 +503,7 @@ Item {
         clockShift.y = 0; clockScale.xScale = 1; clockScale.yScale = 1; clockBox.opacity = 1;
         loginShift.y = 0; loginScale.xScale = 1; loginScale.yScale = 1; login.opacity = 1;
         gridScale.xScale = 1; gridScale.yScale = 1; gridShift.y = 0; gridLoader.opacity = 1; gridBlur.v = 0;
-        notes.opacity = 1; powerRow.opacity = 1; ring.opacity = 0; ring.r = 10;
+        notes.opacity = 1; powerRow.opacity = 1;
         field.clear();
         focusField();
     }

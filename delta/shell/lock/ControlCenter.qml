@@ -18,8 +18,11 @@ import qs.services
 
 // Центр управления стиля «Акрил» (Theme.round) — меню кнопки питания верхнего
 // дока (menus/PowerMenu.qml). Сверху дата, аптайм и заряд, карандаш — правка.
-// Блоки (power.cc.blocks — порядок и какие видны):
+// Блоки (power.cc.blocks — порядок и какие видны; power.cc.sizes — какие
+// в половину ширины: { id: "half" }, две половинки подряд встают рядом):
 //   media         музыка и вертикальные ползунки света и звука;
+//   music         только музыка;
+//   sliders       только ползунки света и звука;
 //   net           Wi-Fi и Bluetooth — широкие кнопки, нажатие открывает их меню;
 //   toggles       круглые кнопки (power.cc.toggles — какие и в каком порядке);
 //   vpn           подключения VPN (services/Vpn.qml);
@@ -40,12 +43,14 @@ ColumnLayout {
     // ---------- блоки ----------
     readonly property var blockCatalog: ({
         media: { name: "Музыка, свет и звук", icon: "music" },
+        music: { name: "Музыка", icon: "play" },
+        sliders: { name: "Свет и звук", icon: "sliders" },
         net: { name: "Wi-Fi и Bluetooth", icon: "wifi" },
         toggles: { name: "Быстрые кнопки", icon: "grid" },
         vpn: { name: "VPN", icon: "vpn" },
         notifications: { name: "Уведомления", icon: "bell" }
     })
-    readonly property var blockOrder: ["media", "net", "toggles", "vpn", "notifications"]
+    readonly property var blockOrder: ["media", "music", "sliders", "net", "toggles", "vpn", "notifications"]
     readonly property var blocks: {
         const b = Settings.get("power.cc.blocks", null);
         return Array.isArray(b) ? b.filter(id => blockCatalog[id] !== undefined) : ["media", "net", "toggles", "notifications"];
@@ -61,6 +66,14 @@ ColumnLayout {
     }
     function removeBlock(id) { Settings.set("power.cc.blocks", blocks.filter(x => x !== id)); }
     function addBlock(id) { Settings.set("power.cc.blocks", blocks.concat([id])); }
+    // половина ширины — всем, кроме «Музыки, света и звука»: им тесно
+    readonly property var sizes: Settings.get("power.cc.sizes", null) ?? ({})
+    function isHalf(id) { return id !== "media" && sizes[id] === "half"; }
+    function toggleSize(id) {
+        const s = Object.assign({}, sizes);
+        if (isHalf(id)) delete s[id]; else s[id] = "half";
+        Settings.set("power.cc.sizes", s);
+    }
 
     // ---------- круглые кнопки ----------
     readonly property var toggleOrder: ["dnd", "night", "vpn", "hdr", "mic", "airplane", "screenshot", "performance"]
@@ -233,6 +246,162 @@ ColumnLayout {
         }
     }
 
+    // горизонтальный ползунок-капсула: заливка слева, значок и подпись внутри
+    component HSlider: ClippingRectangle {
+        id: hs
+        property real value: 0
+        property string icon
+        property string title
+        signal moved(real v)
+        radius: height / 2
+        color: Theme.soft2
+        readonly property color fillColor: Theme.light ? Theme.accent : Qt.rgba(1, 0.97, 0.93, 0.94)
+        readonly property real shown: Math.max(height, width * Math.max(0, Math.min(1, value)))
+        Rectangle {
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: hs.shown
+            color: hs.fillColor
+            Behavior on width { enabled: !hsDrag.pressed; NumberAnimation { duration: Theme.anim.fast } }
+        }
+        Sym {
+            id: hsIcon
+            anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+            name: hs.icon
+            size: 20
+            color: Theme.light ? Theme.onAccent : "#2A1D10"
+        }
+        Label {
+            anchors { left: hsIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+            text: hs.title
+            size: "small"
+            font.weight: Font.Bold
+            // поверх заливки — тёмная, на пустой части — обычная
+            color: hs.shown > x + width ? (Theme.light ? Theme.onAccent : "#2A1D10") : Theme.fg
+        }
+        Label {
+            anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+            text: Math.round(Math.max(0, Math.min(1, hs.value)) * 100) + "%"
+            num: true
+            size: "small"
+            tone: 2
+        }
+        MouseArea {
+            id: hsDrag
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            preventStealing: true
+            function upd(x) { hs.moved(Math.max(0, Math.min(1, x / width))); }
+            onPressed: m => upd(m.x)
+            onPositionChanged: m => { if (pressed) upd(m.x); }
+            onWheel: w => hs.moved(Math.max(0, Math.min(1, hs.value + (w.angleDelta.y > 0 ? 0.05 : -0.05))))
+        }
+    }
+
+    // плитка музыки: обложка, название, прогресс, кнопки
+    component PlayerTile: Tile {
+        id: mb
+        readonly property var players: Mpris.players.values
+        readonly property MprisPlayer player: players.find(p => p.isPlaying) || players[0] || null
+        readonly property bool playing: player !== null && player.isPlaying
+
+        Timer {
+            running: mb.playing && root.visible && (mb.player?.positionSupported ?? false)
+            interval: 1000
+            repeat: true
+            onTriggered: mb.player.positionChanged()
+        }
+        ColumnLayout {
+            anchors { fill: parent; margins: 14 }
+            spacing: 8
+            RowLayout {
+                spacing: 10
+                ClippingRectangle {
+                    implicitWidth: 42; implicitHeight: 42; radius: 21
+                    color: Theme.soft2
+                    Image {
+                        anchors.fill: parent
+                        source: mb.player?.trackArtUrl ?? ""
+                        fillMode: Image.PreserveAspectCrop
+                        sourceSize: Qt.size(84, 84)
+                        visible: status === Image.Ready
+                    }
+                    Rectangle {
+                        anchors.centerIn: parent
+                        visible: !(mb.player?.trackArtUrl)
+                        width: 12; height: 12; radius: 6
+                        color: Theme.accent
+                    }
+                }
+                ColumnLayout {
+                    spacing: 0
+                    Layout.fillWidth: true
+                    Label { Layout.fillWidth: true; text: mb.player ? (mb.player.trackTitle || mb.player.identity || I18n.tr("Без названия")) : I18n.tr("Ничего не играет"); size: "small"; font.weight: Font.Bold }
+                    Label { Layout.fillWidth: true; text: mb.player ? (mb.player.trackArtist || mb.player.identity || "") : I18n.tr("Включите музыку"); size: "caption"; tone: 3 }
+                }
+            }
+            Item { Layout.fillHeight: true }
+            // светящаяся полоса прогресса
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 5
+                radius: 2.5
+                color: Theme.soft2
+                Rectangle {
+                    id: prog
+                    height: parent.height
+                    radius: parent.radius
+                    width: mb.player && mb.player.lengthSupported && mb.player.length > 0
+                        ? parent.width * Math.min(1, mb.player.position / mb.player.length) : 0
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: Theme.tint(0.3) }
+                        GradientStop { position: 1; color: Theme.accent }
+                    }
+                }
+                RectangularShadow {
+                    visible: Theme.acrylic && prog.width > 4
+                    x: prog.width - 8; y: -4
+                    width: 14; height: 13; radius: 6.5
+                    blur: 10
+                    color: Theme.tint(0.8)
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Repeater {
+                    model: ["prev", "play", "next"]
+                    delegate: Item {
+                        id: mc
+                        required property string modelData
+                        readonly property bool main: modelData === "play"
+                        Layout.fillWidth: true
+                        implicitHeight: 42
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: mc.main ? 42 : 34; height: width; radius: width / 2
+                            color: mc.main ? (Theme.light ? Theme.accent : "#FFF6EA") : mcHov.hovered ? Theme.soft2 : "transparent"
+                            opacity: mb.player ? 1 : 0.4
+                            scale: mcTap.pressed ? 0.9 : 1
+                            Behavior on scale { NumberAnimation { duration: Theme.anim.fast } }
+                            Sym {
+                                anchors.centerIn: parent
+                                name: mc.main ? (mb.playing ? "pause" : "play") : mc.modelData
+                                size: mc.main ? 18 : 16
+                                color: mc.main ? (Theme.light ? Theme.onAccent : "#2A1D10") : Theme.fg
+                            }
+                            HoverHandler { id: mcHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                id: mcTap
+                                enabled: mb.player !== null
+                                onTapped: mc.main ? mb.player.togglePlaying() : mc.modelData === "prev" ? mb.player.previous() : mb.player.next()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // широкая кнопка: Wi-Fi, Bluetooth, VPN
     component WideChip: Rectangle {
         id: wc
@@ -296,13 +465,23 @@ ColumnLayout {
     }
 
     // ---------- блоки ----------
+    // две колонки: целый блок занимает обе, половинки встают рядом
+    GridLayout {
+        Layout.fillWidth: true
+        columns: 2
+        columnSpacing: 10
+        rowSpacing: 12
     Repeater {
         model: root.blocks
         delegate: ColumnLayout {
             id: blk
             required property string modelData
             required property int index
+            readonly property bool half: root.isHalf(modelData)
+            Layout.columnSpan: half ? 1 : 2
             Layout.fillWidth: true
+            Layout.preferredWidth: half ? 1 : 2
+            Layout.alignment: Qt.AlignTop
             spacing: 6
             // VPN без подключений вне правки не показываем
             visible: root.editing || modelData !== "vpn" || Vpn.available
@@ -318,13 +497,20 @@ ColumnLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 4 }
                     spacing: 4
                     Sym { name: root.blockCatalog[blk.modelData].icon; size: 16; color: Theme.accent }
-                    Label { Layout.fillWidth: true; text: I18n.tr(root.blockCatalog[blk.modelData].name); size: "small"; font.weight: Font.Bold }
+                    // у половинки места на название нет — только значок
+                    Label { visible: !blk.half; Layout.fillWidth: true; text: I18n.tr(root.blockCatalog[blk.modelData].name); size: "small"; font.weight: Font.Bold }
+                    Item { visible: blk.half; Layout.fillWidth: true }
+                    // половинка двигается влево-вправо, целый блок — вверх-вниз;
+                    // act 2 — размер (у «Музыки, света и звука» его нет)
                     Repeater {
-                        model: [{ icon: "chevron-up", act: -1 }, { icon: "chevron-down", act: 1 }, { icon: "close", act: 0 }]
+                        model: [{ icon: blk.half ? "chevron-left" : "chevron-up", act: -1 },
+                                { icon: blk.half ? "chevron-right" : "chevron-down", act: 1 }]
+                            .concat(blk.modelData === "media" ? [] : [{ icon: blk.half ? "maximize" : "restore", act: 2 }])
+                            .concat([{ icon: "close", act: 0 }])
                         delegate: Rectangle {
                             id: eb
                             required property var modelData
-                            readonly property bool can: modelData.act === 0
+                            readonly property bool can: modelData.act === 0 || modelData.act === 2
                                 || (modelData.act < 0 ? blk.index > 0 : blk.index < root.blocks.length - 1)
                             width: 28; height: 28; radius: 14
                             opacity: can ? 1 : 0.3
@@ -333,21 +519,28 @@ ColumnLayout {
                             HoverHandler { id: ebHov; cursorShape: eb.can ? Qt.PointingHandCursor : Qt.ArrowCursor }
                             TapHandler {
                                 enabled: eb.can
-                                onTapped: eb.modelData.act === 0 ? root.removeBlock(blk.modelData) : root.moveBlock(blk.modelData, eb.modelData.act)
+                                onTapped: eb.modelData.act === 0 ? root.removeBlock(blk.modelData)
+                                    : eb.modelData.act === 2 ? root.toggleSize(blk.modelData)
+                                    : root.moveBlock(blk.modelData, eb.modelData.act)
                             }
                         }
                     }
                 }
             }
             Loader {
+                // блоки читают parent.half — узкий вид
+                readonly property bool half: blk.half
                 Layout.fillWidth: true
                 sourceComponent: blk.modelData === "media" ? mediaBlock
+                    : blk.modelData === "music" ? musicBlock
+                    : blk.modelData === "sliders" ? slidersBlock
                     : blk.modelData === "net" ? netBlock
                     : blk.modelData === "toggles" ? togglesBlock
                     : blk.modelData === "vpn" ? vpnBlock
                     : notifBlock
             }
         }
+    }
     }
 
     // правка: блоки, которых сейчас нет
@@ -479,114 +672,9 @@ ColumnLayout {
         Item {
             implicitHeight: 178
             RowLayout {
-                id: mb
                 anchors.fill: parent
                 spacing: 10
-                readonly property var players: Mpris.players.values
-                readonly property MprisPlayer player: players.find(p => p.isPlaying) || players[0] || null
-                readonly property bool playing: player !== null && player.isPlaying
-
-                Timer {
-                    running: mb.playing && root.visible && (mb.player?.positionSupported ?? false)
-                    interval: 1000
-                    repeat: true
-                    onTriggered: mb.player.positionChanged()
-                }
-
-                Tile {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ColumnLayout {
-                        anchors { fill: parent; margins: 14 }
-                        spacing: 8
-                        RowLayout {
-                            spacing: 10
-                            ClippingRectangle {
-                                implicitWidth: 42; implicitHeight: 42; radius: 21
-                                color: Theme.soft2
-                                Image {
-                                    anchors.fill: parent
-                                    source: mb.player?.trackArtUrl ?? ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    sourceSize: Qt.size(84, 84)
-                                    visible: status === Image.Ready
-                                }
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    visible: !(mb.player?.trackArtUrl)
-                                    width: 12; height: 12; radius: 6
-                                    color: Theme.accent
-                                }
-                            }
-                            ColumnLayout {
-                                spacing: 0
-                                Layout.fillWidth: true
-                                Label { Layout.fillWidth: true; text: mb.player ? (mb.player.trackTitle || mb.player.identity || I18n.tr("Без названия")) : I18n.tr("Ничего не играет"); size: "small"; font.weight: Font.Bold }
-                                Label { Layout.fillWidth: true; text: mb.player ? (mb.player.trackArtist || mb.player.identity || "") : I18n.tr("Включите музыку"); size: "caption"; tone: 3 }
-                            }
-                        }
-                        Item { Layout.fillHeight: true }
-                        // светящаяся полоса прогресса
-                        Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: 5
-                            radius: 2.5
-                            color: Theme.soft2
-                            Rectangle {
-                                id: prog
-                                height: parent.height
-                                radius: parent.radius
-                                width: mb.player && mb.player.lengthSupported && mb.player.length > 0
-                                    ? parent.width * Math.min(1, mb.player.position / mb.player.length) : 0
-                                gradient: Gradient {
-                                    orientation: Gradient.Horizontal
-                                    GradientStop { position: 0; color: Theme.tint(0.3) }
-                                    GradientStop { position: 1; color: Theme.accent }
-                                }
-                            }
-                            RectangularShadow {
-                                visible: Theme.acrylic && prog.width > 4
-                                x: prog.width - 8; y: -4
-                                width: 14; height: 13; radius: 6.5
-                                blur: 10
-                                color: Theme.tint(0.8)
-                            }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Repeater {
-                                model: ["prev", "play", "next"]
-                                delegate: Item {
-                                    id: mc
-                                    required property string modelData
-                                    readonly property bool main: modelData === "play"
-                                    Layout.fillWidth: true
-                                    implicitHeight: 42
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: mc.main ? 42 : 34; height: width; radius: width / 2
-                                        color: mc.main ? (Theme.light ? Theme.accent : "#FFF6EA") : mcHov.hovered ? Theme.soft2 : "transparent"
-                                        opacity: mb.player ? 1 : 0.4
-                                        scale: mcTap.pressed ? 0.9 : 1
-                                        Behavior on scale { NumberAnimation { duration: Theme.anim.fast } }
-                                        Sym {
-                                            anchors.centerIn: parent
-                                            name: mc.main ? (mb.playing ? "pause" : "play") : mc.modelData
-                                            size: mc.main ? 18 : 16
-                                            color: mc.main ? (Theme.light ? Theme.onAccent : "#2A1D10") : Theme.fg
-                                        }
-                                        HoverHandler { id: mcHov; cursorShape: Qt.PointingHandCursor }
-                                        TapHandler {
-                                            id: mcTap
-                                            enabled: mb.player !== null
-                                            onTapped: mc.main ? mb.player.togglePlaying() : mc.modelData === "prev" ? mb.player.previous() : mb.player.next()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                PlayerTile { Layout.fillWidth: true; Layout.fillHeight: true }
                 VSlider {
                     visible: Brightness.available
                     icon: "sun"
@@ -602,12 +690,65 @@ ColumnLayout {
         }
     }
 
+    // --- только музыка ---
+    Component {
+        id: musicBlock
+        PlayerTile { implicitHeight: parent?.half ? 178 : 150 }
+    }
+
+    // --- только свет и звук: половинка — столбики, целый — полосы ---
+    Component {
+        id: slidersBlock
+        GridLayout {
+            readonly property bool half: parent?.half ?? false
+            columns: half ? 2 : 1
+            columnSpacing: 10
+            rowSpacing: 10
+            Repeater {
+                model: Brightness.available ? ["light", "sound"] : ["sound"]
+                delegate: Loader {
+                    id: sl
+                    required property string modelData
+                    readonly property bool light: modelData === "light"
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: parent.half ? 178 : 56
+                    sourceComponent: parent.half ? vert : horiz
+                    Component {
+                        id: vert
+                        VSlider {
+                            icon: sl.light ? "sun" : root.sink?.audio?.muted ? "volume-mute" : "volume"
+                            value: sl.light ? Brightness.value : root.sink?.audio?.volume ?? 0
+                            onMoved: v => sl.set(v)
+                        }
+                    }
+                    Component {
+                        id: horiz
+                        HSlider {
+                            icon: sl.light ? "sun" : root.sink?.audio?.muted ? "volume-mute" : "volume"
+                            title: sl.light ? I18n.tr("Яркость") : I18n.tr("Громкость")
+                            value: sl.light ? Brightness.value : root.sink?.audio?.volume ?? 0
+                            onMoved: v => sl.set(v)
+                        }
+                    }
+                    function set(v) {
+                        if (light) Brightness.set(v);
+                        else if (root.sink?.audio) root.sink.audio.volume = v;
+                    }
+                }
+            }
+        }
+    }
+
     // --- Wi-Fi и Bluetooth ---
     Component {
         id: netBlock
-        RowLayout {
+        // половинка — кнопки друг под другом
+        GridLayout {
             id: nb
-            spacing: 10
+            columns: parent?.half ? 1 : 2
+            columnSpacing: 10
+            rowSpacing: 10
             readonly property var devices: Networking.devices.values
             readonly property var wifiDev: devices.find(d => d.type === DeviceType.Wifi) ?? null
             readonly property bool wired: devices.some(d => d.type === DeviceType.Wired && d.connected)
@@ -636,7 +777,7 @@ ColumnLayout {
     Component {
         id: togglesBlock
         GridLayout {
-            columns: 4
+            columns: parent?.half ? 2 : 4
             columnSpacing: 6
             rowSpacing: 8
             Repeater {

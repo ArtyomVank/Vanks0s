@@ -293,6 +293,20 @@ Item {
         bezel: Math.max(8, Math.min(20, root.thick * 0.42))
     }
 
+    // «Акрил»: светящийся контур вместо обводки (Goo рисует только заливку).
+    // Контур идёт по той же фигуре, что и заливка (liquidRect — с пружинами):
+    // на неподвижном прямоугольнике он расходился с телом, и внутри дока был
+    // виден второй док.
+    Item {
+        readonly property rect r: root.liquidRect
+        x: r.x
+        y: r.y
+        width: Math.max(0, r.width)
+        height: Math.max(0, r.height)
+        visible: Theme.acrylic && root.rest && !root.tiles && !root.editing && width > 2
+        Contour { radius: Math.min(root.radiusOpen, parent.width / 2, parent.height / 2) }
+    }
+
     Rectangle {
         id: body
         readonly property rect r: root.rest ? root.restRect : root.g.hit
@@ -308,11 +322,6 @@ Item {
         // в открытом виде значки увеличиваются и подсказки выходят за край панели
         clip: !root.rest || root.morph
 
-        // «Акрил»: светящийся контур вместо обводки (Goo рисует только заливку)
-        Contour {
-            radius: body.radius
-            visible: Theme.acrylic && root.rest && !root.tiles && !root.editing && width > 2
-        }
 
         HoverHandler { id: bodyHover }
         // нажатие в любом месте панели: сплющивается и отпружинивает

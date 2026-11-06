@@ -233,7 +233,8 @@ fn layer_glass(layer: &LayerSurface, p: &Params, scale: f64) -> Option<Glass> {
         blur: p.blur,
         ignore_alpha: p.ignore_alpha,
         lens: p.lens * scale as f32,
-        lens_reach: 16.0 * scale as f32,
+        lens_reach: p.lens_reach * scale as f32,
+        rim: p.rim,
     })
 }
 

@@ -20,7 +20,8 @@ Singleton {
     readonly property var builtin: [
         { id: "blackhole", kind: "shader", title: "Чёрная дыра", frag: "blackhole" },
         { id: "moon",      kind: "shader", title: "Луна",        frag: "moon" },
-        { id: "earth",     kind: "shader", title: "Земля",       frag: "earth" }
+        { id: "earth",     kind: "shader", title: "Земля",       frag: "earth" },
+        { id: "prism",     kind: "shader", title: "Стеклянные грани", frag: "prism" }
     ]
     // Живые обои (kind flow): оживают при входе — после запуска системы и после
     // каждой разблокировки — и замирают. Это не супер обои: камера к ним не
@@ -31,6 +32,7 @@ Singleton {
         { id: "you",     title: "Material You" },
         { id: "glass",   title: "Жидкое стекло" },
         { id: "waves",   title: "Волны" },
+        { id: "mountains", title: "Горы" },
         { id: "nothing", title: "Nothing" }
     ]
     readonly property var flows: [
@@ -51,6 +53,9 @@ Singleton {
         { id: "waves-glass",  kind: "flow", group: "waves", frag: "waves", material: 1, title: "Стеклянные", a: "#071a24", b: "#19b3c9", c: "#e0fbff", d: "#6a7dff" },
         { id: "waves-metal",  kind: "flow", group: "waves", frag: "waves", material: 2, title: "Металл",     a: "#0d0d10", b: "#8a6b3d", c: "#fff1d0", d: "#4e5566" },
         { id: "waves-silk",   kind: "flow", group: "waves", frag: "waves", material: 2, title: "Шёлк",       a: "#26071a", b: "#c2275b", c: "#ffd1e0", d: "#ff8a3d" },
+        { id: "mountains-dawn", kind: "flow", group: "mountains", frag: "mountains", title: "Рассвет", a: "#33427a", b: "#f4b28c", c: "#2c3150", d: "#ffe6d6" },
+        { id: "mountains-day",  kind: "flow", group: "mountains", frag: "mountains", title: "День",    a: "#3f7fcf", b: "#cfe5f4", c: "#2e4a5f", d: "#ffffff" },
+        { id: "mountains-dusk", kind: "flow", group: "mountains", frag: "mountains", title: "Закат",   a: "#26163f", b: "#ff8d5e", c: "#2a1b34", d: "#ffc6aa" },
         { id: "dots-black",   kind: "flow", group: "nothing", frag: "dots", title: "Чёрные", a: "#000000", b: "#f2f2f2", c: "#d71921", d: "#262626" },
         { id: "dots-white",   kind: "flow", group: "nothing", frag: "dots", title: "Белые",  a: "#f0f0f0", b: "#111111", c: "#d71921", d: "#d4d4d4" }
     ]
@@ -87,6 +92,7 @@ Singleton {
     readonly property string currentKind: current ? current.kind : ""
     readonly property bool ticking: (currentKind === "shader" && (!ShellState.desktopShown || flying))
         || ((currentKind === "shader" || currentKind === "flow") && mayAnimate)
+        || (currentKind === "flow" && onLock && !ShellState.desktopShown && animated)
     Connections {
         target: ShellState
         function onDesktopShownChanged() { root.flying = true; flightEnd.restart(); }
@@ -115,6 +121,10 @@ Singleton {
     // запуске система занята, и по часам анимация прошла бы, пока кадры не выходят.
     readonly property real introSeconds: 6
     readonly property real lockPose: 0.3
+    // «Сразу на экране блокировки»: анимация входа играет целиком уже на
+    // блокировке (при каждой блокировке — заново), разблокировка её не ждёт
+    readonly property bool onLock: Settings.get("wallpaper.introOnLock", false) === true
+    readonly property real lockTarget: onLock ? 1 : lockPose
     property real intro: Quickshell.env("DELTA_SESSION_START") === "1" ? 0 : 1
     property real introTarget: 1
     property real introLast: 0
@@ -141,12 +151,15 @@ Singleton {
     // с начала: при выборе обоев и после заставки запуска
     function playIntro() {
         intro = 0;
-        introTo(ShellState.desktopShown ? 1 : lockPose);
+        introTo(ShellState.desktopShown ? 1 : lockTarget);
     }
     Connections {
         target: ShellState
         function onDesktopShownChanged() {
-            if (root.currentKind === "flow") root.introTo(ShellState.desktopShown ? 1 : root.lockPose);
+            if (root.currentKind !== "flow") return;
+            // на блокировке — с начала, чтобы её было видно целиком
+            if (!ShellState.desktopShown && root.onLock) root.playIntro();
+            else root.introTo(ShellState.desktopShown ? 1 : root.lockTarget);
         }
     }
 

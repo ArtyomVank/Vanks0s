@@ -71,6 +71,7 @@ impl Programs {
                     u("ignore_alpha", UniformType::_1f),
                     u("lens", UniformType::_1f),
                     u("lens_reach", UniformType::_1f),
+                    u("rim_k", UniformType::_1f),
                     u("y_sign", UniformType::_1f),
                     u("saturation", UniformType::_1f),
                 ],
@@ -338,6 +339,8 @@ pub struct Glass {
     /// преломление у края, физические пиксели; 0 — без линзы
     pub lens: f32,
     pub lens_reach: f32,
+    /// яркость блика по кромке
+    pub rim: f32,
 }
 
 /// Панель поверх размытого фона: всё в одном проходе программы GLASS.
@@ -422,6 +425,7 @@ impl RenderElement<R> for GlassSurface {
                 Uniform::new("ignore_alpha", self.glass.ignore_alpha),
                 Uniform::new("lens", self.glass.lens),
                 Uniform::new("lens_reach", self.glass.lens_reach),
+                Uniform::new("rim_k", self.glass.rim),
                 Uniform::new("y_sign", gl_util::y_sign(&proj)),
                 Uniform::new("saturation", self.glass.blur.saturation),
             ],

@@ -76,6 +76,8 @@ Scope {
         ShellState.unlocking = true;
         if (canXray) setXray(true);
         exitRequested();
+        // звук стеклянной волны (как при отпечатке пальца) — вместе с ней
+        Sounds.play("glass-wave");
         finishTimer.restart();
         deskClockTimer.restart();
         revealTimer.restart();
@@ -85,7 +87,6 @@ Scope {
         persist.locked = false;
         unlocking = false;
         ShellState.deskClockHidden = false;
-        Sounds.play("service-login");
         ShellState.unlocking = false;
         ShellState.desktopShown = true;
         lockedHint(false);

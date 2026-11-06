@@ -86,6 +86,7 @@ Item {
     readonly property real groupGap: 12       // между островами
     readonly property real islandAcross: 40
     readonly property real chipAcross: 32
+    readonly property color acrylicChip: Theme.light ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(1, 1, 1, 0.09)
     readonly property real spread: Math.max(0, Math.min(1, Number(Settings.get("docks.top.spread", 0)) || 0))
     // без своего чипа: логотип, рабочие столы и часы лежат прямо на острове
     readonly property var bare: ["launcher", "workspaces", "calendar"]
@@ -214,7 +215,7 @@ Item {
             width: grid.vertical ? grid.chipAcross : modelData.to - modelData.from
             height: grid.vertical ? modelData.to - modelData.from : grid.chipAcross
             radius: grid.chipAcross / 2
-            color: Theme.soft
+            color: Theme.acrylic ? grid.acrylicChip : Theme.soft
             Behavior on x { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
             Behavior on y { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
             Behavior on width { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
@@ -367,7 +368,11 @@ Item {
                     anchors.fill: parent
                     radius: Math.min(width, height) / 2
                     visible: slot.chip || (slot.tiles && grid.editing)
-                    color: slot.chip ? Theme.soft : DockService.topGlass
+                    // «Акрил»: чипы как у Serpantinium — ровная светлая подложка,
+                    // а модуль может попросить залить свой акцентом (батарея)
+                    color: !slot.chip ? DockService.topGlass
+                        : Theme.acrylic && loader.item?.chipAccent === true ? Theme.accent
+                        : Theme.acrylic ? grid.acrylicChip : Theme.soft
                     border.width: slot.chip || Theme.liquid ? 0 : 1
                     border.color: Theme.line
                     Sheen { visible: !slot.chip && (Theme.liquid || Theme.acrylic); radius: parent.radius; strength: 0.9 }
@@ -527,7 +532,8 @@ Item {
                 }
                 onWheel: w => {
                     if (!grid.editing && slot.mod && typeof slot.mod.wheel === "function")
-                        slot.mod.wheel(w.angleDelta.y > 0 ? 1 : -1);
+                        // второе — сам сдвиг (120 — щелчок колеса; тачпад — мелкими долями)
+                        slot.mod.wheel(w.angleDelta.y > 0 ? 1 : -1, w.angleDelta.y);
                 }
             }
         }

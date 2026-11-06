@@ -1244,4 +1244,23 @@ var strings = {
     "Создать цвет": "Farbe erstellen",
     "Цвет удалён": "Farbe gelöscht",
     "Мой цвет": "Meine Farbe",
+
+    // --- 1.9: обои «Горы» и «Стеклянные грани», меню программ Windows, центр управления ---
+    "Сразу на экране блокировки": "Direkt auf dem Sperrbildschirm",
+    "Обои оживают целиком уже на блокировке, при каждой блокировке. Иначе на ней видно начало, а доигрывают после входа": "Das Hintergrundbild spielt schon auf dem Sperrbildschirm komplett ab, bei jeder Sperre. Sonst zeigt er nur den Anfang, der Rest folgt nach der Anmeldung",
+    "Горы": "Berge",
+    "День": "Tag",
+    "Стеклянные грани": "Glasfacetten",
+    "Свет и звук": "Licht und Ton",
+    "Показать окно": "Fenster zeigen",
+    "Закрыть окно": "Fenster schließen",
+    "Программа может спросить о сохранении": "Die App fragt eventuell nach dem Speichern",
+    "Завершить": "Beenden",
+    "Точно завершить?": "Wirklich beenden?",
+    "Несохранённое пропадёт. Нажмите ещё раз": "Ungespeichertes geht verloren. Nochmal drücken",
+    "Процессов: ": "Prozesse: ",
+    "Открыть папку программы": "Programmordner öffnen",
+    "Программы Windows…": "Windows-Programme…",
+    "Программа закрыта": "Programm geschlossen",
+    "Её больше нет среди запущенных": "Es läuft nicht mehr",
 };

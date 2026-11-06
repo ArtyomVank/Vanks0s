@@ -215,7 +215,15 @@ Item {
             list.push(it);
         });
         sel = id;
+        wave(it);
         return true;
+    }
+    // новый виджет на столе: по обоям от него расходится слабая стеклянная волна
+    function wave(it) {
+        if (place === "lock") return;
+        const b = box(it.c, it.r, it.w, it.h);
+        const p = mapToItem(null, b.x + b.w / 2, b.y + b.h / 2);
+        ShellState.glassWave(QsWindow.window?.screen?.name ?? "", p.x, p.y, 0.45);
     }
     function remove(id) {
         if (WidgetTypes.fixed(place, id)) { say(I18n.tr("Поле входа убрать нельзя — его можно только передвинуть")); return; }
@@ -249,6 +257,7 @@ Item {
             return false;
         }
         save(list => list.push({ id: id, c: spot.c, r: spot.r, w: w, h: h, bg: true, mode: "named" }));
+        wave({ c: spot.c, r: spot.r, w: w, h: h });
         Sounds.play("drop", 60);
         ShellState.island({ icon: "apps", title: I18n.tr("Ярлык на рабочем столе"), text: name });
         return true;

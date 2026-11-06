@@ -395,6 +395,23 @@ Singleton {
         Settings.set("display.layouts", layouts);
     }
 
+    // Яркость обычной картинки в HDR с ползунка яркости (display/Brightness.qml):
+    // в сохранённую запись монитора и в раскладку этого набора — иначе
+    // syncProfile вернёт старое значение.
+    function saveSdrBrightness(name, b) {
+        const m = byName(name);
+        if (!m || mock || dryRun) return;
+        const fix = list => (Array.isArray(list) ? list : []).map(e => e && e.hdr && matches(e, m) ? Object.assign({}, e, { sdrBrightness: b }) : e);
+        const cur = savedFor(m);
+        if (!cur || !cur.hdr || cur.sdrBrightness === b) return;
+        Settings.set("monitors", fix(saved));
+        const layouts = clone(Settings.get("display.layouts", {})) || {};
+        if (Array.isArray(layouts[setKey])) {
+            layouts[setKey] = fix(layouts[setKey]);
+            Settings.set("display.layouts", layouts);
+        }
+    }
+
     // В моке: как будто Hyprland применил параметры.
     function simulate(next) {
         const list = clone(rawList);

@@ -113,11 +113,15 @@ pub struct Appearance {
     pub accent: String,
     #[serde(deserialize_with = "number")]
     pub frost: f32,
+    /// подбор стекла во вложенной сессии: { lens, reach, rim } вместо
+    /// значений по умолчанию; у пользователей этого ключа нет
+    #[serde(rename = "glassLab")]
+    pub glass_lab: Option<Value>,
 }
 
 impl Default for Appearance {
     fn default() -> Self {
-        Self { style: "delta".into(), accent: "#7C5CFF".into(), frost: 0.5 }
+        Self { style: "delta".into(), accent: "#7C5CFF".into(), frost: 0.5, glass_lab: None }
     }
 }
 

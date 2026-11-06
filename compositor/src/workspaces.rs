@@ -171,10 +171,18 @@ impl Shell {
     }
 
     pub fn untrack_window(&mut self, window: &Window) {
-        let address = data(window).address;
+        let (address, ws, full) = {
+            let d = data(window);
+            (d.address, d.workspace, d.mode != Mode::Normal)
+        };
         self.windows.retain(|w| w != window);
         self.space.unmap_elem(window);
         self.ipc_event("closewindow", &format!("{address:x}"));
+        // закрылось окно на весь экран: без этого оболочка считала стол
+        // закрытым (hasFullscreen) до смены стола, и живые обои стояли
+        if full && !self.windows.iter().any(|w| { let d = data(w); d.workspace == ws && d.mode != Mode::Normal }) {
+            self.ipc_event("fullscreen", "0");
+        }
         self.drop_empty_workspaces();
     }
 

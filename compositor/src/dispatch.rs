@@ -281,6 +281,18 @@ impl Shell {
                 self.set_dpms(!arg.trim().starts_with("off"));
                 true
             }
+            // «ПОРТ,ЯРКОСТЬ»: яркость обычной картинки монитора в HDR, на лету и без
+            // записи в настройки — ползунок яркости оболочки на ПК без подсветки
+            "sdrbrightness" => {
+                let (name, value) = arg.split_once(',').unwrap_or((arg, ""));
+                let Ok(value) = value.trim().parse::<f64>() else { return false };
+                let Some(output) = self.space.outputs().find(|o| o.name() == name.trim()).cloned() else { return false };
+                if crate::hdr::output_white(&output).is_none() {
+                    return false;
+                }
+                self.set_output_hdr(&output, true, value.clamp(0.1, 4.0));
+                true
+            }
             _ => false,
         }
     }

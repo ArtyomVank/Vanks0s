@@ -568,10 +568,15 @@ Scope {
 
                             width: list.width
                             height: 56
-                            // при открытии строки выезжают снизу одна за другой
-                            readonly property real enter: win.appear >= 1 ? 1 : Math.max(0, Math.min(1, win.appear * 12 - index * 0.8))
+                            // при открытии строки выезжают одна за другой со стороны
+                            // кнопки, с которой открыли, — как растёт сама карточка:
+                            // из нижнего дока первой встаёт нижняя видимая строка и
+                            // всё поднимается вверх, из верхнего — наоборот
+                            readonly property bool fromBelow: win.source.y >= win.height / 2
+                            readonly property int order: fromBelow ? Math.max(0, Math.ceil(list.height / 58) - 1 - index) : index
+                            readonly property real enter: win.appear >= 1 ? 1 : Math.max(0, Math.min(1, win.appear * 12 - order * 0.8))
                             opacity: enter
-                            transform: Translate { y: (1 - row.enter) * 18 }
+                            transform: Translate { y: (1 - row.enter) * (row.fromBelow ? 18 : -18) }
 
                             // левый — открыть, правый — меню: в док, ярлык на рабочий стол
                             MouseArea {

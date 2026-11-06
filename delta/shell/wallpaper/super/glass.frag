@@ -48,19 +48,30 @@ float smin(float a, float b, float k) {
     return mix(b, a, h) - k * h * (1.0 - h);
 }
 
-// капли: падают сверху и сливаются; в конце — три линзы
+// затухающее покачивание после посадки: 0 в начале, потом в обе стороны
+float wobble(float f) { return exp(-5.5 * f) * sin(9.5 * f); }
+
+// капли: падают сверху с разгоном, садятся с пружиной, сплющиваясь о «дно»,
+// и сливаются; в конце — линзы
 float drops(vec2 p, float t, float ar) {
     float d = 1e3;
     for (int k = 0; k < 4; k++) {
         float i = float(k);
-        float start = i * 0.12;
+        float start = i * 0.11;
         float s = back((t - start) / 0.5);
         vec2 home = k == 0 ? vec2(-ar * 0.30, 0.05) : k == 1 ? vec2(ar * 0.30, -0.18) : k == 2 ? vec2(ar * 0.02, -0.52) : vec2(ar * 0.52, 0.48);
         float r = k == 0 ? 0.44 : k == 1 ? 0.34 : k == 2 ? 0.20 : 0.16;
-        // падение сверху
-        vec2 c = home + vec2(0.0, 1.6 * (1.0 - clamp((t - start) / 0.38, 0.0, 1.0)));
+        // первая треть — падение с разгоном, дальше — пружина у места
+        float f = clamp((t - start) / 0.62, 0.0, 1.0);
+        float fall = clamp(f / 0.3, 0.0, 1.0);
+        float g = max(f - 0.3, 0.0) / 0.7 * 1.6;
+        float y = f < 0.3 ? 1.0 - fall * fall : -0.25 * wobble(g);
+        vec2 c = home + vec2(0.0, 1.6 * y);
         c += vec2(0.015 * sin(time * 0.3 + i * 2.0), 0.015 * cos(time * 0.25 + i));
-        d = smin(d, length(p - c) - r * min(1.0, s), 0.22);
+        // сплющивание при посадке и в падении — вытягивание
+        float w = f < 0.3 ? -0.12 * fall * fall : 0.22 * wobble(g) - 0.12 * exp(-8.0 * g);
+        vec2 q = (p - c) * vec2(1.0 - w * 0.6, 1.0 + w);
+        d = smin(d, length(q) - r * min(1.0, s), 0.22);
     }
     return d;
 }

@@ -8,6 +8,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.UPower
 import qs.common
+import qs.common.ui
 import "media.js" as Media
 
 // Обои на фоновом слое одного монитора. Без выбранного файла — градиент из
@@ -40,23 +41,17 @@ PanelWindow {
         && ShellState.desktopShown && !(pauseOnBattery && UPower.onBattery)
 
     // Hyprland не всегда присылает событие о полноэкранном режиме вместе с
-    // обновлением стола — перечитываем столы сами.
+    // обновлением стола — перечитываем столы сами. Закрытое или унесённое на
+    // другой стол окно на весь экран тоже снимает «закрыто»: без этого живые
+    // обои после запуска стояли до первой смены стола.
     Connections {
         target: Hyprland
         function onRawEvent(event) {
-            if (event.name === "fullscreen") Hyprland.refreshWorkspaces();
+            if (event.name === "fullscreen" || event.name === "closewindow" || event.name === "movewindowv2")
+                Hyprland.refreshWorkspaces();
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0; color: Qt.darker(Theme.accent, 1.6) }
-            GradientStop { position: 0.55; color: Theme.base }
-            GradientStop { position: 1; color: Qt.darker(Theme.base, 1.4) }
-        }
-    }
 
     // два слоя для перетекания: новая картинка проявляется поверх старой
     property bool frontIsA: true
@@ -71,28 +66,6 @@ PanelWindow {
         }
     }
 
-    Image {
-        id: imgA
-        scale: root.zoom
-        anchors.fill: parent
-        asynchronous: true
-        cache: false
-        fillMode: root.fill === "contain" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
-        sourceSize: Qt.size(root.width * root.devicePixelRatio, root.height * root.devicePixelRatio)
-        opacity: root.frontIsA && status === Image.Ready ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
-    }
-    Image {
-        id: imgB
-        scale: root.zoom
-        anchors.fill: parent
-        asynchronous: true
-        cache: false
-        fillMode: imgA.fillMode
-        sourceSize: imgA.sourceSize
-        opacity: !root.frontIsA && status === Image.Ready ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
-    }
 
     property string shownUrl: ""
     function showImage(url) {
@@ -145,88 +118,144 @@ PanelWindow {
     onIsVideoChanged: Qt.callLater(apply)
     Component.onCompleted: apply()
 
-    // --- видео ---
-    Loader {
-        id: video
+
+
+
+    // Всё, что рисуют обои, — в одной сцене: по ней идёт стеклянная волна
+    // (новый виджет на столе — ShellState.glassWave).
+    Item {
+        id: scene
         anchors.fill: parent
-        scale: root.zoom
-        active: root.isVideo && root.allowVideo
-        // показываем, только когда пошли кадры, — иначе мигнёт чёрным
-        opacity: item && item.hasFrame ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
 
-        sourceComponent: Item {
-            id: vbox
-            property bool hasFrame: false
-
-            MediaPlayer {
-                id: player
-                source: Media.fileUrl(root.file)
-                loops: MediaPlayer.Infinite
-                videoOutput: out
-                // audioOutput не задан — звука нет вовсе
-                onPlaybackStateChanged: if (playbackState === MediaPlayer.PlayingState) frameDelay.restart()
-                // смена файла останавливает плеер, а root.playing при этом не
-                // меняется (видео → видео) — запускаем сами, иначе обои стоят
-                // до перевключения видеообоев в настройках
-                onSourceChanged: { vbox.hasFrame = false; Qt.callLater(vbox.sync); }
-                onMediaStatusChanged: if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.EndOfMedia) vbox.sync()
-                onErrorOccurred: (error, message) => console.warn("[delta] видеообои: " + message)
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0; color: Qt.darker(Theme.accent, 1.6) }
+                GradientStop { position: 0.55; color: Theme.base }
+                GradientStop { position: 1; color: Qt.darker(Theme.base, 1.4) }
             }
-            Timer { id: frameDelay; interval: 120; onTriggered: vbox.hasFrame = true }
+        }
 
-            VideoOutput {
-                id: out
-                anchors.fill: parent
-                fillMode: root.fill === "contain" ? VideoOutput.PreserveAspectFit : VideoOutput.PreserveAspectCrop
-            }
+        Image {
+            id: imgA
+            scale: root.zoom
+            anchors.fill: parent
+            asynchronous: true
+            cache: false
+            fillMode: root.fill === "contain" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
+            sourceSize: Qt.size(root.width * root.devicePixelRatio, root.height * root.devicePixelRatio)
+            opacity: root.frontIsA && status === Image.Ready ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
+        }
 
-            function sync() {
-                if (root.playing) { if (player.playbackState !== MediaPlayer.PlayingState) player.play(); }
-                else if (player.playbackState === MediaPlayer.PlayingState) player.pause();
-            }
+        Image {
+            id: imgB
+            scale: root.zoom
+            anchors.fill: parent
+            asynchronous: true
+            cache: false
+            fillMode: imgA.fillMode
+            sourceSize: imgA.sourceSize
+            opacity: !root.frontIsA && status === Image.Ready ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
+        }
 
-            // Сторож: обои должны играть, а время ролика стоит (декодер завис после
-            // смены режима экрана, сна или разблокировки) — открываем файл заново
-            property real lastPosition: -1
-            property int stalls: 0
-            Timer {
-                interval: 3000
-                repeat: true
-                running: root.playing
-                onRunningChanged: { vbox.lastPosition = -1; vbox.stalls = 0; }
-                onTriggered: {
-                    const pos = player.position;
-                    const stuck = player.playbackState !== MediaPlayer.PlayingState
-                        || (vbox.lastPosition >= 0 && pos === vbox.lastPosition && player.duration > 0);
-                    vbox.lastPosition = pos;
-                    // два раза подряд: файл мог ещё открываться
-                    vbox.stalls = stuck ? vbox.stalls + 1 : 0;
-                    if (vbox.stalls < 2) return;
-                    console.warn("[delta] видеообои стоят — открываю файл заново");
-                    vbox.stalls = 0;
-                    vbox.lastPosition = -1;
-                    player.stop();
-                    player.source = "";
-                    player.source = Qt.binding(() => Media.fileUrl(root.file));
+        // --- видео ---
+        Loader {
+            id: video
+            anchors.fill: parent
+            scale: root.zoom
+            active: root.isVideo && root.allowVideo
+            // показываем, только когда пошли кадры, — иначе мигнёт чёрным
+            opacity: item && item.hasFrame ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
+
+            sourceComponent: Item {
+                id: vbox
+                property bool hasFrame: false
+
+                MediaPlayer {
+                    id: player
+                    source: Media.fileUrl(root.file)
+                    loops: MediaPlayer.Infinite
+                    videoOutput: out
+                    // audioOutput не задан — звука нет вовсе
+                    onPlaybackStateChanged: if (playbackState === MediaPlayer.PlayingState) frameDelay.restart()
+                    // смена файла останавливает плеер, а root.playing при этом не
+                    // меняется (видео → видео) — запускаем сами, иначе обои стоят
+                    // до перевключения видеообоев в настройках
+                    onSourceChanged: { vbox.hasFrame = false; Qt.callLater(vbox.sync); }
+                    onMediaStatusChanged: if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.EndOfMedia) vbox.sync()
+                    onErrorOccurred: (error, message) => console.warn("[delta] видеообои: " + message)
                 }
+                Timer { id: frameDelay; interval: 120; onTriggered: vbox.hasFrame = true }
+
+                VideoOutput {
+                    id: out
+                    anchors.fill: parent
+                    fillMode: root.fill === "contain" ? VideoOutput.PreserveAspectFit : VideoOutput.PreserveAspectCrop
+                }
+
+                function sync() {
+                    if (root.playing) { if (player.playbackState !== MediaPlayer.PlayingState) player.play(); }
+                    else if (player.playbackState === MediaPlayer.PlayingState) player.pause();
+                }
+
+                // Сторож: обои должны играть, а время ролика стоит (декодер завис после
+                // смены режима экрана, сна или разблокировки) — открываем файл заново
+                property real lastPosition: -1
+                property int stalls: 0
+                Timer {
+                    interval: 3000
+                    repeat: true
+                    running: root.playing
+                    onRunningChanged: { vbox.lastPosition = -1; vbox.stalls = 0; }
+                    onTriggered: {
+                        const pos = player.position;
+                        const stuck = player.playbackState !== MediaPlayer.PlayingState
+                            || (vbox.lastPosition >= 0 && pos === vbox.lastPosition && player.duration > 0);
+                        vbox.lastPosition = pos;
+                        // два раза подряд: файл мог ещё открываться
+                        vbox.stalls = stuck ? vbox.stalls + 1 : 0;
+                        if (vbox.stalls < 2) return;
+                        console.warn("[delta] видеообои стоят — открываю файл заново");
+                        vbox.stalls = 0;
+                        vbox.lastPosition = -1;
+                        player.stop();
+                        player.source = "";
+                        player.source = Qt.binding(() => Media.fileUrl(root.file));
+                    }
+                }
+                Connections {
+                    target: root
+                    function onPlayingChanged() { vbox.sync(); }
+                }
+                Component.onCompleted: sync()
             }
-            Connections {
-                target: root
-                function onPlayingChanged() { vbox.sync(); }
+        }
+
+        // --- супер обои: под ними лежит их готовый кадр (wallpaper.path) ---
+        Loader {
+            anchors.fill: parent
+            active: SuperWalls.current !== null
+            sourceComponent: SuperWall {
+                spec: SuperWalls.current
+                near: ShellState.desktopShown
+                live: true
             }
-            Component.onCompleted: sync()
         }
     }
-
-    // --- супер обои: под ними лежит их готовый кадр (wallpaper.path) ---
-    Loader {
-        anchors.fill: parent
-        active: SuperWalls.current !== null
-        sourceComponent: SuperWall {
-            spec: SuperWalls.current
-            near: ShellState.desktopShown
-            live: true
+    GlassWave {
+        id: wave
+        anchors.fill: scene
+        target: scene
+        duration: 1400
+    }
+    Connections {
+        target: ShellState
+        function onGlassWave(screenName, x, y, power) {
+            if (screenName === (root.screen?.name ?? "")) wave.play(Qt.point(x, y), power);
         }
     }
 

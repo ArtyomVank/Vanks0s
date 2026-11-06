@@ -22,7 +22,7 @@ Singleton {
         "pop", "workspace", "island", "swoosh", "drop", "unlock",
         "snap-in", "snap", "launcher", "tick", "sparkle", "app-open",
         "oobe-step1", "oobe-step2", "oobe-step3", "oobe-step4", "oobe-step5", "oobe-step6", "oobe-fill",
-        "toggle-on", "toggle-off", "hover"]
+        "toggle-on", "toggle-off", "hover", "glass-wave"]
     // группы для «Настройки → Звук»; звук без группы — «Интерфейс»
     readonly property var groups: [
         { id: "notify", label: "Уведомления", note: "Пришло сообщение", icon: "bell",
@@ -34,7 +34,7 @@ Singleton {
         { id: "volume", label: "Громкость", note: "Щелчок при смене громкости", icon: "volume",
           sounds: ["audio-volume-change"] },
         { id: "lock", label: "Блокировка и питание", note: "Разблокировка, выход, зарядка", icon: "lock",
-          sounds: ["unlock", "service-login", "service-logout", "power-plug", "power-unplug"] },
+          sounds: ["unlock", "glass-wave", "service-login", "service-logout", "power-plug", "power-unplug"] },
         { id: "timer", label: "Таймер", note: "Время вышло", icon: "clock",
           sounds: ["alarm-clock-elapsed"] },
         { id: "shot", label: "Снимок экрана", note: "Щелчок затвора", icon: "screenshot",

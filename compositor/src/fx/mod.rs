@@ -7,6 +7,7 @@ pub mod elements;
 mod gl;
 pub mod shaders;
 
+use serde_json::Value;
 use std::{collections::HashMap, rc::Rc, time::Instant};
 
 use smithay::{
@@ -133,6 +134,10 @@ pub struct Params {
     pub blur: BlurParams,
     pub ignore_alpha: f32,
     pub lens: f32,
+    /// ширина скоса линзы, px
+    pub lens_reach: f32,
+    /// яркость блика по кромке (у жидкого стекла кромку рисует и оболочка)
+    pub rim: f32,
     pub animations: bool,
     pub open: Open,
     pub close: Open,
@@ -143,6 +148,13 @@ pub struct Params {
     pub jelly: f32,
     pub motion: Motion,
 }
+
+/// Жидкое стекло панелей: сдвиг фона у самой кромки, ширина скоса и блик.
+/// Подобрано на стенде во вложенной сессии (appearance.glassLab): с узким скосом и сильным
+/// сдвигом виджеты выглядели «карточкой в карточке», фон у края смазывался.
+const LENS: f32 = 22.0;
+const LENS_REACH: f32 = 22.0;
+const RIM: f32 = 0.55;
 
 impl Params {
     pub fn from_settings(s: &Settings) -> Self {
@@ -155,6 +167,9 @@ impl Params {
             _ => Style::Delta,
         };
         let frost = a.frost.clamp(0.0, 1.0);
+        let lab = |key: &str, def: f32| {
+            a.glass_lab.as_ref().and_then(|v| v.get(key)).and_then(Value::as_f64).map_or(def, |x| x as f32)
+        };
         // те же размеры размытия, что были у правил delta-apply для Hyprland
         let size = match style {
             Style::Liquid => 3.0 + frost * 11.0,
@@ -174,7 +189,9 @@ impl Params {
             blur_on: w.blur && matches!(style, Style::Delta | Style::Liquid),
             blur: BlurParams { passes, offset: 1.0 + size * 0.22, saturation: if style == Style::Liquid { 1.35 } else { 1.17 } },
             ignore_alpha,
-            lens: if style == Style::Liquid { 34.0 } else { 0.0 },
+            lens: lab("lens", if style == Style::Liquid { LENS } else { 0.0 }),
+            lens_reach: lab("reach", LENS_REACH),
+            rim: lab("rim", RIM),
             animations: w.animations,
             open: Open::parse(&w.open_anim),
             close: Open::parse(match w.close_anim.as_deref() {

@@ -15,14 +15,17 @@ Item {
     property bool hidden: false
 
     readonly property bool showDate: DockService.opt("calendarDate", true) !== false
-    readonly property bool seconds: DockService.opt("calendarSeconds", false) === true
+    // «Акрил» по умолчанию с секундами (они бледнее) и месяцем целиком
+    readonly property bool seconds: DockService.opt("calendarSeconds", Theme.acrylic) === true
     SystemClock { id: clock; precision: root.seconds ? SystemClock.Seconds : SystemClock.Minutes }
 
     readonly property var days: ["вс", "пн", "вт", "ср", "чт", "пт", "сб"]
     readonly property var months: ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
     readonly property date now: clock.date
     readonly property string time: Qt.formatTime(now, seconds ? "HH:mm:ss" : "HH:mm")
-    readonly property string day: I18n.ru ? days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()]
+    readonly property var monthsFull: ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+    readonly property string day: I18n.ru ? (Theme.acrylic ? days[now.getDay()].charAt(0).toUpperCase() + days[now.getDay()].slice(1) + ", " + now.getDate() + " " + monthsFull[now.getMonth()]
+                                                           : days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()])
         : Qt.locale(I18n.locale).toString(now, "ddd, d MMM").replace(/\.(?=,|$)/g, "")
 
     implicitWidth: vertical ? col.implicitWidth : row.implicitWidth
@@ -33,7 +36,11 @@ Item {
         visible: !root.vertical
         anchors.centerIn: parent
         spacing: 8
-        Label { text: root.time; num: true; size: "small"; color: Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            Label { text: root.time.slice(0, 5); num: true; size: "small"; color: Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
+            Label { visible: root.seconds; text: root.time.slice(5); num: true; size: "small"; color: Theme.acrylic ? Theme.fg3 : Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
+        }
         Label { visible: root.full && root.showDate; text: root.day; size: "small"; tone: 2; font.weight: Font.Medium }
     }
     Column {

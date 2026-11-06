@@ -77,6 +77,8 @@ Singleton {
     // «Ярлык на рабочий стол» из лаунчера и дока: виджет-ярлык приложения
     // (id .desktop) ставит сетка виджетов монитора с фокусом (Widgets.qml)
     signal appWidgetRequested(string entryId)
+    // стеклянная волна по обоям экрана из точки (x, y), сила 0…1 — новый виджет
+    signal glassWave(string screenName, real x, real y, real power)
     function addAppWidget(entryId) { if (entryId) appWidgetRequested(entryId); }
     // проверки во вложенной сессии: «курсор» над доком без настоящей мыши,
     // { "<экран>/<док>": координата вдоль края }; IPC docks hover

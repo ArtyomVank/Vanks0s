@@ -9,8 +9,11 @@ import qs.common
 // старого вида (XEmbed): ни одна современная панель их не показывает,
 // поэтому «Фоновые приложения» берут программы отсюда — по процессам.
 //
-//   WinApps.apps    [{ key, name, icon, exe, pids }] — key: имя exe строчными
+//   WinApps.apps    [{ key, name, icon, exe, path, pids }] — key: имя exe строчными
 //   WinApps.focus(app)   поднять окно программы (класс окна Wine — имя exe)
+//   WinApps.close(app)   закрыть её окна, kill(app) — завершить процессы,
+//   openFolder(app) — открыть её папку
+//   WinApps.menuApp      программа, чьё меню открыто в доке (menus/WinappMenu.qml)
 //   WinApps.watch        пока true — список обновляется раз в 5 секунд
 //
 // Служебные процессы Wine и Proton (services.exe, explorer.exe, steam.exe…)
@@ -52,7 +55,7 @@ Singleton {
             // сами раннеры (wine64-preloader, proton) — не программы
             const head = args.split(/\s+/)[0];
             if (/\/(proton|umu-run|wineserver)$/.test(head)) continue;
-            if (!map[key]) map[key] = { key: key, exe: hit[2], pids: [] };
+            if (!map[key]) map[key] = { key: key, exe: hit[2], path: hit[1], pids: [] };
             map[key].pids.push(Number(m[1]));
         }
         const out = Object.values(map).map(a => {
@@ -73,6 +76,33 @@ Singleton {
         if (!app) return;
         Quickshell.execDetached(["hyprctl", "dispatch", "focuswindow", "class:" + app.key]);
     }
+    function close(app) {
+        if (!app) return;
+        Quickshell.execDetached(["hyprctl", "dispatch", "closewindow", "class:" + app.key]);
+    }
+    // завершить: сначала просим (TERM), через 4 с добиваем тех, кто остался
+    function kill(app) {
+        if (!app || !app.pids.length) return;
+        const ids = app.pids.map(String).join(" ");
+        Quickshell.execDetached(["sh", "-c", "kill " + ids + " 2>/dev/null; sleep 4; kill -9 " + ids + " 2>/dev/null; true"]);
+    }
+    // Папка программы. Путь Linux — его папка; путь Windows (C:\…) — та же
+    // папка на диске C: префикса Wine. Префикс у процесса свой (WINEPREFIX в
+    // его окружении, иначе ~/.wine), поэтому путь Windows считает sh.
+    function openFolder(app) {
+        if (!app || !app.path) return;
+        if (app.path.startsWith("/")) {
+            Quickshell.execDetached(["xdg-open", app.path.replace(/\/[^\/]*$/, "")]);
+            return;
+        }
+        const m = app.path.match(/^([A-Za-z]):\\(?:(.*)\\)?[^\\]*$/);
+        if (!m) return;
+        const rel = "drive_" + m[1].toLowerCase() + "/" + (m[2] || "").replace(/\\/g, "/");
+        Quickshell.execDetached(["sh", "-c",
+            'p=$(tr "\\0" "\\n" < /proc/"$1"/environ 2>/dev/null | sed -n "s/^WINEPREFIX=//p"); ' +
+            'exec xdg-open "${p:-$HOME/.wine}/$2"', "sh", String(app.pids[0]), rel]);
+    }
+    property var menuApp: null
 
     Process {
         id: ps

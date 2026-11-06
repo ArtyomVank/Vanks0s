@@ -28,7 +28,8 @@ Item {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : root.spec.frag === "earth" ? earthC : holeC)
+        sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : root.spec.frag === "earth" ? earthC
+                : root.spec.frag === "blackhole" ? holeC : plainC)
             : root.kind === "flow" ? flowC : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : root.kind === "live" ? liveC : null
     }
 
@@ -66,6 +67,16 @@ Item {
             property real zoom: root.progress
             property real time: SuperWalls.time
             fragmentShader: "super/earth.frag.qsb"
+        }
+    }
+    // остальные: только размер, приближение и время (prism — «Стеклянные грани»)
+    Component {
+        id: plainC
+        ShaderEffect {
+            property vector2d res: Qt.vector2d(width, height)
+            property real zoom: root.progress
+            property real time: SuperWalls.time
+            fragmentShader: "super/" + root.spec.frag + ".frag.qsb"
         }
     }
     // живые обои: полёта нет, при входе лишь чуть приближаются (zoom)
