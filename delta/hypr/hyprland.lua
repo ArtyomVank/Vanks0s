@@ -335,7 +335,7 @@ hl.window_rule({
 })
 hl.window_rule({
     name  = "delta-phone",
-    match = { class = "^delta-phone$" },
+    match = { class = "^(delta-phone|delta-android)$" },
     float = true,
     size  = "900 640",
     center = true,

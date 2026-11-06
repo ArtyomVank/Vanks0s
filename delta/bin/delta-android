@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Delta — «Android»: приложения Android в окнах рядом с обычными (Waydroid).
+
+  delta-android                   окно
+  delta-android status            что установлено и запущено (JSON для окна)
+  delta-android apps              приложения Android (JSON)
+  delta-android setup gapps|vanilla
+                                  поставить Waydroid и Android — с Google Play
+                                  или без (pkexec delta-setup android …); строки
+                                  ::step:: — этапы, остальное — вывод
+  delta-android launch <пакет>    открыть приложение (Android запускается сам)
+  delta-android play              Google Play
+  delta-android install <файл.apk>
+  delta-android stop              выключить Android
+  delta-android android-id        номер устройства для регистрации Google Play
+                                  (pkexec: читает базу служб Google внутри Android)
+
+Android — Waydroid: контейнер LXC с LineageOS. Каждое приложение — своё окно
+(persist.waydroid.multi_windows), ярлыки Waydroid сам кладёт в меню приложений.
+Google Play: образ GAPPS; Google пускает в Play только зарегистрированные
+устройства — номер для https://www.google.com/android/uncertified даёт
+android-id.
+
+DELTA_DRY_RUN=1 и вложенная сессия (DELTA_NESTED) — команды, меняющие
+систему, только печатаются («DRY: …»). DELTA_ANDROID_FAKE=1 — подставное
+состояние для проверки окна без Waydroid (=fresh — Android ещё не стоит,
+подставная установка его «ставит»).
+"""
+
+import configparser
+import glob
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+
+DRY = os.environ.get("DELTA_DRY_RUN") == "1" or bool(os.environ.get("DELTA_NESTED"))
+FAKE = os.environ.get("DELTA_ANDROID_FAKE", "") in ("1", "fresh")
+FRESH = os.environ.get("DELTA_ANDROID_FAKE") == "fresh"
+CFG = "/var/lib/waydroid/waydroid.cfg"
+APPS_DIR = os.path.expanduser("~/.local/share/applications")
+ICONS = os.path.expanduser("~/.local/share/waydroid/data/icons")
+PLAY = "com.android.vending"
+REGISTER_URL = "https://www.google.com/android/uncertified"
+
+
+def say(**event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+def run(cmd, timeout=10):
+    """Вывод команды или None, если её нет или она не сработала."""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return res.stdout if res.returncode == 0 else None
+
+
+def act(cmd, timeout=60):
+    """Команда, меняющая систему: в пробном режиме только печатаем."""
+    if DRY:
+        print("DRY: " + " ".join(cmd), file=sys.stderr, flush=True)
+        return True
+    try:
+        return subprocess.run(cmd, timeout=timeout).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+# ---------- состояние ----------
+
+def session_running():
+    if FAKE:
+        return os.path.exists(fake_flag())
+    out = run(["waydroid", "status"], 8) or ""
+    for line in out.splitlines():
+        if line.strip().lower().startswith("session"):
+            return "RUNNING" in line.upper()
+    return False
+
+
+def fake_flag(what="session"):
+    return os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "delta-android-fake-" + what)
+
+
+def status():
+    if FAKE:
+        ready = not FRESH or os.path.exists(fake_flag("installed"))
+        say(installed=ready, initialized=ready, gapps=True, running=ready and session_running(), dry=DRY)
+        return 0
+    installed = shutil.which("waydroid") is not None
+    initialized = False
+    gapps = False
+    if os.path.exists(CFG):
+        cp = configparser.ConfigParser()
+        try:
+            cp.read(CFG)
+            ota = cp.get("waydroid", "system_ota", fallback="")
+            initialized = bool(cp.get("waydroid", "images_path", fallback="")) or bool(ota)
+            gapps = "gapps" in ota.lower()
+        except configparser.Error:
+            pass
+    say(installed=installed, initialized=initialized, gapps=gapps,
+        running=installed and initialized and session_running(), dry=DRY)
+    return 0
+
+
+def desktop_field(text, key):
+    for line in text.splitlines():
+        if line.startswith(key + "="):
+            return line.split("=", 1)[1].strip()
+    return ""
+
+
+def apps():
+    """Приложения по ярлыкам, которые Waydroid кладёт в меню (видны и без
+    запущенного Android); у Google Play свой значок, если есть."""
+    if FAKE:
+        if FRESH and not os.path.exists(fake_flag("installed")):
+            print("[]")
+            return 0
+        demo = [("Google Play", PLAY), ("Telegram", "org.telegram.messenger"), ("Карты", "ru.yandex.yandexmaps"),
+                ("Камера", "org.lineageos.aperture"), ("Файлы", "com.android.documentsui"), ("Настройки", "com.android.settings")]
+        print(json.dumps([{"name": n, "package": p, "icon": ""} for n, p in demo], ensure_ascii=False))
+        return 0
+    out = []
+    for path in sorted(glob.glob(os.path.join(APPS_DIR, "waydroid.*.desktop"))):
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+        if desktop_field(text, "NoDisplay").lower() == "true":
+            continue
+        pkg = os.path.basename(path)[len("waydroid."):-len(".desktop")]
+        icon = desktop_field(text, "Icon")
+        if icon and not icon.startswith("/"):
+            cand = os.path.join(ICONS, pkg + ".png")
+            icon = cand if os.path.exists(cand) else ""
+        out.append({"name": desktop_field(text, "Name") or pkg, "package": pkg, "icon": icon})
+    out.sort(key=lambda a: (a["package"] != PLAY, a["name"].lower()))
+    print(json.dumps(out, ensure_ascii=False))
+    return 0
+
+
+# ---------- действия ----------
+
+def ensure_session():
+    """Запустить Android, если он не запущен, и дождаться его (до минуты)."""
+    if session_running():
+        return True
+    if FAKE or DRY:
+        print("DRY: waydroid session start", file=sys.stderr, flush=True)
+        if FAKE:
+            open(fake_flag(), "w").close()
+        return True
+    # сессия живёт отдельно от этого процесса и окна
+    subprocess.Popen(["waydroid", "session", "start"], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    for _ in range(60):
+        time.sleep(1)
+        if session_running():
+            # каждое приложение — своё окно, а не весь Android в одном
+            act(["waydroid", "prop", "set", "persist.waydroid.multi_windows", "true"], 15)
+            return True
+    return False
+
+
+def launch(pkg):
+    if not pkg.replace(".", "").replace("_", "").isalnum():
+        return 2
+    if not ensure_session():
+        say(event="error", error="Android не запустился")
+        return 1
+    return 0 if act(["waydroid", "app", "launch", pkg], 30) else 1
+
+
+def install(apk):
+    if not os.path.isfile(apk):
+        return 2
+    if not ensure_session():
+        return 1
+    return 0 if act(["waydroid", "app", "install", apk], 300) else 1
+
+
+def stop():
+    if FAKE:
+        try:
+            os.remove(fake_flag())
+        except OSError:
+            pass
+    return 0 if act(["waydroid", "session", "stop"], 30) else 1
+
+
+def setup(kind):
+    if kind not in ("gapps", "vanilla"):
+        return 2
+    cmd = ["pkexec", "delta-setup", "android", kind]
+    if DRY or FAKE:
+        # пробный режим: этапы, как у настоящей установки
+        for s in ("Скачиваю и устанавливаю (1 пакетов)", "Скачиваю Android — около 1 ГБ", "Включаю службу Android", "Готово"):
+            print("::step:: " + s, flush=True)
+            time.sleep(0.6)
+        print("DRY: " + " ".join(cmd), file=sys.stderr, flush=True)
+        if FRESH:
+            open(fake_flag("installed"), "w").close()
+        return 0
+    return subprocess.run(cmd).returncode
+
+
+def android_id():
+    """Номер устройства из базы служб Google (как в документации Waydroid)."""
+    if FAKE or DRY:
+        say(id="3f6a1c0de2b4a987" if FAKE else "", url=REGISTER_URL)
+        return 0
+    if not ensure_session():
+        say(id="", url=REGISTER_URL, error="Android не запустился")
+        return 1
+    query = ("ANDROID_RUNTIME_ROOT=/apex/com.android.runtime ANDROID_DATA=/data "
+             "ANDROID_TZDATA_ROOT=/apex/com.android.tzdata ANDROID_I18N_ROOT=/apex/com.android.i18n "
+             "sqlite3 /data/data/com.google.android.gsf/databases/gservices.db "
+             "\"select value from main where name = 'android_id';\"")
+    out = run(["pkexec", "waydroid", "shell", "sh", "-c", query], 60) or ""
+    ident = next((l.strip() for l in out.splitlines() if l.strip().isdigit()), "")
+    say(id=ident, url=REGISTER_URL,
+        error="" if ident else "Номер ещё не появился: откройте Google Play один раз и подождите минуту")
+    return 0 if ident else 1
+
+
+def open_window():
+    data = os.environ.get("DELTA_DATA", "/usr/share/delta")
+    entry = os.environ.get("DELTA_ANDROID_ENTRY") or os.path.join(os.environ.get("DELTA_SHELL_DIR") or data + "/shell", "android-app.qml")
+    os.execvp("qs", ["qs", "-p", entry, "-n", "-d"])
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    args = argv[2:]
+    if not cmd:
+        open_window()
+    if cmd == "status":
+        return status()
+    if cmd == "apps":
+        return apps()
+    if cmd == "setup" and len(args) == 1:
+        return setup(args[0])
+    if cmd == "launch" and len(args) == 1:
+        return launch(args[0])
+    if cmd == "play":
+        return launch(PLAY)
+    if cmd == "install" and len(args) == 1:
+        return install(args[0])
+    if cmd == "stop":
+        return stop()
+    if cmd == "android-id":
+        return android_id()
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

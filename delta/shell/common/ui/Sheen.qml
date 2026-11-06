@@ -11,26 +11,40 @@ import qs.common
 // Лаунчеру и меню, которые бывают поверх окон, это не подходит: им фон даёт
 // размытие Hyprland, а здесь рисуются только блик и свечение. Доки рисуют
 // стекло сами, в шейдере жидкости (docks/parts/Goo).
-ShaderEffect {
+// «Акрил» — вместо линзы светящийся контур (Contour).
+Item {
     id: root
 
     property real radius: Theme.radius
     property real strength: 1
     property bool refract: false
-
-    readonly property size area: Qt.size(width, height)
-    readonly property real frost: Theme.frost
-    readonly property real lightBg: Theme.light ? 1 : 0
-    // тон стекла: прозрачное — едва тонировано, матовое — заметнее
-    readonly property vector4d tint: Qt.vector4d(Theme.base.r, Theme.base.g, Theme.base.b, 0.12 + 0.28 * Theme.frost)
-
-    WallLens { id: lens; target: root; active: root.refract && Theme.liquid }
-    property variant source: lens.texture
-    readonly property real hasWall: lens.ready ? 1 : 0
-    readonly property point origin: lens.origin
-    readonly property vector4d wallRect: lens.wallRect
+    // какой стиль рисовать (превью стилей задаёт свой, а не текущий)
+    property bool liquid: Theme.liquid
+    property bool acrylic: Theme.acrylic
 
     anchors.fill: parent
-    visible: Theme.liquid && width > 2 && height > 2
-    fragmentShader: Qt.resolvedUrl("shaders/sheen.frag.qsb")
+    visible: (liquid || acrylic) && width > 2 && height > 2
+
+    ShaderEffect {
+        id: fx
+
+        readonly property real radius: root.radius
+        readonly property real strength: root.strength
+        readonly property size area: Qt.size(width, height)
+        readonly property real frost: Theme.frost
+        readonly property real lightBg: Theme.light ? 1 : 0
+        // тон стекла: прозрачное — едва тонировано, матовое — заметнее
+        readonly property vector4d tint: Qt.vector4d(Theme.base.r, Theme.base.g, Theme.base.b, 0.12 + 0.28 * Theme.frost)
+
+        WallLens { id: lens; target: fx; active: root.refract && root.liquid }
+        property variant source: lens.texture
+        readonly property real hasWall: lens.ready ? 1 : 0
+        readonly property point origin: lens.origin
+        readonly property vector4d wallRect: lens.wallRect
+
+        anchors.fill: parent
+        visible: root.liquid
+        fragmentShader: Qt.resolvedUrl("shaders/sheen.frag.qsb")
+    }
+    Contour { radius: root.radius; strength: root.strength; visible: root.acrylic && width > 2 && height > 2 }
 }

@@ -23,7 +23,7 @@ Page {
             Layout.fillWidth: true
             spacing: 14
             Repeater {
-                model: [{ id: "full", name: "Полный" }, { id: "tiles", name: "Плитки" }, { id: "compact", name: "Компактный" }]
+                model: [{ id: "full", name: "Полный" }, { id: "tiles", name: "Острова" }, { id: "compact", name: "Компактный" }]
                 delegate: Choice {
                     id: style
                     required property var modelData
@@ -48,12 +48,12 @@ Page {
                             visible: style.modelData.id === "full"
                             x: 6; y: 6; width: parent.width - 12; height: 14; radius: 7; color: screenBox.bar
                         }
-                        // плитки: отдельные капсулы
+                        // острова: слева, по центру и справа
                         Row {
                             visible: style.modelData.id === "tiles"
-                            x: 6; y: 6; spacing: 4
+                            x: 6; y: 6; spacing: (screenBox.width - 12 - (screenBox.width - 28) * 0.82) / 2
                             Repeater {
-                                model: [0.12, 0.26, 0.14, 0.1, 0.18]
+                                model: [0.3, 0.18, 0.34]
                                 delegate: Rectangle {
                                     id: tileBar
                                     required property real modelData

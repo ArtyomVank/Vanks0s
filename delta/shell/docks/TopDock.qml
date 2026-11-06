@@ -69,10 +69,22 @@ PanelWindow {
     implicitHeight: vertical ? 0 : 96
     implicitWidth: vertical ? 96 : 0
     color: "transparent"
+    // острова (плитки): ввод — только на самих островах, промежутки между
+    // ними пропускают щелчки к окнам и рабочему столу
+    readonly property bool islandMask: grid.tileLayout && grid.on && island.rest && grid.islandItems.length > 0
+    function isle(i) { return islandMask ? (grid.islandItems[i] ?? null) : null; }
     mask: Region {
-        item: island.body
+        item: win.islandMask ? null : island.body
         Region { item: hot }
         Region { item: hint }
+        Region { item: win.isle(0) }
+        Region { item: win.isle(1) }
+        Region { item: win.isle(2) }
+        Region { item: win.isle(3) }
+        Region { item: win.isle(4) }
+        Region { item: win.isle(5) }
+        Region { item: win.isle(6) }
+        Region { item: win.isle(7) }
     }
 
     // начало окна в координатах экрана

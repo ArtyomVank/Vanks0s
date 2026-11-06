@@ -282,7 +282,7 @@ Item {
             xScale: 1 + jx.value
             yScale: 1 + jy.value
         }
-        Sheen { radius: body.radius; visible: Theme.liquid && root.rest && width > 2 }
+        Sheen { radius: body.radius; visible: (Theme.liquid || Theme.acrylic) && root.rest && width > 2 }
 
         // пассивно: кнопкам внутри щелчок доходит как обычно
         PointHandler {

@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.6.0
+pkgver=1.8.0
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -84,6 +84,7 @@ optdepends=(
     'umu-launcher: запуск .exe через Proton CachyOS с лучшей совместимостью'
     'proton-cachyos: Proton CachyOS из репозитория (иначе delta-exe скачает его сам)'
     'libnotify: уведомления delta-exe о скачивании Proton'
+    'waydroid: приложения Android (delta-android; ставится и из окна «Android»)'
 )
 
 _src="${startdir}/../../delta"
@@ -118,6 +119,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"
     install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
     install -Dm755 "${_src}/bin/delta-phone"     "${pkgdir}/usr/bin/delta-phone"
+    install -Dm755 "${_src}/bin/delta-android"   "${pkgdir}/usr/bin/delta-android"
     install -Dm755 "${_src}/bin/delta-transfers" "${pkgdir}/usr/bin/delta-transfers"
     install -Dm755 "${_src}/bin/delta-clipboard" "${pkgdir}/usr/bin/delta-clipboard"
     install -Dm755 "${_src}/bin/delta-superwall" "${pkgdir}/usr/bin/delta-superwall"
@@ -161,6 +163,11 @@ package() {
         "${pkgdir}/usr/share/applications/delta-phone.desktop"
     install -Dm644 "${_src}/session/delta-phone.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-phone.svg"
+    # Android-приложения (Waydroid ставит delta-setup android по нажатию)
+    install -Dm644 "${_src}/session/delta-android.desktop" \
+        "${pkgdir}/usr/share/applications/delta-android.desktop"
+    install -Dm644 "${_src}/session/delta-android.svg" \
+        "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-android.svg"
     install -Dm644 "${_src}/session/delta-welcome.svg" \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/delta-welcome.svg"
     install -Dm644 "${_src}/session/delta-portals.conf" \

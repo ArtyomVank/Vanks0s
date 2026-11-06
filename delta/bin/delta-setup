@@ -11,6 +11,11 @@
 #                                пароль спрашивает окно polkit оболочки)
 #
 #   delta-setup remove <пакеты>  удалить (root; зовёт магазин Delta через pkexec)
+#   delta-setup android gapps|vanilla
+#                                Android-приложения (root; зовёт delta-android):
+#                                Waydroid и образ LineageOS — с Google Play
+#                                (gapps) или без; образы качает сам waydroid
+#                                с серверов проекта, служба контейнера включается
 #   delta-setup protected        пакеты, которые удалять нельзя (по одному в строке)
 #
 #   delta-setup performance status
@@ -254,6 +259,29 @@ cmd_install() {
     step "Готово"
 }
 
+# Android (delta-android): Waydroid из репозитория Arch, затем образ системы.
+# Повторный запуск с другим видом (gapps ↔ vanilla) ставит образ заново
+# (waydroid init -f), данные приложений Android при этом стираются.
+cmd_android() {
+    [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup android …"
+    local kind
+    case "${1:-}" in
+        gapps) kind=GAPPS ;;
+        vanilla) kind=VANILLA ;;
+        *) die "android: gapps или vanilla" ;;
+    esac
+    trap '' HUP PIPE
+    if ! command -v waydroid >/dev/null; then
+        cmd_install waydroid --progress || exit 1
+    fi
+    : >>"${LOG}" 2>/dev/null
+    step "Скачиваю Android$([ "${kind}" = GAPPS ] && echo " с Google Play") — около 1 ГБ"
+    run waydroid init -s "${kind}" -f || die "Образ Android не скачался — нет интернета или серверы Waydroid недоступны"
+    step "Включаю службу Android"
+    run systemctl enable --now waydroid-container.service || die "Служба waydroid-container не запустилась"
+    step "Готово"
+}
+
 # удаление из магазина Delta (delta-store): пакет с зависимостями, которые
 # больше никому не нужны (-Rns). То, без чего не работает система или Delta,
 # не трогаем; нужное другим пакетам pacman не удалит сам.
@@ -416,10 +444,11 @@ case "${1:-}" in
     performance) shift; cmd_performance "$@" ;;
     install) shift; cmd_install "$@" ;;
     remove) shift; cmd_remove "$@" ;;
+    android) shift; cmd_android "$@" ;;
     protected) printf '%s\n' "${PROTECTED[@]}" ;;
     -h|--help|"")
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
-    *) die "неизвестная команда: $1 (detect | install | remove | performance)" ;;
+    *) die "неизвестная команда: $1 (detect | install | remove | android | performance)" ;;
 esac

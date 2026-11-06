@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Android
+Name[ru]=Android
+Comment=Android apps in their own windows, with Google Play (Waydroid)
+Comment[ru]=Приложения Android в своих окнах, с Google Play (Waydroid)
+Exec=delta-android
+Icon=delta-android
+Terminal=false
+Categories=Utility;System;
+Keywords=android;waydroid;google;play;apk;андроид;приложения;гугл;плей;
+StartupWMClass=delta-android

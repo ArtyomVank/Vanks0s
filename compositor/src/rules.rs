@@ -15,7 +15,7 @@ pub fn for_class(class: &str) -> Rule {
         "delta-exe-manager" => Some((1000, 720)),
         "delta-box" => Some((960, 680)),
         "delta-store" => Some((1120, 760)),
-        "delta-phone" => Some((900, 640)),
+        "delta-phone" | "delta-android" => Some((900, 640)),
         _ => None,
     };
     // CS2 без рамки: всегда настоящий весь экран, иначе останутся обои и ожидание монитора

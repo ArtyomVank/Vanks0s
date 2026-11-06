@@ -4,10 +4,12 @@ import qs.common
 
 // Группа строк настроек с заголовком над ней. Строки разделены линией.
 //     Card { title: "Экран"; SettingRow { … } SettingRow { … } }
+// subtitle — необязательное пояснение под заголовком.
 ColumnLayout {
     id: root
 
     property string title
+    property string subtitle
     default property alias rows: box.data
 
     spacing: 8
@@ -21,6 +23,16 @@ ColumnLayout {
         font.weight: Font.DemiBold
         Layout.leftMargin: 6
         Layout.topMargin: 4
+    }
+    Label {
+        visible: root.subtitle.length > 0
+        text: root.subtitle
+        size: "small"
+        tone: 3
+        Layout.leftMargin: 6
+        Layout.topMargin: -6
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
     }
 
     Rectangle {

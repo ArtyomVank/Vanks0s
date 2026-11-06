@@ -7,12 +7,20 @@ import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.docks
+import qs.services
 
 // Фоновые приложения (значки трея, StatusNotifierItem): Steam, Discord,
 // Telegram и другие, что работают без окна. Щелчок — открыть программу,
 // правый — её меню, средний — второе действие. Значков не больше
 // docks.top.opts.trayMax (остальные — в «+N», щелчок по нему — меню
 // последнего скрытого). Нет фоновых программ — модуль скрыт.
+//
+// Перед значками — то, что трей сам не покажет:
+//   • щит, пока включён VPN (services/Vpn.qml), — если у VPN-программы нет
+//     своего значка; щелчок — меню питания с переключателем VPN;
+//   • запущенные программы Windows (services/WinApps.qml): их значки трея
+//     старого вида (XEmbed), панели Wayland их не видят. Щелчок — окно
+//     программы, правый — «Программы Windows».
 //
 // Левый щелчок дока приходит через click(x, y) (ModuleGrid), правый и
 // средний его MouseArea пропускает — их ловит MouseArea модуля.
@@ -26,7 +34,18 @@ Item {
     readonly property int max: Math.max(1, Number(DockService.opt("trayMax", 5)) || 5)
     readonly property var shownItems: items.slice(0, max)
     readonly property int extra: Math.max(0, items.length - max)
-    readonly property bool hidden: items.length === 0
+    // VPN: щит не нужен, если значок своей программы уже в трее
+    readonly property bool vpnHasIcon: {
+        const words = Vpn.activeName.toLowerCase().split(/[^a-zа-я0-9]+/).filter(w => w.length >= 3 && ["tun", "vpn"].indexOf(w) === -1);
+        return items.some(i => {
+            const t = ((i.id || "") + " " + (i.title || "")).toLowerCase();
+            return t.indexOf("vpn") !== -1 || words.some(w => t.indexOf(w) !== -1);
+        });
+    }
+    readonly property var virtItems: (Vpn.active && !vpnHasIcon ? [{ key: "vpn", kind: "vpn", name: Vpn.activeName }] : [])
+        .concat(WinApps.apps.map(a => ({ key: "win:" + a.key, kind: "win", app: a, name: a.name })))
+    Component.onCompleted: { Vpn.watch = true; WinApps.watch = true; }
+    readonly property bool hidden: items.length === 0 && virtItems.length === 0
 
     readonly property int icon: 18
     readonly property int gap: 8
@@ -50,6 +69,11 @@ Item {
     function click(x, y) {
         const c = itemAt(x, y);
         if (!c) return;
+        if (c.virt) {
+            if (c.virt.kind === "vpn") ShellState.openMenu("power", root.screen);
+            else WinApps.focus(c.virt.app);
+            return;
+        }
         // «+N» и программы «только меню» (onlyMenu) — меню, остальные — открыть
         if (c.trayItem === null || c.trayItem.onlyMenu) showMenu(c);
         else c.trayItem.activate();
@@ -65,8 +89,43 @@ Item {
     Grid {
         id: list
         anchors.centerIn: parent
-        columns: root.vertical ? 1 : Math.max(1, rep.count + (root.extra > 0 ? 1 : 0))
+        columns: root.vertical ? 1 : Math.max(1, virtRep.count + rep.count + (root.extra > 0 ? 1 : 0))
         spacing: root.gap
+
+        // щит VPN и программы Windows
+        Repeater {
+            id: virtRep
+            model: ScriptModel { values: root.virtItems; objectProp: "key" }
+            delegate: Item {
+                id: vcell
+                required property var modelData
+                readonly property var trayItem: null
+                readonly property var virt: modelData
+                width: root.icon
+                height: root.icon
+                Sym {
+                    anchors.centerIn: parent
+                    visible: vcell.virt.kind === "vpn"
+                    name: "vpn"
+                    size: root.icon
+                    color: Theme.accent
+                }
+                IconImage {
+                    id: winIcon
+                    anchors.fill: parent
+                    visible: vcell.virt.kind === "win" && status === Image.Ready
+                    source: vcell.virt.kind === "win" ? vcell.virt.app.icon : ""
+                    asynchronous: true
+                }
+                Sym {
+                    anchors.centerIn: parent
+                    visible: vcell.virt.kind === "win" && !winIcon.visible
+                    name: "windows"
+                    size: root.icon - 2
+                    color: Theme.fg2
+                }
+            }
+        }
 
         Repeater {
             id: rep
@@ -111,6 +170,11 @@ Item {
         onClicked: m => {
             const c = root.itemAt(m.x + list.x, m.y + list.y);
             if (!c) return;
+            if (c.virt) {
+                if (c.virt.kind === "win") Quickshell.execDetached(["delta-exe", "--manager"]);
+                else ShellState.openMenu("power", root.screen);
+                return;
+            }
             if (m.button === Qt.MiddleButton && c.trayItem) c.trayItem.secondaryActivate();
             else root.showMenu(c);
         }

@@ -59,21 +59,33 @@ Singleton {
     readonly property var current: themes.find(t => t.id === appearance.theme) || builtinThemes[2]
     readonly property bool light: current.light === true
 
-    // Стиль — не цвет, а сам вид панелей (appearance.style):
+    // Три уровня оформления (Настройки → Стили и темы):
+    //   стиль — интерфейс: как разложены панели и какие у них кнопки
+    //           (appearance.ui, Theme.uiStyles);
+    //   тема  — материал панелей: стекло, сплошные, линза… (appearance.style,
+    //           Theme.styles — ключ остался от старых версий);
+    //   цвет  — цветокор: оттенок поверхностей и акцент (appearance.theme,
+    //           Theme.themes).
+    //
+    // Темы (материал):
     //   delta  — тонированное стекло с размытием (как было);
+    //   acrylic — акриловое стекло: дымка с размытием и светящийся контур
+    //             (Contour), ползунки и переключатели светятся;
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
     //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen);
     //   material — Material You, как на Pixel: плотные панели, цвета от темы;
     //   nothing — как Nothing OS: чёрное и белое без оттенков, тонкие рамки,
     //             красный акцент, часы из точек.
-    // preset — что ставится при выборе стиля (дальше можно поменять самому).
+    // preset — что ставится при выборе темы (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
           preset: { glass: 0.62, frost: 0.5, radius: 18, rounding: 16, blur: true, border: 2, clock: "ios" } },
-        { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
-          preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0, clock: "minimal" } },
+        { id: "acrylic", name: "Акриловое стекло", note: "Дымка и светящийся контур",
+          preset: { glass: 0.46, frost: 0.7, radius: 26, rounding: 24, blur: true, border: 1, clock: "tall" } },
         { id: "liquid", name: "Жидкое стекло",  note: "Стекло-линза: фон у края изгибается",
           preset: { glass: 0.4, frost: 0.3, radius: 30, rounding: 24, blur: true, border: 1, clock: "tall" } },
+        { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
+          preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0, clock: "minimal" } },
         { id: "material", name: "Material You", note: "Цвета от темы, резкие пружинистые анимации",
           preset: { glass: 0.97, radius: 28, rounding: 22, blur: false, border: 0, clock: "stack" } },
         { id: "nothing", name: "Nothing", note: "Монохром, тонкие рамки, красный акцент и часы из точек",
@@ -84,9 +96,10 @@ Singleton {
     readonly property bool liquid: style === "liquid"
     readonly property bool material: style === "material"
     readonly property bool nothing: style === "nothing"
+    readonly property bool acrylic: style === "acrylic"
     // сессия на своём композиторе: стекло, линзу и анимации окон делает он
     readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
-    // выбрать стиль: вместе с ним — прозрачность, скругления, размытие и рамка окон
+    // выбрать тему: вместе с ней — прозрачность, скругления, размытие и рамка окон
     function applyStyle(id) {
         const st = styles.find(x => x.id === id);
         if (!st) return;
@@ -98,9 +111,33 @@ Singleton {
         Settings.set("windows.rounding", p.rounding);
         Settings.set("windows.blur", p.blur);
         Settings.set("windows.border", p.border);
-        // часы у каждого стиля свои; виджеты со своим видом (item.style) не меняются
+        // часы у каждой темы свои; виджеты со своим видом (item.style) не меняются
         Settings.set("clock.style", p.clock);
         if (p.accent) Settings.set("appearance.accent", p.accent);
+    }
+
+    // Стили (интерфейс):
+    //   delta   — как было: полоса сверху, плитки кнопок с подписями;
+    //   acrylic — «Акрил»: сверху острова с чипами (док в режиме «Плитки»),
+    //             круглые кнопки, толстые ползунки-капсулы, цифры
+    //             моноширинным шрифтом.
+    // theme — тема, которая подходит стилю: ставится, только если сейчас
+    // стоит «своя» тема другого стиля (Delta ↔ акриловое стекло), остальные
+    // темы (жидкое стекло, Nothing…) стиль не трогает.
+    readonly property var uiStyles: [
+        { id: "delta",   name: "Delta", note: "Полоса сверху, плитки с подписями", theme: "delta", top: "full" },
+        { id: "acrylic", name: "Акрил", note: "Острова сверху, круглые кнопки, моноширинные цифры", theme: "acrylic", top: "tiles" }
+    ]
+    // до 1.8 «Акрил» был темой: у кого он выбран, тому и стиль «Акрил»
+    readonly property string ui: uiStyles.some(x => x.id === appearance.ui) ? appearance.ui
+        : appearance.style === "acrylic" ? "acrylic" : "delta"
+    readonly property bool round: ui === "acrylic"
+    function applyUi(id) {
+        const u = uiStyles.find(x => x.id === id);
+        if (!u) return;
+        Settings.set("appearance.ui", id);
+        Settings.set("docks.top.length", u.top);
+        if (uiStyles.some(x => x.theme === style) && style !== u.theme) applyStyle(u.theme);
     }
 
     // Матовость (appearance.frost, 0…1) — сила размытия под панелями (её
@@ -211,6 +248,7 @@ Singleton {
     readonly property color line:  nothing ? (light ? Qt.rgba(0, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.16))
         : material ? "transparent"
         : glowTiles ? tint(light ? 0.45 : 0.38)
+        : acrylic ? (light ? Qt.rgba(0, 0, 0, 0.08) : Qt.rgba(1, 1, 1, 0.12))
         : light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
     readonly property color soft:  glowTiles ? tint(light ? 0.14 : 0.16)
         : light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
@@ -242,6 +280,8 @@ Singleton {
     readonly property string font: pickFont([appearance.font || "Inter"].concat(sansFallback))
     readonly property string fontDisplay: pickFont(["Inter Tight", font])
     readonly property string fontMono: pickFont(["JetBrains Mono", "Adwaita Mono", "Noto Sans Mono", "monospace"])
+    // цифры в доках и меню: у «Акрила» — моноширинные (часы, проценты, размеры)
+    readonly property string fontNum: round ? pickFont(["Iosevka NF", "Iosevka", "JetBrains Mono", fontMono]) : font
 
     // Анимации: длительности в мс и кривые, общие для всех модулей.
     // k — «Скорость анимаций» (windows.animSpeed: 0.3, 0.5, 1, 2, 4; меньше —

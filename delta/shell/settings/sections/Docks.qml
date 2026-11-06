@@ -26,7 +26,7 @@ ColumnLayout {
         const v = Settings.get("docks." + which + ".autohide", def);
         return v === "smart" ? "smart" : v === true;
     }
-    readonly property var lengths: [{ value: "full", label: I18n.tr("Полный") }, { value: "tiles", label: I18n.tr("Плитки") }, { value: "compact", label: I18n.tr("Компактный") }]
+    readonly property var lengths: [{ value: "full", label: I18n.tr("Полный") }, { value: "tiles", label: I18n.tr("Острова") }, { value: "compact", label: I18n.tr("Компактный") }]
 
     // своя непрозрачность дока: нет ключа — как у темы
     function ownOpacity(which) { return Number(Settings.get("docks." + which + ".opacity", -1)) >= 0; }
@@ -60,6 +60,16 @@ ColumnLayout {
             value: Number(Settings.get("docks.top.width", 1)) || 1
             format: v => Math.round(v * 100) + " %"
             onCommit: v => Settings.set("docks.top.width", Math.round(v * 100) / 100)
+        }
+        SliderRow {
+            visible: Settings.get("docks.top.length", "full") === "tiles"
+            icon: "maximize"; title: I18n.tr("Разброс островов")
+            subtitle: I18n.tr("0 — острова вместе по центру, 100 — по краям экрана. Острова разделяют пустые клетки сетки")
+            from: 0; to: 1; step: 0.05
+            value: Number(Settings.get("docks.top.spread", 0)) || 0
+            live: true
+            format: v => Math.round(v * 100) + " %"
+            onCommit: v => Settings.set("docks.top.spread", Math.round(v * 100) / 100)
         }
         SettingRow {
             icon: "eye"; title: I18n.tr("Своя прозрачность"); subtitle: I18n.tr("Иначе — как у доков и окон в «Оформлении»")

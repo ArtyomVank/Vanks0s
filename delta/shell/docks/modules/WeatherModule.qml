@@ -36,6 +36,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.vertical && root.cur !== null && DockService.opt("weatherTemp", true) !== false
             text: root.cur ? Weather.temp(root.cur.temp) : ""
+            num: true
             size: "small"
             color: Theme.fg
             font.weight: Font.Bold

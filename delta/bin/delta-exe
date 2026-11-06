@@ -328,6 +328,12 @@ prepare() {
     # Chrome и Steam для Windows: их песочница под Wine не запускается
     [[ ${file,,} == */chrome.exe ]] && args+=(--no-sandbox)
     [[ ${file,,} == */steam.exe ]] && args+=(-no-cef-sandbox)
+    # Lesta Game Center и Wargaming Game Center: окно — встроенный Chromium,
+    # под Wine с ускорением он рисует чёрный прямоугольник (Wine bug 48618,
+    # 57336). Без ускорения — обычное окно, лаунчеру его хватает
+    case "${file,,}" in
+        */lgc.exe|*/lgc_api.exe|*/wgc.exe|*/wgc_api.exe) args+=(--disable-gpu) ;;
+    esac
     ov=$(local_dlls "${file}")
     [ -n "${ov}" ] && dlls=("WINEDLLOVERRIDES=${WINEDLLOVERRIDES:+${WINEDLLOVERRIDES};}${ov}")
     case "${runner}" in

@@ -36,6 +36,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.vertical && root.full && DockService.opt("batteryPercent", true) !== false
             text: root.percent + "%"
+            num: true
             size: "caption"
             color: Theme.fg2
             font.weight: Font.Bold

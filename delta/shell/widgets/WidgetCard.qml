@@ -146,7 +146,7 @@ Item {
             border.color: !root.bg ? Qt.rgba(1, 1, 1, 0.45) : root.lock ? Qt.rgba(1, 1, 1, Theme.liquid ? 0.16 : 0.10) : Theme.line
             Behavior on color { ColorAnimation { duration: Theme.anim.normal } }
             // на блокировке без преломления: под ним уже размытые обои, а не сами обои
-            Sheen { radius: plate.radius; refract: !root.lock; visible: Theme.liquid && root.bg && width > 2 }
+            Sheen { radius: plate.radius; refract: !root.lock; visible: (Theme.liquid || Theme.acrylic) && root.bg && width > 2 }
         }
 
         // содержимое; отступы — в процентах от размера, как padding в cq-единицах

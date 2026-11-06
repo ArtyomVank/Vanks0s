@@ -6,10 +6,12 @@ import Quickshell.Widgets
 import qs.common
 import qs.common.ui
 import qs.lock.parts
+import qs.services
 
 // Содержимое меню питания — общее для выпадающего меню дока (menus/PowerMenu.qml)
 // и окна по центру (Super+Escape, PowerOverlay.qml). Как в концепте:
-// аккаунт, «Уведомления» с последними сообщениями, сетка кнопок 3×2.
+// аккаунт, «Уведомления» с последними сообщениями, VPN (если он есть в
+// NetworkManager или поднят программой), сетка кнопок 3×2.
 // Перезагрузку и выключение нужно зажать и держать, выход — с подтверждением.
 ColumnLayout {
     id: root
@@ -119,6 +121,43 @@ ColumnLayout {
                 horizontalAlignment: Text.AlignHCenter
                 text: root.notifOn ? "Новых уведомлений нет" : "Уведомления выключены — шарики не появляются"
                 size: "small"; tone: 3
+            }
+        }
+    }
+
+    // ---------- VPN ----------
+    Binding { target: Vpn; property: "watch"; value: root.visible; when: root.visible; restoreMode: Binding.RestoreValue }
+    Repeater {
+        model: Vpn.connections
+        delegate: Rectangle {
+            id: vr
+            required property var modelData
+            Layout.fillWidth: true
+            implicitHeight: 52
+            radius: 12
+            color: Theme.soft
+            RowLayout {
+                anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                spacing: 10
+                Sym { name: "vpn"; size: 20; color: vr.modelData.active ? Theme.accent : Theme.fg2 }
+                ColumnLayout {
+                    spacing: 0
+                    Layout.fillWidth: true
+                    Label { Layout.fillWidth: true; text: vr.modelData.name; size: "small"; font.weight: Font.Bold }
+                    Label {
+                        Layout.fillWidth: true
+                        text: !vr.modelData.own ? I18n.tr("Включён в своей программе")
+                            : Vpn.busy === vr.modelData.uuid ? I18n.tr("Подключение…")
+                            : vr.modelData.active ? I18n.tr("Подключено") : I18n.tr("Отключено")
+                        size: "caption"; tone: 3
+                    }
+                }
+                Toggle {
+                    visible: vr.modelData.own
+                    checked: vr.modelData.active
+                    enabled: Vpn.busy === ""
+                    onToggled: Vpn.toggle(vr.modelData.uuid)
+                }
             }
         }
     }

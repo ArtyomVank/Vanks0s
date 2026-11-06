@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import qs.common
 
 // Переключатель. Щёлкает мягким звуком вверх или вниз (Sounds: toggle-on/off).
@@ -18,6 +19,18 @@ Rectangle {
     border.width: checked ? 0 : 1
     border.color: Theme.line
     Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
+
+    // «Акрил»: включённый переключатель светится акцентом
+    RectangularShadow {
+        z: -1
+        anchors.fill: parent
+        visible: Theme.acrylic
+        opacity: root.checked ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.anim.normal } }
+        radius: root.radius
+        blur: 16
+        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.light ? 0.35 : 0.55)
+    }
 
     Rectangle {
         // Material 3: ручка выключенного меньше, нажатая — больше

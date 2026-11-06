@@ -10,9 +10,12 @@ import qs.docks.parts
 // Сетка верхнего дока: 16 ячеек вдоль края, модуль занимает span ячеек.
 //
 // full — ячейки одинаковые и растянуты на всю длину;
-// tiles — каждый модуль — своя стеклянная плитка по размеру содержимого,
-// ровные зазоры, а соседние маленькие значки (колокольчик, раскладка, сеть,
-// звук) сливаются в одну капсулу; пустые клетки — чуть больший зазор;
+// tiles — острова: модули, стоящие в сетке вплотную, — один стеклянный
+// остров, внутри модули — чипы по размеру содержимого (соседние маленькие
+// значки — колокольчик, раскладка, сеть, звук — в одном чипе); пустые
+// клетки разделяют острова. Разброс (docks.top.spread, 0…1) раздвигает
+// острова от центра к краям: 0 — вплотную по центру, 1 — первый у левого
+// края, последний у правого, средние — по месту в сетке;
 // compact — ячейки с модулем ужимаются до содержимого, пустые почти
 // исчезают (док — пилюля по размеру содержимого). В режиме правки ячейки
 // снова одинаковые и видны, модуль можно перетащить (занятая ячейка
@@ -75,38 +78,82 @@ Item {
         out.push(acc);
         return out;
     }
-    // --- плитки: раскладка по содержимому ---
+    // --- острова: раскладка по содержимому ---
     readonly property bool tileLayout: tiles && !editing
-    readonly property real tileSmall: 40      // значок без подписи — кружок
-    readonly property real tileGap: 6         // между плитками
-    readonly property real groupGap: 14       // где в сетке пустые клетки
+    readonly property real tileSmall: 34      // значок без подписи
+    readonly property real chipGap: 3         // между чипами острова
+    readonly property real islandPad: 4       // от края острова до чипа
+    readonly property real groupGap: 12       // между островами
+    readonly property real islandAcross: 40
+    readonly property real chipAcross: 32
+    readonly property real spread: Math.max(0, Math.min(1, Number(Settings.get("docks.top.spread", 0)) || 0))
+    // без своего чипа: логотип, рабочие столы и часы лежат прямо на острове
+    readonly property var bare: ["launcher", "workspaces", "calendar"]
     function isSmall(m) { return m.span === 1 && (naturals[m.id] ?? 36) <= 52; }
-    // { start[c], end[c] — по ячейкам модулей; groups: [{ from, to }] капсул; total }
+    // { start[c], end[c] — по ячейкам модулей; islands: [{ from, to }];
+    //   groups: [{ from, to }] — общие чипы соседних значков; chip: { id: bool }; total }
     readonly property var tl: {
-        const start = [], end = [], groups = [];
+        const start = [], end = [], groups = [], islands = [], chip = {};
         const list = modules.filter(m => (naturals[m.id] ?? 36) > 0).slice().sort((a, b) => a.cell - b.cell);
-        let acc = pad, prev = null, group = null;
+        // 1) острова и раскладка внутри них. Пустых клеток нет совсем (так
+        // стоят модули по умолчанию) — часы сами становятся островом посередине.
+        // Скрытые сейчас модули (пустой трей, нет батареи) клетки всё равно занимают.
+        const occ = [];
+        for (const m of modules) for (let c = m.cell; c < m.cell + m.span; c++) occ[c] = true;
+        const firstC = modules.reduce((a, m) => Math.min(a, m.cell), cells);
+        const lastC = modules.reduce((a, m) => Math.max(a, m.cell + m.span - 1), -1);
+        let gapless = true;
+        for (let c = firstC; c <= lastC; c++) if (!occ[c]) gapless = false;
+        function joined(a, b) {
+            for (let c = a.cell + a.span; c < b.cell; c++) if (!occ[c]) return false;
+            return !(gapless && (a.id === "calendar" || b.id === "calendar"));
+        }
+        let isl = null, prev = null;
         for (const m of list) {
+            const touching = prev !== null && joined(prev, m);
+            if (!touching) { isl = { mods: [], w: islandPad * wk, first: m.cell, last: m.cell }; islands.push(isl); }
             const small = isSmall(m);
-            const touching = prev !== null && m.cell === prev.cell + prev.span;
             const together = touching && small && isSmall(prev);
-            if (prev !== null) acc += together ? 0 : (touching ? tileGap : groupGap) * wk;
-            const w = (small ? tileSmall : Math.max(52, (naturals[m.id] ?? 36) + 12)) * wk;
-            for (let c = m.cell; c < m.cell + m.span; c++) {
-                start[c] = acc + (c - m.cell) * w / m.span;
-                end[c] = acc + (c - m.cell + 1) * w / m.span;
-            }
-            if (together) group.to = acc + w;
-            else if (small) { group = { from: acc, to: acc + w, n: 0 }; groups.push(group); }
-            else group = null;
-            if (small) group.n++;
-            acc += w;
+            if (touching && !together) isl.w += chipGap * wk;
+            const w = (small ? tileSmall : Math.max(48, (naturals[m.id] ?? 36) + 6)) * wk;
+            isl.mods.push({ m: m, off: isl.w, w: w, small: small, together: together });
+            isl.w += w;
+            isl.last = m.cell + m.span - 1;
             prev = m;
         }
-        return { start: start, end: end, groups: groups.filter(g => g.n > 1), total: acc };
+        for (const i of islands) i.w += islandPad * wk;
+        // 2) где стоят острова: разброс раздвигает их от центра к краям
+        const gap = groupGap * wk;
+        const packed = islands.reduce((a, i) => a + i.w, 0) + Math.max(0, islands.length - 1) * gap + 2 * pad;
+        const W = Math.max(packed, packed + (fullAlong - packed) * spread);
+        const n = islands.length;
+        const xs = islands.map((i, k) => n === 1 ? (W - i.w) / 2 : k === 0 ? pad : k === n - 1 ? W - pad - i.w
+            : (i.first + i.last + 1) / 2 / cells * W - i.w / 2);
+        for (let k = 1; k < n; k++) xs[k] = Math.max(xs[k], xs[k - 1] + islands[k - 1].w + gap);
+        for (let k = n - 2; k >= 0; k--) xs[k] = Math.min(xs[k], xs[k + 1] - gap - islands[k].w);
+        // 3) ячейки, чипы и общие чипы маленьких значков
+        const rects = [];
+        for (let k = 0; k < n; k++) {
+            const i = islands[k], x = xs[k];
+            rects.push({ from: x, to: x + i.w });
+            let group = null;
+            for (const e of i.mods) {
+                const a = x + e.off;
+                for (let c = e.m.cell; c < e.m.cell + e.m.span; c++) {
+                    start[c] = a + (c - e.m.cell) * e.w / e.m.span;
+                    end[c] = a + (c - e.m.cell + 1) * e.w / e.m.span;
+                }
+                if (e.together) { group.to = a + e.w; group.n++; }
+                else if (e.small) { group = { from: a, to: a + e.w, n: 1 }; groups.push(group); }
+                else group = null;
+                // один модуль на острове — сам остров и есть чип
+                chip[e.m.id] = i.mods.length > 1 && bare.indexOf(e.m.id) === -1;
+            }
+        }
+        return { start: start, end: end, islands: rects, groups: groups.filter(g => g.n > 1), chip: chip, total: W };
     }
 
-    readonly property real implicitAlong: tileLayout ? Math.max(80, tl.total + pad)
+    readonly property real implicitAlong: tileLayout ? Math.max(80, tl.total)
         : compact && !editing ? Math.max(80, starts[cells] + pad) : ((compact || tiles) ? cells * cw + 2 * pad : fullAlong)
 
     width: vertical ? thick : implicitAlong
@@ -124,30 +171,54 @@ Item {
         return null;
     }
 
-    // капсулы из соседних маленьких значков — общее стекло под ними
+    // острова: общее стекло под модулями, стоящими вплотную
+    // (их прямоугольники нужны и маске ввода дока — islandItems)
+    property var islandItems: []
+    Repeater {
+        id: islandRep
+        model: grid.tileLayout ? grid.tl.islands : []
+        onItemAdded: grid.islandItems = Array.from({ length: count }, (_, i) => itemAt(i)).filter(x => x)
+        onItemRemoved: Qt.callLater(() => grid.islandItems = Array.from({ length: islandRep.count }, (_, i) => islandRep.itemAt(i)).filter(x => x))
+        delegate: Rectangle {
+            id: isle
+            required property var modelData
+            x: grid.vertical ? (grid.thick - grid.islandAcross) / 2 : modelData.from
+            y: grid.vertical ? modelData.from : (grid.thick - grid.islandAcross) / 2
+            width: grid.vertical ? grid.islandAcross : modelData.to - modelData.from
+            height: grid.vertical ? modelData.to - modelData.from : grid.islandAcross
+            radius: grid.islandAcross / 2
+            color: DockService.topGlass
+            border.width: Theme.liquid || Theme.acrylic ? 0 : 1
+            border.color: Theme.line
+            Sheen { radius: parent.radius; strength: 0.9 }
+            // остров вздрагивает вместе с модулями
+            transform: Scale { origin.x: isle.width / 2; origin.y: isle.height / 2; xScale: 1 + ij.value * 0.3; yScale: 1 - ij.value }
+            Spring { id: ij; stiffness: 280; damping: 10 }
+            Connections {
+                target: ShellState
+                function onDockPoked(dockId, strength) { if (dockId === "top") ij.kick(0.7 * strength); }
+            }
+            Behavior on x { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on y { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on width { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on height { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+        }
+    }
+    // общий чип соседних маленьких значков
     Repeater {
         model: grid.tileLayout ? grid.tl.groups : []
         delegate: Rectangle {
             required property var modelData
-            readonly property real across: 40
-            x: grid.vertical ? (grid.thick - across) / 2 : modelData.from
-            y: grid.vertical ? modelData.from : (grid.thick - across) / 2
-            width: grid.vertical ? across : modelData.to - modelData.from
-            height: grid.vertical ? modelData.to - modelData.from : across
-            radius: across / 2
-            color: DockService.topGlass
-            border.width: 1
-            border.color: Theme.line
-            // капсула вздрагивает вместе с плитками
-            transform: Scale { origin.x: capsule.width / 2; origin.y: capsule.height / 2; xScale: 1 + cj.value * 0.6; yScale: 1 - cj.value }
-            id: capsule
-            Spring { id: cj; stiffness: 280; damping: 10 }
-            Connections {
-                target: ShellState
-                function onDockPoked(dockId, strength) { if (dockId === "top") cj.kick(0.9 * strength); }
-            }
+            x: grid.vertical ? (grid.thick - grid.chipAcross) / 2 : modelData.from
+            y: grid.vertical ? modelData.from : (grid.thick - grid.chipAcross) / 2
+            width: grid.vertical ? grid.chipAcross : modelData.to - modelData.from
+            height: grid.vertical ? modelData.to - modelData.from : grid.chipAcross
+            radius: grid.chipAcross / 2
+            color: Theme.soft
             Behavior on x { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on y { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
             Behavior on width { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+            Behavior on height { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
         }
     }
 
@@ -213,8 +284,9 @@ Item {
 
             readonly property real start: grid.tileLayout ? (grid.tl.start[cell] ?? 0) : grid.starts[cell]
             readonly property real size: grid.tileLayout ? (grid.tl.end[cell + span - 1] ?? start) - start : grid.starts[cell + span] - start
-            // в капсуле: своё стекло не рисуем, подсветка — кружком
+            // в общем чипе: свой не рисуем, подсветка — кружком
             readonly property bool grouped: grid.tileLayout && grid.tl.groups.some(g => start >= g.from - 0.5 && start < g.to - 0.5)
+            readonly property bool chip: grid.tileLayout && !grouped && grid.tl.chip[mid] === true
             property real dragOff: 0
             property bool dragging: false
             property bool resizing: false
@@ -230,7 +302,7 @@ Item {
             Behavior on height { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
 
             readonly property bool tiles: grid.length === "tiles"
-            readonly property real btnAcross: tiles ? (grid.compact ? 32 : 40) : (grid.thick < 46 ? 30 : 36)
+            readonly property real btnAcross: grid.tileLayout ? grid.chipAcross : tiles ? 40 : (grid.thick < 46 ? 30 : 36)
             readonly property real btnAlong: grid.tileLayout ? Math.max(btnAcross, size)
                 : tiles ? Math.max(btnAcross, size - 6) : Math.max(btnAcross, Math.min(natural, size - 4))
 
@@ -263,7 +335,7 @@ Item {
                     }
                 ]
 
-                // в плиточном режиме у плитки своё стекло — пусть она и живёт
+                // на острове у модуля свой чип — пусть он и живёт
                 readonly property real jk: slot.tiles ? 1 : 0.45
                 Spring { id: jx; stiffness: 320; damping: 10 }
                 Spring { id: jy; stiffness: 320; damping: 10 }
@@ -290,14 +362,15 @@ Item {
                     }
                 }
 
+                // чип модуля на острове; в правке — своя стеклянная плитка
                 Rectangle {
                     anchors.fill: parent
                     radius: Math.min(width, height) / 2
-                    visible: slot.tiles && !slot.grouped
-                    color: DockService.topGlass
-                    border.width: Theme.liquid ? 0 : 1
+                    visible: slot.chip || (slot.tiles && grid.editing)
+                    color: slot.chip ? Theme.soft : DockService.topGlass
+                    border.width: slot.chip || Theme.liquid ? 0 : 1
                     border.color: Theme.line
-                    Sheen { radius: parent.radius; strength: 0.9 }
+                    Sheen { visible: !slot.chip && (Theme.liquid || Theme.acrylic); radius: parent.radius; strength: 0.9 }
                 }
                 Rectangle {
                     anchors.fill: parent
