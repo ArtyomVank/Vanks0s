@@ -30,7 +30,7 @@ Item {
         anchors.fill: parent
         sourceComponent: root.kind === "shader" ? (root.spec.frag === "moon" ? moonC : root.spec.frag === "earth" ? earthC
                 : root.spec.frag === "blackhole" ? holeC : plainC)
-            : root.kind === "flow" ? flowC : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : root.kind === "live" ? liveC : null
+            : root.kind === "flow" ? (root.spec.photo ? photoFlowC : flowC) : root.kind === "photos" ? photosC : root.kind === "video" ? videoC : root.kind === "live" ? liveC : null
     }
 
     Component {
@@ -93,6 +93,23 @@ Item {
             property color colorC: root.spec.c
             property color colorD: root.spec.d ?? root.spec.b
             fragmentShader: "super/" + (root.spec.frag ?? "circles") + ".frag.qsb"
+        }
+    }
+
+    // живые обои из запечённой картинки и масок («Вершина»): шейдер её только
+    // оживляет — лёгкие и для слабой видеокарты
+    Component {
+        id: photoFlowC
+        ShaderEffect {
+            property vector2d res: Qt.vector2d(width, height)
+            property real intro: SuperWalls.intro
+            property real zoom: root.progress
+            property real time: SuperWalls.time
+            property var photo: photoImg
+            property var mask: maskImg
+            fragmentShader: "super/" + root.spec.frag + ".frag.qsb"
+            Image { id: photoImg; source: root.spec.photo; visible: false; mipmap: true; asynchronous: true }
+            Image { id: maskImg; source: root.spec.mask; visible: false; asynchronous: true }
         }
     }
 

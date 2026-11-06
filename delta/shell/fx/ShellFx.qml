@@ -4,12 +4,11 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.common
-import qs.docks
 
 // Мелкие звуки и эффекты оболочки (только в процессе delta-shell — в
 // «Настройках» и помощнике Sounds тоже есть, но эти события им не нужны):
-// смена рабочего стола, открытие меню доков, музыка на острове, вспышка
-// снимка экрана.
+// смена рабочего стола, открытие меню доков, вспышка снимка экрана.
+// Остров с музыкой или видео распускается молча: звук и так уже играет.
 //     delta-shell ipc call fx flash
 Scope {
     id: root
@@ -23,11 +22,6 @@ Scope {
     Connections {
         target: ShellState
         function onMenuChanged() { if (ShellState.menu !== "") Sounds.play("pop", 120); }
-    }
-    // заиграла музыка — остров распускается
-    Connections {
-        target: DockService
-        function onMediaPillChanged() { if (DockService.mediaPill) Sounds.play("island", 4000); }
     }
 
     function flash() {

@@ -223,7 +223,7 @@ Item {
         if (place === "lock") return;
         const b = box(it.c, it.r, it.w, it.h);
         const p = mapToItem(null, b.x + b.w / 2, b.y + b.h / 2);
-        ShellState.glassWave(QsWindow.window?.screen?.name ?? "", p.x, p.y, 0.45);
+        ShellState.glassWave(QsWindow.window?.screen?.name ?? "", p.x, p.y, 0.6);
     }
     function remove(id) {
         if (WidgetTypes.fixed(place, id)) { say(I18n.tr("Поле входа убрать нельзя — его можно только передвинуть")); return; }

@@ -122,7 +122,7 @@ PanelWindow {
 
 
     // Всё, что рисуют обои, — в одной сцене: по ней идёт стеклянная волна
-    // (новый виджет на столе — ShellState.glassWave).
+    // (новый виджет на столе и разблокировка — ShellState.glassWave).
     Item {
         id: scene
         anchors.fill: parent
@@ -250,12 +250,12 @@ PanelWindow {
         id: wave
         anchors.fill: scene
         target: scene
-        duration: 1400
+        duration: 1500
     }
     Connections {
         target: ShellState
         function onGlassWave(screenName, x, y, power) {
-            if (screenName === (root.screen?.name ?? "")) wave.play(Qt.point(x, y), power);
+            if (screenName === (root.screen?.name ?? "")) wave.play(Qt.point(x, y), power, power >= 1 ? 1700 : 1500);
         }
     }
 

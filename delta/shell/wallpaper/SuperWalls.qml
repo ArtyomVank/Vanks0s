@@ -53,6 +53,9 @@ Singleton {
         { id: "waves-glass",  kind: "flow", group: "waves", frag: "waves", material: 1, title: "Стеклянные", a: "#071a24", b: "#19b3c9", c: "#e0fbff", d: "#6a7dff" },
         { id: "waves-metal",  kind: "flow", group: "waves", frag: "waves", material: 2, title: "Металл",     a: "#0d0d10", b: "#8a6b3d", c: "#fff1d0", d: "#4e5566" },
         { id: "waves-silk",   kind: "flow", group: "waves", frag: "waves", material: 2, title: "Шёлк",       a: "#26071a", b: "#c2275b", c: "#ffd1e0", d: "#ff8a3d" },
+        // «Вершина»: запечённая сцена (photo, mask) и лёгкий шейдер; lite — на
+        // столе хватает 20 кадров в секунду
+        { id: "peak", kind: "flow", group: "mountains", frag: "peak", title: "Вершина", photo: "super/peak.jpg", mask: "super/peak-mask.png", lite: true },
         { id: "mountains-dawn", kind: "flow", group: "mountains", frag: "mountains", title: "Рассвет", a: "#33427a", b: "#f4b28c", c: "#2c3150", d: "#ffe6d6" },
         { id: "mountains-day",  kind: "flow", group: "mountains", frag: "mountains", title: "День",    a: "#3f7fcf", b: "#cfe5f4", c: "#2e4a5f", d: "#ffffff" },
         { id: "mountains-dusk", kind: "flow", group: "mountains", frag: "mountains", title: "Закат",   a: "#26163f", b: "#ff8d5e", c: "#2a1b34", d: "#ffc6aa" },
@@ -102,7 +105,8 @@ Singleton {
     property real lastTick: 0
     Timer {
         // на столе хватает 30 кадров: движение медленное, видеокарте легче
-        interval: ShellState.desktopShown && !root.flying ? 33 : 16
+        // (лёгким живым обоям — 20)
+        interval: ShellState.desktopShown && !root.flying ? (root.current?.lite ? 50 : 33) : 16
         repeat: true
         running: root.ticking
         onRunningChanged: root.lastTick = Date.now()

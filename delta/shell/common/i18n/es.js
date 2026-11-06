@@ -1263,4 +1263,6 @@ var strings = {
     "Программы Windows…": "Programas de Windows…",
     "Программа закрыта": "Programa cerrado",
     "Её больше нет среди запущенных": "Ya no se está ejecutando",
+    "Вершина": "Cumbre",
+    "Вместо подсказки внизу экрана": "En lugar del aviso en la parte inferior de la pantalla",
 };

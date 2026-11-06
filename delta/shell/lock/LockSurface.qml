@@ -100,7 +100,7 @@ Item {
         id: wave
         anchors.fill: bg
         target: bg
-        duration: 1150
+        duration: 1700
     }
 
     // клик мимо элементов — вернуть фокус в поле пароля
@@ -488,10 +488,13 @@ Item {
         // поверхность уже разбирается (разблокировка на другом мониторе) — анимаций нет
         enterAnim?.stop();
         contentIn?.stop();
-        confirm = "";
+        root.confirm = "";
         startFly();
         exitAnim.restart();
+        // экран блокировки тает раньше, чем волна дойдёт до краёв: та же волна
+        // идёт и по обоям стола и докатывается уже по ним
         wave.play(Qt.point(width / 2, height / 2), 1);
+        ShellState.glassWave(root.screen?.name ?? "", width / 2, height / 2, 1);
     }
     // вернуть всё на место (после предпросмотра анимации или неудачного запуска сессии)
     function reset() {

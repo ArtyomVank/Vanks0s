@@ -109,6 +109,7 @@ ColumnLayout {
         SettingRow {
             visible: Settings.get("docks.top.island", true) !== false
             icon: "keyboard"; title: I18n.tr("Смена раскладки в острове")
+            subtitle: I18n.tr("Вместо подсказки внизу экрана")
             Toggle { checked: Settings.get("docks.top.islandLayout", false) === true; onToggled: v => Settings.set("docks.top.islandLayout", v) }
         }
         SettingRow {

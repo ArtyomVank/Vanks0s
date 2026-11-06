@@ -83,7 +83,13 @@ Scope {
 
     Connections {
         target: KbLayout
-        function onSwitched() { if (Settings.get("osd.layout", true) !== false) root.show("lang", 0, false); }
+        function onSwitched() {
+            // раскладку показывает остров верхнего дока (Доки → «Смена раскладки
+            // в острове») — снизу тогда ничего не выскакивает
+            const island = Settings.get("docks.top.islandLayout", false) === true
+                && Settings.get("docks.top.island", true) !== false && !ShellState.locked;
+            if (!island && Settings.get("osd.layout", true) !== false) root.show("lang", 0, false);
+        }
     }
 
     property ShellScreen target: null
