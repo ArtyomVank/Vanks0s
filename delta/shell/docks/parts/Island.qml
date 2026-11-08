@@ -284,27 +284,20 @@ Item {
         body: resting ? (root.tiles ? Qt.rect(0, 0, 0, 0) : root.liquidRect) : root.g.body
         bodyR: resting ? root.radiusOpen : root.g.bodyR
         k: 13
-        glow: resting ? 0 : root.g.glow
-        color: resting ? (root.tiles ? root.glass : root.openColor) : root.mixColor(Theme.accent, root.openColor, root.g.colorMix)
-        strokeColor: resting && !root.tiles ? (root.editing ? Theme.accent : Theme.liquid || Theme.acrylic ? "transparent" : Theme.line) : "transparent"
-        strokeW: root.editing ? 1.5 : 1
+        glow: resting || Theme.glassDrop ? 0 : root.g.glow
+        // у «Акрила» док выходит каплей того же стекла, а не цвета акцента
+        color: resting ? (root.tiles ? root.glass : root.openColor)
+             : root.mixColor(Theme.glassDrop ? root.glass : Theme.accent, Theme.glassDrop && root.tiles ? root.glass : root.openColor, root.g.colorMix)
+        // «Акрил»: светящийся контур рисует сам Goo — по краю всей фигуры, вместе
+        // с выпуклостью под курсором и каплей меню. Отдельный Contour обводил
+        // только прямоугольник, и выпуклость лежала под ним отдельной фигурой.
+        edge: Theme.acrylic && !root.editing ? 1 : 0
+        strokeColor: Theme.round && !Theme.acrylic && !root.editing && (!resting || root.bulging || root.hoverDrop.z > 0) ? Theme.dropEdge
+                   : resting && !root.tiles ? (root.editing ? Theme.accent : Theme.liquid || Theme.acrylic ? "transparent" : Theme.line) : "transparent"
+        strokeW: root.editing ? 1.5 : Theme.glassDrop ? 1.3 : 1
         // жидкое стекло — во всей фигуре, вместе с выпуклостями и каплей
         glass: !root.tiles
         bezel: Math.max(8, Math.min(20, root.thick * 0.42))
-    }
-
-    // «Акрил»: светящийся контур вместо обводки (Goo рисует только заливку).
-    // Контур идёт по той же фигуре, что и заливка (liquidRect — с пружинами):
-    // на неподвижном прямоугольнике он расходился с телом, и внутри дока был
-    // виден второй док.
-    Item {
-        readonly property rect r: root.liquidRect
-        x: r.x
-        y: r.y
-        width: Math.max(0, r.width)
-        height: Math.max(0, r.height)
-        visible: Theme.acrylic && root.rest && !root.tiles && !root.editing && width > 2
-        Contour { radius: Math.min(root.radiusOpen, parent.width / 2, parent.height / 2) }
     }
 
     Rectangle {

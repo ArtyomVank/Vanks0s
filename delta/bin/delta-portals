@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Delta — порталы своей сессии: демонстрация и запись экрана (Discord, OBS,
+# браузеры), скриншоты программ, выбор файлов.
+#
+#   delta-portals      передать службам окружение сессии и перезапустить
+#                      порталы, которые успели запуститься без него
+#
+# Портал (xdg-desktop-portal) выбирает, кто снимает экран, по
+# XDG_CURRENT_DESKTOP (delta-portals.conf), а xdg-desktop-portal-hyprland
+# снимает тот композитор, что в WAYLAND_DISPLAY. Если портал разбудили раньше,
+# чем сессия передала окружение (оболочка при старте, службы systemd, прошлый
+# вход в другую сессию), он так и работал без них: Discord и OBS не видели
+# экран, пока не перезайти. Композитор зовёт это при старте, до оболочки.
+set -u
+
+VARS=(WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+      HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME)
+dbus-update-activation-environment --systemd "${VARS[@]}" 2>/dev/null \
+    || dbus-update-activation-environment "${VARS[@]}"
+
+# значение переменной в окружении процесса (с которым он запустился)
+env_of() { tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null | sed -n "s/^$2=//p"; }
+
+stale=()
+for name in org.freedesktop.portal.Desktop \
+            org.freedesktop.impl.portal.desktop.hyprland \
+            org.freedesktop.impl.portal.desktop.gtk; do
+    pid=$(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+          GetConnectionUnixProcessID s "${name}" 2>/dev/null | awk '{print $2}')
+    [ -n "${pid}" ] || continue
+    if [ "$(env_of "${pid}" WAYLAND_DISPLAY)" != "${WAYLAND_DISPLAY:-}" ] \
+       || [ "$(env_of "${pid}" XDG_CURRENT_DESKTOP)" != "${XDG_CURRENT_DESKTOP:-}" ]; then
+        stale+=("${pid}")
+    fi
+done
+[ ${#stale[@]} -gt 0 ] || exit 0
+
+# остановить — следующий запрос (демонстрация экрана, выбор файла) поднимет
+# их заново уже с окружением этой сессии
+systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-hyprland.service \
+    xdg-desktop-portal-gtk.service 2>/dev/null
+# своя шина без systemd: службы запускала сама шина — просто завершаем
+for pid in "${stale[@]}"; do
+    kill "${pid}" 2>/dev/null
+done
+exit 0

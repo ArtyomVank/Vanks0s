@@ -7,6 +7,9 @@
 // Вторая капля (drop2) — выпуклость «желе» под курсором у открытой панели.
 // stroke — тонкая обводка по краю всей фигуры (у панели в покое), чтобы
 // выпуклости и вмятины обводились вместе с телом, без отдельного Rectangle.
+// edge — светящийся контур «Акрила» (как common/ui/shaders/contour.frag), но по
+// краю всей фигуры: выпуклость под курсором и капля выходят из дока, а не
+// лежат отдельной фигурой под его прямоугольной рамкой.
 // Сглаживание края — по самому расстоянию (1 px), поэтому чётко на любом масштабе.
 // После правки: tools/delta-shaders.sh (собирает .qsb).
 
@@ -27,6 +30,9 @@ layout(std140, binding = 0) uniform buf {
     vec4 drop2;     // вторая капля: центр x, y, радиус x, радиус y
     vec4 stroke;    // цвет обводки (без премультипликации), a = 0 — нет обводки
     float strokeW;  // толщина обводки, px
+    float edge;     // 0…1 — сила контура «Акрила»
+    vec4 warm;      // отсвет контура снизу справа (акцент), a — сила
+    float lightBg;  // 1 — светлая тема
 };
 
 float sdBox(vec2 p, vec4 r, float rad) {
@@ -65,5 +71,29 @@ void main() {
     float sa = stroke.a * (a - clamp(0.5 - (d + strokeW), 0.0, 1.0));
     rgb = rgb * (1.0 - sa) + stroke.rgb * sa;
     alpha = alpha * (1.0 - sa) + sa;
+
+    if (edge > 0.0) {
+        // где на контуре — относительно тела (нет тела — всего элемента):
+        // -1 — верх слева, +1 — низ справа; выпуклость над телом — «верх»
+        bool hasBody = body.z > 0.5 && body.w > 0.5;
+        vec2 hs = hasBody ? body.zw * 0.5 : area * 0.5;
+        vec2 c = hasBody ? body.xy + hs : hs;
+        vec2 q = p - c;
+        vec2 n = q / max(hs, vec2(1.0));
+        float diag = clamp(dot(n, vec2(0.62, 0.78)), -1.0, 1.0);
+        float lit = 0.5 - 0.5 * diag;
+        float far = smoothstep(0.15, 0.95, diag);
+        float line = (1.0 - smoothstep(0.0, 1.3, abs(d + 0.7))) * a;
+        float lhalo = exp(max(d, -40.0) / 5.0) * a;
+        float top = (1.0 - smoothstep(0.0, max(18.0, hs.y * 0.9), q.y + hs.y)) * a;
+        float kk = edge * (lightBg > 0.5 ? 0.7 : 1.0);
+        float aw = line * (0.18 + 0.55 * pow(lit, 1.6)) + lhalo * 0.10 * lit + top * 0.045;
+        float aWarm = (line * 0.42 + lhalo * 0.12) * far * warm.a;
+        float ca = clamp(aw + aWarm, 0.0, 1.0) * kk;
+        vec3 ccol = (vec3(1.0) * aw + warm.rgb * aWarm) * kk;
+        // поверх заливки, как лежал отдельный Contour
+        rgb = ccol + rgb * (1.0 - ca);
+        alpha = ca + alpha * (1.0 - ca);
+    }
     fragColor = vec4(rgb, alpha) * qt_Opacity;
 }

@@ -29,15 +29,21 @@ pub fn autostart(nested: bool) -> Vec<String> {
     }
     let mut list = Vec::new();
     // порталы и службы systemd --user должны знать про эту сессию — но не из
-    // вложенной сессии разработчика, иначе они переедут к ней
-    if !nested {
+    // вложенной сессии разработчика, иначе они переедут к ней. Оболочка — только
+    // после этого: она будит портал при старте, и портал без XDG_CURRENT_DESKTOP
+    // и WAYLAND_DISPLAY оставался без записи экрана (Discord, OBS не видели экран).
+    // delta-portals заодно перезапускает порталы, поднятые раньше без окружения.
+    if nested {
+        list.push("delta-shell".into());
+    } else if in_path("delta-portals") {
+        list.push("delta-portals; exec delta-shell".into());
+    } else {
         list.push(
             "dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP \
-             XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME"
+             XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME; exec delta-shell"
                 .into(),
         );
     }
-    list.push("delta-shell".into());
     list.push("sleep 3; exec delta-welcome --first-run".into());
     list
 }

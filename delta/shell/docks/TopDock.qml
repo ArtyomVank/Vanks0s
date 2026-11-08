@@ -74,19 +74,34 @@ PanelWindow {
     // острова (плитки): ввод — только на самих островах, промежутки между
     // ними пропускают щелчки к окнам и рабочему столу
     readonly property bool islandMask: grid.tileLayout && grid.on && island.rest && grid.islandItems.length > 0
-    function isle(i) { return islandMask ? (grid.islandItems[i] ?? null) : null; }
+    // Прямоугольники островов в координатах окна — числами, а не Region { item }:
+    // такой регион не замечает, что остров переехал. После «острова» с
+    // сообщением (снимок экрана, громкость) острова разъезжаются по местам
+    // с пружиной, и маска оставалась там, где они были в начале: крайние
+    // модули дока переставали нажиматься.
+    readonly property var isleRects: {
+        if (!islandMask) return [];
+        // зависимости: сдвиг и размер островов, сетки и тела дока
+        void (grid.x + grid.y + grid.width + island.body.x + island.body.y + island.body.width);
+        return grid.islandItems.filter(it => it).map(it => {
+            void (it.x + it.y + it.width + it.height);
+            const p = it.mapToItem(win.contentItem, 0, 0);
+            return Qt.rect(p.x, p.y, it.width, it.height);
+        });
+    }
+    function isle(i) { return isleRects[i] ?? Qt.rect(0, 0, 0, 0); }
     mask: Region {
         item: win.islandMask ? null : island.body
         Region { item: hot }
         Region { item: hint }
-        Region { item: win.isle(0) }
-        Region { item: win.isle(1) }
-        Region { item: win.isle(2) }
-        Region { item: win.isle(3) }
-        Region { item: win.isle(4) }
-        Region { item: win.isle(5) }
-        Region { item: win.isle(6) }
-        Region { item: win.isle(7) }
+        Region { x: win.isle(0).x; y: win.isle(0).y; width: win.isle(0).width; height: win.isle(0).height }
+        Region { x: win.isle(1).x; y: win.isle(1).y; width: win.isle(1).width; height: win.isle(1).height }
+        Region { x: win.isle(2).x; y: win.isle(2).y; width: win.isle(2).width; height: win.isle(2).height }
+        Region { x: win.isle(3).x; y: win.isle(3).y; width: win.isle(3).width; height: win.isle(3).height }
+        Region { x: win.isle(4).x; y: win.isle(4).y; width: win.isle(4).width; height: win.isle(4).height }
+        Region { x: win.isle(5).x; y: win.isle(5).y; width: win.isle(5).width; height: win.isle(5).height }
+        Region { x: win.isle(6).x; y: win.isle(6).y; width: win.isle(6).width; height: win.isle(6).height }
+        Region { x: win.isle(7).x; y: win.isle(7).y; width: win.isle(7).width; height: win.isle(7).height }
     }
 
     // начало окна в координатах экрана

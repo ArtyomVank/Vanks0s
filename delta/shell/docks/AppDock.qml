@@ -157,7 +157,7 @@ PanelWindow {
         const d = item.modelData;
         item.bounce();
         // «Настройки» Delta выходят каплей (window/SettingsGhost.qml) — из своего значка
-        if (/^delta-settings(\.desktop)?$/.test(item.entry ? item.entry.id : (d.id || ""))) { ShellState.openSettings("", screenRect(item)); return; }
+        if (/^delta-settings(\.desktop)?$/.test(item.entry ? item.entry.id : (d.id || ""))) { ShellState.openSettings("", Object.assign(screenRect(item), { dock: "apps", pull: d.key })); return; }
         if (item.entry) item.entry.execute();
         else if (d.kind === "cmd") Quickshell.execDetached(["sh", "-c", d.command]);
         else if (d.kind === "path") Quickshell.execDetached(["xdg-open", DockService.expandPath(d.path)]);

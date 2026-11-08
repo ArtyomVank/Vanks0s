@@ -259,9 +259,12 @@ Item {
         body: Qt.rect(root.g.body.x - x, root.g.body.y - y, root.g.body.width, root.g.body.height)
         bodyR: root.g.bodyR
         k: 12
-        glow: root.g.glow
-        // капля из острова — того же стекла, что и док, иначе — цвета акцента
-        color: root.mixColor(root.fromIsland ? Theme.glass : root.ballColor, root.cardColor, root.g.colorMix)
+        glow: Theme.glassDrop ? 0 : root.g.glow
+        // капля из острова — того же стекла, что и док, иначе — цвета акцента;
+        // у «Акрила» — сразу стекло карточки с его светящимся контуром
+        color: Theme.glassDrop ? root.cardColor : root.mixColor(root.fromIsland ? Theme.glass : root.ballColor, root.cardColor, root.g.colorMix)
+        edge: Theme.acrylic ? 1 : 0
+        strokeColor: Theme.round && !Theme.acrylic ? Theme.dropEdge : "transparent"
     }
 
     Rectangle {

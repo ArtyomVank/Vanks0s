@@ -250,6 +250,10 @@ Singleton {
         : glowTiles ? tint(light ? 0.45 : 0.38)
         : acrylic ? (light ? Qt.rgba(0, 0, 0, 0.08) : Qt.rgba(1, 1, 1, 0.12))
         : light ? Qt.rgba(0, 0, 0, flat ? 0.12 : 0.10) : Qt.rgba(1, 1, 1, flat ? 0.07 : liquid ? 0.16 : 0.10)
+    // Капля из дока у «Акрила» (стиль или тема) — из того же стекла, что и док,
+    // со светлой кромкой, как его контур, а не шар цвета акцента со свечением
+    readonly property bool glassDrop: acrylic || round
+    readonly property color dropEdge: light ? Qt.rgba(0, 0, 0, 0.3) : Qt.rgba(1, 1, 1, 0.58)
     readonly property color soft:  glowTiles ? tint(light ? 0.14 : 0.16)
         : light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.05)
     readonly property color soft2: glowTiles ? tint(light ? 0.22 : 0.26)

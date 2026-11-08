@@ -624,14 +624,17 @@ hl.on("hyprland.start", function()
     -- Вложенная сессия (разработка) не должна трогать окружение основной:
     -- иначе службы и порталы пользователя переедут на её дисплей, а
     -- автозапуск откроет вторые копии программ.
-    if not nested then
-        -- порталы и службы systemd --user должны знать про эту сессию
-        hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME")
-    end
     -- XDG-автозапуск (~/.config/autostart, /etc/xdg/autostart) запускает
     -- оболочка, когда уйдёт заставка «Добро пожаловать» (lock/StartCover.qml):
     -- отсюда программы всплывали раньше неё, поверх собирающегося стола
-    hl.exec_cmd("delta-shell")
+    if nested then
+        hl.exec_cmd("delta-shell")
+    else
+        -- порталы и службы systemd --user должны знать про эту сессию раньше,
+        -- чем оболочка разбудит портал (иначе Discord и OBS не видят экран);
+        -- delta-portals заодно перезапускает порталы, поднятые без окружения
+        hl.exec_cmd("sh -c 'delta-portals || dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE DELTA_DATA QT_QPA_PLATFORMTHEME; exec delta-shell'")
+    end
     -- помощник первого запуска: после того как стол проявился; сам решает,
     -- нужно ли показываться (закрывали, live-ISO, вложенная сессия)
     hl.exec_cmd("sh -c 'sleep 3; exec delta-welcome --first-run'")

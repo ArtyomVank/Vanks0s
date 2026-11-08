@@ -111,6 +111,8 @@ ShellRoot {
         function launcherMenu(): void { appLauncher.showMenu(); }
         function launcherRemove(query: string): void { appLauncher.show(query); appLauncher.showRemove(); }
         function center(): void { notifications.toggleCenter(); }
+        // «Настройки» каплей из верхнего дока, как из модуля V: shell settings ""
+        function settings(section: string): void { ShellState.openSettings(section, null); }
         function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
     }
 }

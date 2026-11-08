@@ -44,13 +44,14 @@ Scope {
         const name = Hyprland.focusedMonitor?.name ?? "";
         return Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0] ?? null;
     }
-    // точка на поверхности верхнего дока, обращённой к экрану
-    // (напротив модуля V: край острова там вздувается каплей)
+    // точка на поверхности дока, обращённой к экрану, напротив того, откуда
+    // открыли: модуль V верхнего дока или значок «Настроек» в доке приложений
+    // (from.dock === "apps"). Край острова там вздувается каплей.
     function dockSource(scr, from) {
-        const dock = (ShellState.dockGeometry[scr.name] || {}).top || null;
+        const dock = (ShellState.dockGeometry[scr.name] || {})[from && from.dock === "apps" ? "apps" : "top"] || null;
         const cx = from ? from.x + from.w / 2 : dock ? dock.x + dock.w / 2 : scr.width / 2;
         const cy = from ? from.y + from.h / 2 : dock ? dock.y + dock.h / 2 : 0;
-        if (!dock) return Qt.point(cx, 0);
+        if (!dock) return Qt.point(cx, from && from.dock === "apps" ? scr.height : 0);
         switch (dock.edge) {
         case "bottom": return Qt.point(cx, dock.y);
         case "left": return Qt.point(dock.x + dock.w, cy);
@@ -176,9 +177,12 @@ Scope {
                     height: root.card.height
                     radiusOpen: Settings.get("windows.rounding", 16)
                     strong: true
-                    // капля тянет за собой модуль V верхнего дока
-                    // (открыли не из V — край верхнего дока вздувается посередине)
-                    pullKey: root.screen ? root.screen.name + "/top:" + (root.lastFrom ? "launcher" : "@") : ""
+                    // капля тянет за собой то, откуда открыли: значок в доке
+                    // приложений или модуль V (открыли из меню — край верхнего
+                    // дока вздувается посередине)
+                    pullKey: !root.screen ? ""
+                        : root.lastFrom && root.lastFrom.dock === "apps" ? root.screen.name + "/" + root.lastFrom.pull
+                        : root.screen.name + "/top:" + (root.lastFrom ? "launcher" : "@")
                     open: root.blobOpen
                     srcX: root.source.x - x
                     srcY: root.source.y - y
