@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.9.1
+pkgver=1.9.2
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -124,6 +124,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-clipboard" "${pkgdir}/usr/bin/delta-clipboard"
     install -Dm755 "${_src}/bin/delta-superwall" "${pkgdir}/usr/bin/delta-superwall"
     install -Dm755 "${_src}/bin/delta-portals"   "${pkgdir}/usr/bin/delta-portals"
+    install -Dm755 "${_src}/bin/delta-share-picker" "${pkgdir}/usr/bin/delta-share-picker"
 
     install -Dm644 "${_src}/hypr/hyprland.lua"       "${d}/hypr/hyprland.lua"
     install -Dm644 "${_src}/defaults/settings.json"  "${d}/defaults/settings.json"

@@ -313,6 +313,13 @@ hl.window_rule({
     center = true,
 })
 hl.window_rule({
+    name  = "delta-share",
+    match = { class = "^delta-share$" },
+    float = true,
+    size  = "760 560",
+    center = true,
+})
+hl.window_rule({
     name  = "delta-exe-manager",
     match = { class = "^delta-exe-manager$" },
     float = true,

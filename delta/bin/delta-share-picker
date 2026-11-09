@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Delta — окно выбора экрана или окна для демонстрации (Discord, OBS, браузеры).
+#
+# Его зовёт xdg-desktop-portal-hyprland (screencopy:custom_picker_binary в
+# ~/.config/hypr/xdph.conf, запись делает delta-portals) вместо своего
+# hyprland-share-picker: тот падает при запуске в OpenGL-части, и меню не
+# появлялось. Ответ порталу — в stdout: [SELECTION]r/screen:DP-1 или
+# [SELECTION]/window:<id>. Без выбора — пусто, портал вернёт программе отмену.
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+
+DELTA_SHARE_TOKEN=0
+for arg in "$@"; do
+    [ "${arg}" = --allow-token ] && DELTA_SHARE_TOKEN=1
+done
+export DELTA_SHARE_TOKEN
+
+DELTA_SHARE_OUT=$(mktemp -t delta-share.XXXXXX) || exit 1
+export DELTA_SHARE_OUT
+trap 'rm -f "${DELTA_SHARE_OUT}"' EXIT
+
+qs -p "${SHELL_DIR}/share-app.qml" >/dev/null 2>&1
+[ -s "${DELTA_SHARE_OUT}" ] && printf '[SELECTION]%s\n' "$(cat "${DELTA_SHARE_OUT}")"
+exit 0

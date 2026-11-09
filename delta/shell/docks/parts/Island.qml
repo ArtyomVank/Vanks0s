@@ -33,6 +33,13 @@ Item {
     property bool want: true
     // плитки: в открытом виде без общей подложки (каждый элемент — своё стекло)
     property bool tiles: false
+    // капля растекается не во всю панель, а в её часть (средний остров):
+    // длина (0 — вся панель), сдвиг от середины и толщина
+    property real startAlong: 0
+    property real startOffset: 0
+    property real startAcross: thick
+    // сколько ждать перед закрытием: боковые острова успевают втянуться
+    property int closeDelay: 0
     // стекло панели (у дока может быть своя непрозрачность — DockService.glassOf)
     property color glass: Theme.glass
     property bool editing: false
@@ -63,7 +70,17 @@ Item {
         property: "t"
         easing.type: Easing.Linear
     }
+    Timer { id: closeWait; onTriggered: root.run() }
     function go() {
+        closeWait.stop();
+        if (!want && rest && closeDelay > 0) {
+            closeWait.interval = closeDelay;
+            closeWait.start();
+            return;
+        }
+        run();
+    }
+    function run() {
         const to = want ? 1 : 0;
         if (t === to && !anim.running) return;
         anim.stop();
@@ -191,10 +208,11 @@ Item {
 
         let bodyRect = Qt.rect(0, 0, 0, 0), bodyR = R;
         if (t > p2End) {
-            const bAlong = mix(2 * R, aOpen, outBack(p3, overshootFor(aOpen - 2 * R)));
-            const bAcross = mix(2 * R * 0.9, cOpen, outBack(p3, 1.2));
-            bodyRect = rectAt(u0, vDock, Math.max(1, bAlong), Math.max(1, bAcross));
-            bodyR = mix(R, radiusOpen, outCubic(p3));
+            const aTo = startAlong > 0 ? startAlong : aOpen, cTo = startAlong > 0 ? startAcross : cOpen;
+            const bAlong = mix(2 * R, aTo, outBack(p3, overshootFor(aTo - 2 * R)));
+            const bAcross = mix(2 * R * 0.9, cTo, outBack(p3, 1.2));
+            bodyRect = rectAt(u0 + startOffset * outCubic(p3), vDock, Math.max(1, bAlong), Math.max(1, bAcross));
+            bodyR = mix(R, startAlong > 0 ? cTo / 2 : radiusOpen, outCubic(p3));
         }
         const dr = rectAt(u0, vd, 2 * dropAlong, 2 * dropAcross);
         return {
@@ -203,7 +221,8 @@ Item {
             body: bodyRect,
             bodyR: bodyR,
             // тело для маски ввода и наведения: панель или прямоугольник капли
-            hit: t > p2End ? bodyRect : dr,
+            // (при старте со среднего острова — вся панель: содержимое стоит по её середине)
+            hit: t <= p2End ? dr : startAlong > 0 ? rectAt(u0, vDock, aOpen, cOpen) : bodyRect,
             colorMix: clamp01((p3 - 0.15) / 0.55),
             glow: 1 - p3
         };
@@ -287,7 +306,7 @@ Item {
         glow: resting || Theme.glassDrop ? 0 : root.g.glow
         // у «Акрила» док выходит каплей того же стекла, а не цвета акцента
         color: resting ? (root.tiles ? root.glass : root.openColor)
-             : root.mixColor(Theme.glassDrop ? root.glass : Theme.accent, Theme.glassDrop && root.tiles ? root.glass : root.openColor, root.g.colorMix)
+             : root.mixColor(Theme.glassDrop ? root.glass : Theme.accent, (Theme.glassDrop && root.tiles) || root.startAlong > 0 ? root.glass : root.openColor, root.g.colorMix)
         // «Акрил»: светящийся контур рисует сам Goo — по краю всей фигуры, вместе
         // с выпуклостью под курсором и каплей меню. Отдельный Contour обводил
         // только прямоугольник, и выпуклость лежала под ним отдельной фигурой.
@@ -333,7 +352,7 @@ Item {
             anchors.centerIn: parent
             width: 0
             height: 0
-            opacity: root.want && root.t > 0.86 ? 1 : 0
+            opacity: (root.want || closeWait.running) && root.t > 0.86 ? 1 : 0
             visible: opacity > 0
             // содержимое колышется вместе с «желе», но вполсилы
             transform: Scale {

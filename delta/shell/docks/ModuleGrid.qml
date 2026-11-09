@@ -154,6 +154,49 @@ Item {
         return { start: start, end: end, islands: rects, groups: groups.filter(g => g.n > 1), chip: chip, total: W };
     }
 
+    // --- появление островов: сначала средний, из него в стороны — остальные ---
+    property bool sidesOut: true      // TopDock: средний остров уже на месте
+    property real sideT: sidesOut ? 1 : 0
+    Behavior on sideT {
+        NumberAnimation {
+            duration: (grid.sidesOut ? 640 : 180) * Theme.anim.k
+            easing.type: grid.sidesOut ? Easing.OutBack : Easing.InCubic
+            easing.overshoot: 0.7
+        }
+    }
+    // средний — ближайший к середине дока; с одним островом выходить неоткуда
+    readonly property int midIsle: {
+        const rects = tl.islands, c = tl.total / 2;
+        let best = -1, dist = Infinity;
+        for (let k = 0; k < rects.length; k++) {
+            const d = Math.abs((rects[k].from + rects[k].to) / 2 - c);
+            if (d < dist) { dist = d; best = k; }
+        }
+        return best;
+    }
+    readonly property bool isleIntro: tileLayout && tl.islands.length > 1
+    readonly property real midAlong: isleIntro ? tl.islands[midIsle].to - tl.islands[midIsle].from : 0
+    readonly property real midOffset: isleIntro ? (tl.islands[midIsle].from + tl.islands[midIsle].to - tl.total) / 2 : 0
+    function isleAt(p) {
+        return tl.islands.findIndex(r => p >= r.from - 0.5 && p < r.to + 0.5);
+    }
+    function isSide(p) {
+        const k = isleAt(p);
+        return k !== -1 && k !== midIsle;
+    }
+    // сдвиг к среднему острову и видимость того, что стоит на месте p
+    function isleShift(p) {
+        if (!isleIntro || sideT === 1) return 0;
+        const k = isleAt(p);
+        if (k === -1 || k === midIsle) return 0;
+        const m = tl.islands[midIsle], r = tl.islands[k];
+        return (1 - sideT) * ((m.from + m.to) - (r.from + r.to)) / 2;
+    }
+    function isleAlpha(p, from) {
+        if (!isleIntro || sideT >= 1 || !isSide(p)) return 1;
+        return Math.max(0, Math.min(1, (sideT - from) / 0.3));
+    }
+
     readonly property real implicitAlong: tileLayout ? Math.max(80, tl.total)
         : compact && !editing ? Math.max(80, starts[cells] + pad) : ((compact || tiles) ? cells * cw + 2 * pad : fullAlong)
 
@@ -192,8 +235,20 @@ Item {
             border.width: Theme.liquid || Theme.acrylic ? 0 : 1
             border.color: Theme.line
             Sheen { radius: parent.radius; strength: 0.9 }
+            // боковые выходят из-под среднего
+            readonly property real along0: modelData.from
+            readonly property real squeeze: grid.isleIntro && grid.isSide(along0) ? 0.35 + 0.65 * Math.min(1, grid.sideT) : 1
+            z: grid.isleIntro && !grid.isSide(along0) ? 0.5 : 0
+            opacity: grid.isleAlpha(along0, 0)
             // остров вздрагивает вместе с модулями
-            transform: Scale { origin.x: isle.width / 2; origin.y: isle.height / 2; xScale: 1 + ij.value * 0.3; yScale: 1 - ij.value }
+            transform: [
+                Translate { x: grid.vertical ? 0 : grid.isleShift(isle.along0); y: grid.vertical ? grid.isleShift(isle.along0) : 0 },
+                Scale {
+                    origin.x: isle.width / 2; origin.y: isle.height / 2
+                    xScale: grid.vertical ? 1 : isle.squeeze; yScale: grid.vertical ? isle.squeeze : 1
+                },
+                Scale { origin.x: isle.width / 2; origin.y: isle.height / 2; xScale: 1 + ij.value * 0.3; yScale: 1 - ij.value }
+            ]
             Spring { id: ij; stiffness: 280; damping: 10 }
             Connections {
                 target: ShellState
@@ -210,6 +265,11 @@ Item {
         model: grid.tileLayout ? grid.tl.groups : []
         delegate: Rectangle {
             required property var modelData
+            opacity: grid.isleAlpha(modelData.from, 0.6)
+            transform: Translate {
+                x: grid.vertical ? 0 : grid.isleShift(modelData.from)
+                y: grid.vertical ? grid.isleShift(modelData.from) : 0
+            }
             x: grid.vertical ? (grid.thick - grid.chipAcross) / 2 : modelData.from
             y: grid.vertical ? modelData.from : (grid.thick - grid.chipAcross) / 2
             width: grid.vertical ? grid.chipAcross : modelData.to - modelData.from
@@ -297,6 +357,11 @@ Item {
             width: grid.vertical ? grid.thick : size
             height: grid.vertical ? size : grid.thick
             z: dragging || resizing ? 5 : 1
+            opacity: grid.isleAlpha(start, 0.6)
+            transform: Translate {
+                x: grid.vertical ? 0 : grid.isleShift(slot.start)
+                y: grid.vertical ? grid.isleShift(slot.start) : 0
+            }
             Behavior on x { enabled: !slot.dragging; NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
             Behavior on y { enabled: !slot.dragging; NumberAnimation { duration: 380 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
             Behavior on width { enabled: !slot.dragging && !slot.resizing; NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }

@@ -1,6 +1,6 @@
 [package]
 name = "delta-compositor"
-version = "1.9.1"
+version = "1.9.2"
 edition = "2021"
 description = "композитор Delta — композитор графического окружения Delta, будущая 1.0"
 publish = false

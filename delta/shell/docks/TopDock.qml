@@ -82,7 +82,7 @@ PanelWindow {
     readonly property var isleRects: {
         if (!islandMask) return [];
         // зависимости: сдвиг и размер островов, сетки и тела дока
-        void (grid.x + grid.y + grid.width + island.body.x + island.body.y + island.body.width);
+        void (grid.x + grid.y + grid.width + grid.sideT + island.body.x + island.body.y + island.body.width);
         return grid.islandItems.filter(it => it).map(it => {
             void (it.x + it.y + it.width + it.height);
             const p = it.mapToItem(win.contentItem, 0, 0);
@@ -196,10 +196,16 @@ PanelWindow {
         dockId: "top"
         origin: win.origin
         glass: DockService.topGlass
+        // плитки: капля становится средним островом, остальные выходят из него
+        startAlong: grid.on ? grid.midAlong : 0
+        startOffset: grid.on ? grid.midOffset : 0
+        startAcross: grid.islandAcross
+        closeDelay: grid.on && grid.isleIntro ? 190 * Theme.anim.k : 0
 
         ModuleGrid {
             id: grid
             anchors.centerIn: parent
+            sidesOut: island.want && island.rest
             edge: win.edge
             length: win.length
             fullAlong: win.screenAlong - 32

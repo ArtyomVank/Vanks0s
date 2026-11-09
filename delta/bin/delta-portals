@@ -18,6 +18,17 @@ VARS=(WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSIO
 dbus-update-activation-environment --systemd "${VARS[@]}" 2>/dev/null \
     || dbus-update-activation-environment "${VARS[@]}"
 
+# своё окно выбора экрана: стандартное hyprland-share-picker падает при запуске.
+# Настройки xdph только в папке пользователя; его свои строки не трогаем.
+xdph=${XDG_CONFIG_HOME:-${HOME}/.config}/hypr/xdph.conf
+picker=$(command -v delta-share-picker || true)
+if [ -n "${picker}" ] && ! grep -qs custom_picker_binary "${xdph}"; then
+    mkdir -p "${xdph%/*}"
+    printf 'screencopy:custom_picker_binary = %s\n' "${picker}" >>"${xdph}"
+    # уже запущенный xdph читал настройки без этой строки
+    systemctl --user stop xdg-desktop-portal-hyprland.service 2>/dev/null
+fi
+
 # значение переменной в окружении процесса (с которым он запустился)
 env_of() { tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null | sed -n "s/^$2=//p"; }
 

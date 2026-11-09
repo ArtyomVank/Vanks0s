@@ -13,6 +13,7 @@ pub fn for_class(class: &str) -> Rule {
         "delta-welcome" => Some((1000, 680)),
         "delta-exe" => Some((600, 600)),
         "delta-exe-manager" => Some((1000, 720)),
+        "delta-share" => Some((760, 560)),
         "delta-box" => Some((960, 680)),
         "delta-store" => Some((1120, 760)),
         "delta-phone" | "delta-android" => Some((900, 640)),
