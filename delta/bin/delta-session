@@ -76,6 +76,35 @@ if [ ! -e "${EXE_MARK2}" ] && command -v xdg-mime >/dev/null; then
     : > "${EXE_MARK2}"
 fi
 
+# папки и архивы — «Файлы», видео — «Видео» Delta (с 1.9.3): один раз и только
+# там, где своей программы нет или она уже удалена; выбор пользователя не трогаем
+OWN_MARK=${STATE}/own-apps-mime
+if [ ! -e "${OWN_MARK}" ] && command -v xdg-mime >/dev/null; then
+    own_default() {  # ярлык, типы…
+        local app=$1 t cur d have
+        shift
+        for t in "$@"; do
+            cur=$(xdg-mime query default "${t}" 2>/dev/null)
+            have=0
+            # ярлык ищем везде, где их ищет система (и у Flatpak тоже)
+            if [ -n "${cur}" ]; then
+                local IFS=:
+                for d in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+                    [ -e "${d}/applications/${cur}" ] && { have=1; break; }
+                done
+                unset IFS
+            fi
+            [ "${have}" = 1 ] || xdg-mime default "${app}" "${t}" 2>/dev/null
+        done
+    }
+    own_default delta-files.desktop inode/directory application/zip application/x-7z-compressed application/vnd.rar \
+        application/x-rar application/x-tar application/x-compressed-tar application/x-xz-compressed-tar \
+        application/x-zstd-compressed-tar application/x-bzip2-compressed-tar application/x-cd-image
+    own_default delta-video.desktop video/mp4 video/x-matroska video/webm video/x-msvideo video/quicktime \
+        video/x-m4v video/mpeg video/mp2t video/ogg
+    : > "${OWN_MARK}"
+fi
+
 # В файле пользователя — только его изменения: значения по умолчанию
 # подмешивают Settings и delta-apply, поэтому новые умолчания доходят
 # и до старых установок.

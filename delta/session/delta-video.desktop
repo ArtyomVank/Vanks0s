@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Video
+Name[ru]=Видео
+Comment=Watch videos in the Delta style
+Comment[ru]=Видеоплеер в стиле Delta
+Exec=delta-video %U
+Icon=video-x-generic
+Terminal=false
+Categories=AudioVideo;Video;Player;
+Keywords=video;player;movie;mp4;mkv;видео;плеер;фильм;
+MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/x-m4v;video/x-ms-wmv;video/x-flv;video/mpeg;video/mp2t;video/3gpp;video/ogg;
+StartupWMClass=delta-video

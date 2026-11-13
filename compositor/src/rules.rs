@@ -16,6 +16,8 @@ pub fn for_class(class: &str) -> Rule {
         "delta-share" => Some((760, 560)),
         "delta-box" => Some((960, 680)),
         "delta-store" => Some((1120, 760)),
+        "delta-files" => Some((1080, 700)),
+        "delta-video" => Some((1100, 660)),
         "delta-phone" | "delta-android" => Some((900, 640)),
         _ => None,
     };

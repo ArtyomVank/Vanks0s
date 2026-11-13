@@ -4,6 +4,7 @@
 // (pacman), fp — id на Flathub; есть оба — источник выбирают на странице
 // приложения (по умолчанию Arch: быстрее и общие библиотеки с системой).
 // Название и описание — свои (title, text) или из каталога Flathub.
+// nvenc — с драйвером NVIDIA 580 по умолчанию Flathub (см. StoreWindow.legacyNvenc).
 
 var sections = [
     { id: "popular", title: "Популярное", icon: "rocket", items: [
@@ -12,7 +13,7 @@ var sections = [
         { title: "Telegram", pkg: "telegram-desktop", fp: "org.telegram.desktop", text: "Быстрый мессенджер с каналами и звонками" },
         { title: "Chromium", pkg: "chromium", fp: "org.chromium.Chromium", text: "Быстрый браузер с синхронизацией закладок" },
         { title: "Firefox", pkg: "firefox", fp: "org.mozilla.firefox", text: "Свободный браузер, который бережёт приватность" },
-        { title: "OBS Studio", pkg: "obs-studio", fp: "com.obsproject.Studio", text: "Запись экрана и стримы" },
+        { title: "OBS Studio", pkg: "obs-studio", fp: "com.obsproject.Studio", nvenc: true, text: "Запись экрана и стримы" },
         { title: "VLC", pkg: "vlc", fp: "org.videolan.VLC", text: "Плеер, который открывает всё" },
         { title: "Spotify", fp: "com.spotify.Client", text: "Музыка и подкасты" }
     ] },

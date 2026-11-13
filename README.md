@@ -134,18 +134,3 @@ sudo ./tools/build-calamares.sh    # только установщик
    `initcpio`, `bootloader` (GRUB), и `cleanup.sh` перед `umount`.
 
 Подробности — в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-## Ограничения версии 0.3
-
-* ISO ни разу не собирался на этой машине: здесь нет Linux/Arch. Все конфиги
-  сверены с upstream, но первый прогон `build.sh` — за вами.
-* Экран выбора стола — это `packagechooser` с брендингом Vanks OS, а не
-  собственный C++/QML-модуль. Полностью свой экран требует сборки плагина
-  Calamares и записан в [docs/ROADMAP.md](docs/ROADMAP.md).
-* Шифрование LUKS, btrfs-снапшоты, Secure Boot и подпись ISO не настроены.
-* Нет собственных репозиториев пакетов: используются `core`/`extra` Arch.
-
-## Дальше
-
-`docs/ROADMAP.md` — этапы 0.2 (первая успешная сборка и тесты), 0.3 (свой
-QML-экран выбора стола), 0.4 (LUKS, btrfs, Secure Boot).

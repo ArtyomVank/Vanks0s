@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Видео Delta — плеер в стиле системы (QtMultimedia, бэкенд FFmpeg).
+#
+#   delta-video [файл|адрес]     открыть (другие видео из той же папки — список)
+#   delta-video ipc …            команда окну
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_VIDEO_ENTRY:-${SHELL_DIR}/video-app.qml}
+
+case "${1:-}" in
+    -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    ipc) shift; exec qs -p "${ENTRY}" ipc "$@" ;;
+esac
+p=${1:-}
+case "${p}" in
+    file://*) p=${p#file://}; p=$(printf '%b' "${p//%/\\x}") ;;
+    *://*) ;;
+    "") ;;
+    *) p=$(realpath -- "${p}" 2>/dev/null || printf '%s' "${p}") ;;
+esac
+DELTA_VIDEO_OPEN=${p} exec qs -p "${ENTRY}" -d

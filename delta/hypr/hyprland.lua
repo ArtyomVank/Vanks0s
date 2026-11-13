@@ -334,6 +334,20 @@ hl.window_rule({
     center = true,
 })
 hl.window_rule({
+    name  = "delta-files",
+    match = { class = "^delta-files$" },
+    float = true,
+    size  = "1080 700",
+    center = true,
+})
+hl.window_rule({
+    name  = "delta-video",
+    match = { class = "^delta-video$" },
+    float = true,
+    size  = "1100 660",
+    center = true,
+})
+hl.window_rule({
     name  = "delta-store",
     match = { class = "^delta-store$" },
     float = true,

@@ -15,6 +15,9 @@ ColumnLayout {
     id: root
 
     property string title: I18n.tr("О системе")
+    // сессия «Delta на Hyprland» ставит XDG_CURRENT_DESKTOP=Delta:Hyprland, обычная — Delta
+    readonly property string engine: (Quickshell.env("XDG_CURRENT_DESKTOP") || "").indexOf("Hyprland") >= 0
+        ? I18n.tr("Hyprland · оболочка Delta") : I18n.tr("композитор Delta · оболочка Delta")
     property string icon: "info"
     property string keywords: "система версия процессор видеокарта память диск имя компьютера ядро время работы экран"
     spacing: 18
@@ -156,7 +159,7 @@ ColumnLayout {
         title: I18n.tr("Система")
         SettingRow { icon: "settings"; title: I18n.tr("Ядро Linux"); Label { text: root.info.kernel || "—"; tone: 2 } }
         SettingRow { icon: "clock"; title: I18n.tr("Время работы"); Label { text: root.info.uptime !== undefined ? root.uptime(root.info.uptime) : "—"; tone: 2 } }
-        SettingRow { icon: "palette"; title: I18n.tr("Окружение"); Label { text: "Delta " + (root.info.delta || "") + " · Hyprland · Quickshell"; tone: 2 } }
+        SettingRow { icon: "palette"; title: I18n.tr("Окружение"); Label { text: "Delta " + (root.info.delta || "") + " · " + root.engine; tone: 2 } }
     }
 
     Card {

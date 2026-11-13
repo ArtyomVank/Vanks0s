@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+Name[ru]=Файлы
+Comment=Browse folders and open, extract and create archives
+Comment[ru]=Папки и файлы, распаковка и создание архивов
+Exec=delta-files %U
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileTools;FileManager;
+Keywords=files;folder;explorer;archive;zip;7z;rar;extract;файлы;проводник;папка;архив;распаковать;
+MimeType=inode/directory;application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/x-tar;application/x-compressed-tar;application/x-xz-compressed-tar;application/x-bzip2-compressed-tar;application/x-zstd-compressed-tar;application/gzip;application/x-xz;application/x-bzip2;application/zstd;application/x-cd-image;application/vnd.ms-cab-compressed;application/x-cpio;application/vnd.debian.binary-package;application/x-rpm;application/x-lha;application/x-lzma;application/x-lz4;
+StartupWMClass=delta-files

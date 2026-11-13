@@ -78,7 +78,22 @@ FloatingWindow {
         // уже стоит — тот источник; иначе Arch, если есть пакет
         if (installedIn(e, "pacman")) return "pacman";
         if (installedIn(e, "flatpak")) return "flatpak";
+        if (e.nvenc && e.fp && legacyNvenc) return "flatpak";
         return e.pkg ? "pacman" : "flatpak";
+    }
+    // NVIDIA ветки 580 (GTX 900/1000): ffmpeg и OBS из Arch собраны под NVENC 13.1
+    // (драйвер 610+), и H.264/H.265 на видеокарте у них нет. OBS с Flathub собран
+    // со старыми заголовками NVENC — с ним кодировщики есть; такие (nvenc: true) — с Flathub
+    property bool legacyNvenc: false
+    Process {
+        running: true
+        command: ["cat", "/proc/driver/nvidia/version"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = /\s(\d{3,})\.\d+(?:\.\d+)?\s/.exec(text);
+                win.legacyNvenc = !!m && parseInt(m[1]) < 610;
+            }
+        }
     }
     function idIn(e, src) { return src === "pacman" ? e.pkg : e.fp; }
     function busyWith(e) {

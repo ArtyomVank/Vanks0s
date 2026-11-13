@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.9.2
+pkgver=1.9.3
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -65,6 +65,8 @@ depends=(
     # Microsoft — cab и zip; сам winetricks — из Proton или скачивается
     # (пакет winetricks тянет за собой Wine)
     'cabextract' 'unzip'
+    # «Файлы»: архивы читает и пишет libarchive (bsdtar), корзина — gio (glib2)
+    'libarchive' 'zstd' 'xz' 'bzip2' 'gzip'
     # игры: библиотеки Steam и Epic Games (delta-games; legendary для Epic
     # ставится в свой venv при первом входе)
     'python'
@@ -85,6 +87,8 @@ optdepends=(
     'proton-cachyos: Proton CachyOS из репозитория (иначе delta-exe скачает его сам)'
     'libnotify: уведомления delta-exe о скачивании Proton'
     'waydroid: приложения Android (delta-android; ставится и из окна «Android»)'
+    '7zip: зашифрованные архивы 7z и rar5 в «Файлах»'
+    'unrar: старые архивы rar с паролем в «Файлах»'
 )
 
 _src="${startdir}/../../delta"
@@ -118,6 +122,8 @@ package() {
     install -Dm755 "${_src}/bin/delta-games"     "${pkgdir}/usr/bin/delta-games"
     install -Dm755 "${_src}/bin/delta-box"       "${pkgdir}/usr/bin/delta-box"
     install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
+    install -Dm755 "${_src}/bin/delta-files"     "${pkgdir}/usr/bin/delta-files"
+    install -Dm755 "${_src}/bin/delta-video"     "${pkgdir}/usr/bin/delta-video"
     install -Dm755 "${_src}/bin/delta-phone"     "${pkgdir}/usr/bin/delta-phone"
     install -Dm755 "${_src}/bin/delta-android"   "${pkgdir}/usr/bin/delta-android"
     install -Dm755 "${_src}/bin/delta-transfers" "${pkgdir}/usr/bin/delta-transfers"
@@ -158,6 +164,11 @@ package() {
     # Delta Box: одна система Windows для программ из папок
     install -Dm644 "${_src}/session/delta-box.desktop" \
         "${pkgdir}/usr/share/applications/delta-box.desktop"
+    # «Файлы» (проводник с архиватором) и «Видео» (плеер)
+    install -Dm644 "${_src}/session/delta-files.desktop" \
+        "${pkgdir}/usr/share/applications/delta-files.desktop"
+    install -Dm644 "${_src}/session/delta-video.desktop" \
+        "${pkgdir}/usr/share/applications/delta-video.desktop"
     # магазин Delta: пакеты Arch и Flathub
     install -Dm644 "${_src}/session/delta-store.desktop" \
         "${pkgdir}/usr/share/applications/delta-store.desktop"

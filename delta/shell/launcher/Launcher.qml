@@ -12,7 +12,9 @@ import qs.common.ui
 import qs.launcher.parts
 // с квалификатором: в docks/parts есть свой Field, он перекрыл бы поле поиска
 import qs.docks.parts as DockParts
+import qs.settings as Set
 import "fuzzy.js" as Fuzzy
+import "calc.js" as Calc
 
 // Окно приложений (Super). Панель по центру экрана вырастает каплей из кнопки
 // «Приложения» нижнего дока и стекает обратно в неё при закрытии. Окно слоя —
@@ -35,7 +37,7 @@ Scope {
     property bool menuPending: false
     function showMenu() { menuPending = true; }
     // IPC: окно удаления для первой строки, как «Удалить» в её меню
-    function showRemove() { if (results.length) askRemove(results[0]); }
+    function showRemove() { if (results.length && !results[0].kind) askRemove(results[0]); }
 
     // --- удаление приложения (меню строки → «Удалить») ---
     // delta-store what <id> говорит, что это (программа Windows, flatpak,
@@ -123,6 +125,7 @@ Scope {
         Office: "Офис", Science: "Наука", Settings: "Настройки", System: "Система", Utility: "Стандартные"
     })
     function subtitle(e) {
+        if (e.kind) return e.sub || "";
         if (e.genericName && e.genericName !== e.name) return e.genericName;
         for (const c of e.categories || [])
             if (catNames[c]) return catNames[c];
@@ -140,10 +143,18 @@ Scope {
         return out;
     }
 
+    // Кроме приложений поиск находит разделы и строки «Настроек» и считает
+    // примеры. Такие строки — простые объекты с kind ("setting", "calc") и теми же
+    // полями, что у DesktopEntry (id, name, icon), чтобы список рисовал их так же.
     readonly property var results: {
         const q = query.trim();
         const u = usage;
         const scored = [];
+        const sum = Calc.evaluate(q);
+        if (sum !== null) {
+            const v = Calc.format(sum);
+            scored.push({ e: { kind: "calc", id: "calc", name: "= " + v, value: v, sub: I18n.tr("Enter — скопировать ответ"), sym: "calculator" }, s: 1000 });
+        }
         for (const e of apps) {
             const s = q.length === 0 ? 1 : Fuzzy.score(q, [
                 [e.name, 1.0], [e.genericName, 0.8], [e.keywords, 0.7],
@@ -154,8 +165,24 @@ Scope {
             const n = u[e.id] || 0;
             scored.push({ e, s: q.length === 0 ? n : s + Math.min(12, Math.log2(1 + n) * 3) });
         }
+        if (q.length >= 2) {
+            // настройки — ниже приложений: точное совпадение чуть уступает приложению,
+            // нечёткое («стим» → «система») уходит под любое найденное приложение
+            for (const r of Set.Registry.search(q, 5)) {
+                const sec = Set.Registry.byId(r.sec);
+                if (!sec || r.score < 30) continue;
+                const row = r.key ? Set.Registry.label(I18n.tr(r.key)) : "";
+                scored.push({ s: r.score >= 80 ? r.score * 0.85 : r.score * 0.85 - 30, e: {
+                    kind: "setting", id: "settings:" + r.sec + ":" + r.key, sec: r.sec, sym: sec.icon,
+                    name: row || sec.title,
+                    sub: I18n.tr("Настройки") + " › " + sec.title + (r.card && row ? " › " + Set.Registry.label(I18n.tr(r.card)) : "")
+                } });
+            }
+        }
         scored.sort((a, b) => b.s - a.s || a.e.name.localeCompare(b.e.name));
-        return scored.map(x => x.e);
+        // слабое рядом с сильным — шум (случайная подпоследовательность, опечатка)
+        const floor = q.length && scored.length && scored[0].s < 1000 ? Math.min(40, scored[0].s * (scored[0].s < 50 ? 0.7 : 0.45)) : 0;
+        return scored.filter(x => x.s >= floor).map(x => x.e);
     }
 
     readonly property var pinned: Settings.get("docks.apps.pinned", [])
@@ -168,6 +195,16 @@ Scope {
 
     function launch(e) {
         if (!e) return;
+        if (e.kind === "calc") {
+            Quickshell.clipboardText = e.value.replace(/ /g, "").replace("−", "-");
+            hide();
+            return;
+        }
+        if (e.kind === "setting") {
+            Quickshell.execDetached(["delta-settings", e.sec]);
+            hide();
+            return;
+        }
         const u = Object.assign({}, usage);
         u[e.id] = (u[e.id] || 0) + 1;
         usage = u;
@@ -296,7 +333,7 @@ Scope {
                     win.ctx = { entry: it.modelData, x: p.x, y: p.y };
                 }
             }
-            Typewriter { id: hint; full: I18n.tr("Поиск приложений") }
+            Typewriter { id: hint; full: I18n.tr("Поиск приложений и настроек") }
             Typewriter {
                 id: counter
                 sound: false
@@ -565,6 +602,7 @@ Scope {
                             required property var modelData
                             required property int index
                             readonly property bool isPinned: root.pinned.indexOf(modelData.id) !== -1
+                            readonly property bool isApp: !modelData.kind
 
                             width: list.width
                             height: 56
@@ -584,7 +622,7 @@ Scope {
                                 cursorShape: Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: m => {
-                                    if (m.button !== Qt.RightButton) { root.launch(row.modelData); return; }
+                                    if (m.button !== Qt.RightButton || !row.isApp) { root.launch(row.modelData); return; }
                                     const p = mapToItem(panel, m.x, m.y);
                                     win.ctx = { entry: row.modelData, x: p.x, y: p.y };
                                 }
@@ -598,12 +636,25 @@ Scope {
                                 Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
                             }
 
-                            IconImage {
+                            Item {
                                 id: icon
                                 anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                                implicitSize: 38
-                                asynchronous: true
-                                source: Quickshell.iconPath(row.modelData.icon, "application-x-executable")
+                                width: 38
+                                height: 38
+                                IconImage {
+                                    anchors.fill: parent
+                                    visible: row.isApp
+                                    asynchronous: true
+                                    source: row.isApp ? Quickshell.iconPath(row.modelData.icon, "application-x-executable") : ""
+                                }
+                                // настройка или ответ калькулятора — значок Delta на плашке
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: !row.isApp
+                                    radius: 11
+                                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+                                    Sym { anchors.centerIn: parent; name: row.modelData.sym || "settings"; size: 20; color: Theme.accent }
+                                }
                             }
 
                             Column {
@@ -629,7 +680,7 @@ Scope {
                                 width: pinLabel.implicitWidth + 20
                                 height: 26
                                 radius: 13
-                                visible: hover.hovered || row.isPinned || list.currentIndex === row.index
+                                visible: row.isApp && (hover.hovered || row.isPinned || list.currentIndex === row.index)
                                 color: row.isPinned ? Theme.fg : "transparent"
                                 border.width: row.isPinned ? 0 : 1
                                 border.color: Theme.line

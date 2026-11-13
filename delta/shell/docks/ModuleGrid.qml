@@ -156,14 +156,18 @@ Item {
 
     // --- появление островов: сначала средний, из него в стороны — остальные ---
     property bool sidesOut: true      // TopDock: средний остров уже на месте
-    property real sideT: sidesOut ? 1 : 0
-    Behavior on sideT {
-        NumberAnimation {
-            duration: (grid.sidesOut ? 640 : 180) * Theme.anim.k
-            easing.type: grid.sidesOut ? Easing.OutBack : Easing.InCubic
-            easing.overshoot: 0.7
-        }
+    property real sideT: 1
+    // не Behavior: тот берёт длительность и кривую ещё от прошлого sidesOut,
+    // и выход шёл быстрой InCubic, а уход — долгой пружиной
+    Component.onCompleted: sideT = sidesOut ? 1 : 0
+    onSidesOutChanged: {
+        sideAnim.stop();
+        sideAnim.to = sidesOut ? 1 : 0;
+        sideAnim.duration = (sidesOut ? 640 : 180) * Theme.anim.k;
+        sideAnim.easing.type = sidesOut ? Easing.OutBack : Easing.InCubic;
+        sideAnim.start();
     }
+    NumberAnimation { id: sideAnim; target: grid; property: "sideT"; easing.overshoot: 0.7 }
     // средний — ближайший к середине дока; с одним островом выходить неоткуда
     readonly property int midIsle: {
         const rects = tl.islands, c = tl.total / 2;
@@ -188,10 +192,36 @@ Item {
     function isleShift(p) {
         if (!isleIntro || sideT === 1) return 0;
         const k = isleAt(p);
-        if (k === -1 || k === midIsle) return 0;
+        // у капли модули проявляются уже на месте
+        if (k === -1 || k === midIsle || budSides.indexOf(k) !== -1) return 0;
         const m = tl.islands[midIsle], r = tl.islands[k];
         return (1 - sideT) * ((m.from + m.to) - (r.from + r.to)) / 2;
     }
+    // боковые выходят из среднего каплей (parts/shaders/bud.frag): пока идёт выход,
+    // их рисует шейдер, а свои Rectangle прячутся; ближайших берём четыре
+    readonly property bool budOn: isleIntro && (sideAnim.running || sideT < 1)
+    readonly property var budSides: {
+        if (!isleIntro) return [];
+        const m = tl.islands[midIsle], c = m.from + m.to;
+        const all = [];
+        for (let k = 0; k < tl.islands.length; k++) if (k !== midIsle) all.push(k);
+        all.sort((a, b) => Math.abs(tl.islands[a].from + tl.islands[a].to - c) - Math.abs(tl.islands[b].from + tl.islands[b].to - c));
+        return all.slice(0, 4);
+    }
+    // прямоугольник острова k в координатах сетки: круглая капля уходит из
+    // среднего на место острова (шейка тянется и рвётся), там растягивается в остров
+    function budRect(k) {
+        if (k === undefined) return Qt.vector4d(0, 0, 0, 0);
+        const r = tl.islands[k], len = r.to - r.from, m = tl.islands[midIsle];
+        const u = Math.min(1, sideT / 0.55), e = 1 - (1 - u) * (1 - u);
+        const c0 = (m.from + m.to) / 2, c1 = (r.from + r.to) / 2;
+        const a = islandAcross * (0.55 + 0.45 * u);
+        const along = Math.max(a, Math.min(len * 1.05, a + (len - a) * Math.max(0, (sideT - 0.55) / 0.45)));
+        const c = c0 + (c1 - c0) * e - along / 2 + budPad;
+        const o = (thick - a) / 2 + budPad;
+        return vertical ? Qt.vector4d(o, c, a, along) : Qt.vector4d(c, o, along, a);
+    }
+    readonly property real budPad: 24
     function isleAlpha(p, from) {
         if (!isleIntro || sideT >= 1 || !isSide(p)) return 1;
         return Math.max(0, Math.min(1, (sideT - from) / 0.3));
@@ -238,8 +268,9 @@ Item {
             // боковые выходят из-под среднего
             readonly property real along0: modelData.from
             readonly property real squeeze: grid.isleIntro && grid.isSide(along0) ? 0.35 + 0.65 * Math.min(1, grid.sideT) : 1
+            readonly property bool budded: grid.budOn && grid.budSides.indexOf(grid.isleAt(along0)) !== -1
             z: grid.isleIntro && !grid.isSide(along0) ? 0.5 : 0
-            opacity: grid.isleAlpha(along0, 0)
+            opacity: budded ? 0 : grid.isleAlpha(along0, 0)
             // остров вздрагивает вместе с модулями
             transform: [
                 Translate { x: grid.vertical ? 0 : grid.isleShift(isle.along0); y: grid.vertical ? grid.isleShift(isle.along0) : 0 },
@@ -260,12 +291,38 @@ Item {
             Behavior on height { NumberAnimation { duration: 320 * Theme.anim.k; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
         }
     }
+    ShaderEffect {
+        visible: grid.budOn
+        z: 0.25
+        x: -grid.budPad; y: -grid.budPad
+        width: grid.width + 2 * grid.budPad; height: grid.height + 2 * grid.budPad
+        readonly property size area: Qt.size(width, height)
+        readonly property vector4d mid: {
+            if (!grid.isleIntro) return Qt.vector4d(0, 0, 0, 0);
+            const r = grid.tl.islands[grid.midIsle], o = (grid.thick - grid.islandAcross) / 2 + grid.budPad;
+            return grid.vertical ? Qt.vector4d(o, r.from + grid.budPad, grid.islandAcross, r.to - r.from)
+                : Qt.vector4d(r.from + grid.budPad, o, r.to - r.from, grid.islandAcross);
+        }
+        readonly property vector4d s0: grid.budRect(grid.budSides[0])
+        readonly property vector4d s1: grid.budRect(grid.budSides[1])
+        readonly property vector4d s2: grid.budRect(grid.budSides[2])
+        readonly property vector4d s3: grid.budRect(grid.budSides[3])
+        // шейка рвётся к концу выхода: при k = 0 фигура — ровно острова
+        readonly property real k: grid.islandAcross * 1.5 * Math.max(0, 1 - grid.sideT / 0.5)
+        readonly property color c: DockService.topGlass
+        readonly property vector4d fill: Qt.vector4d(c.r, c.g, c.b, c.a)
+        readonly property color sc: Theme.liquid || Theme.acrylic ? "transparent" : Theme.line
+        readonly property vector4d stroke: Qt.vector4d(sc.r, sc.g, sc.b, sc.a)
+        readonly property real strokeW: 1
+        blending: true
+        fragmentShader: Qt.resolvedUrl("parts/shaders/bud.frag.qsb")
+    }
     // общий чип соседних маленьких значков
     Repeater {
         model: grid.tileLayout ? grid.tl.groups : []
         delegate: Rectangle {
             required property var modelData
-            opacity: grid.isleAlpha(modelData.from, 0.6)
+            opacity: grid.isleAlpha(modelData.from, 0.75)
             transform: Translate {
                 x: grid.vertical ? 0 : grid.isleShift(modelData.from)
                 y: grid.vertical ? grid.isleShift(modelData.from) : 0
@@ -357,7 +414,7 @@ Item {
             width: grid.vertical ? grid.thick : size
             height: grid.vertical ? size : grid.thick
             z: dragging || resizing ? 5 : 1
-            opacity: grid.isleAlpha(start, 0.6)
+            opacity: grid.isleAlpha(start, 0.75)
             transform: Translate {
                 x: grid.vertical ? 0 : grid.isleShift(slot.start)
                 y: grid.vertical ? grid.isleShift(slot.start) : 0

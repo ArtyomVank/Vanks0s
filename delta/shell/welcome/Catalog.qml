@@ -150,7 +150,10 @@ Singleton {
         { id: "resources", icon: "gauge", title: I18n.tr("Ресурсы"), on: false,
           text: I18n.tr("Загрузка процессора, видеокарты, памяти и диска, список процессов"),
           pkgs: ["resources"] }
-    ]
+    ].filter(a => a.id !== "obs" || !nvidia580)
+    // GTX 900/1000 с драйвером 580: OBS из Arch без H.264/H.265 на видеокарте
+    // (NVENC 13.1 требует драйвер 610+) — его ставят из Магазина, с Flathub
+    readonly property bool nvidia580: gpus.some(g => g.kind === "nvidia" && g.device >= 0x1340 && g.device < 0x1e00)
 
     readonly property var tabs: [
         { id: "libs", title: I18n.tr("Библиотеки"), icon: "layers", items: libs },
