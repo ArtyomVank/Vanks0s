@@ -107,14 +107,17 @@ ColumnLayout {
             title: I18n.tr("Анимация открытия")
             subtitle: root.ownCompositor ? I18n.tr("Сборка — окно собирается из осколков, изнутри — вырастает из капли, как кнопка «Начать»")
                                          : I18n.tr("Как окно появляется на экране")
-            Chips {
+            wide: true
+            PicChips {
+                kind: "open"
                 opacity: (root.w.animations ?? true) ? 1 : 0.45
                 visible: root.ownCompositor
                 model: [{ value: "assemble", label: I18n.tr("Сборка") }, { value: "inside", label: I18n.tr("Изнутри") }, { value: "popin", label: I18n.tr("Масштаб") }, { value: "slide", label: I18n.tr("Выезд") }, { value: "fade", label: I18n.tr("Плавно") }]
                 current: root.w.openAnim ?? "assemble"
                 onPicked: v => Settings.set("windows.openAnim", v)
             }
-            Chips {
+            PicChips {
+                kind: "open"
                 opacity: (root.w.animations ?? true) ? 1 : 0.45
                 visible: !root.ownCompositor
                 model: [{ value: "popin", label: I18n.tr("Сборка") }, { value: "slide", label: I18n.tr("Выезд") }, { value: "fade", label: I18n.tr("Плавно") }]
@@ -139,7 +142,10 @@ ColumnLayout {
             icon: "windows"
             title: I18n.tr("Анимация закрытия")
             subtitle: I18n.tr("Как окно исчезает с экрана")
-            Chips {
+            wide: true
+            PicChips {
+                kind: "close"
+                sameAs: root.w.openAnim ?? "assemble"
                 opacity: (root.w.animations ?? true) ? 1 : 0.45
                 model: [{ value: "same", label: I18n.tr("Как открытие") }, { value: "popin", label: I18n.tr("Масштаб") }, { value: "fade", label: I18n.tr("Плавно") }]
                 current: root.w.closeAnim ?? "same"
@@ -150,7 +156,9 @@ ColumnLayout {
             icon: "grid"
             title: I18n.tr("Анимация виджетов и настроек")
             subtitle: I18n.tr("Меню, карточки виджетов, окно приложений и «Настройки»")
-            Chips {
+            wide: true
+            PicChips {
+                kind: "panel"
                 model: [{ value: "auto", label: I18n.tr("По стилю") }, { value: "drop", label: I18n.tr("Капля") }, { value: "spring", label: I18n.tr("Пружина") }, { value: "fade", label: I18n.tr("Плавно") }]
                 current: (Settings.s.appearance || {}).panelAnim ?? "auto"
                 onPicked: v => Settings.set("appearance.panelAnim", v)
@@ -181,6 +189,12 @@ ColumnLayout {
                 current: root.w.jelly ?? 1
                 onPicked: v => Settings.set("windows.jelly", v)
             }
+        }
+        SettingRow {
+            icon: "grid"
+            title: I18n.tr("Подсказка при смене стола")
+            subtitle: I18n.tr("По центру на миг — номер стола и точки. Все столы с открытыми окнами — Super+Tab")
+            Toggle { checked: Settings.get("workspaces.indicator", true) !== false; onToggled: v => Settings.set("workspaces.indicator", v) }
         }
     }
 }

@@ -52,6 +52,15 @@ FloatingWindow {
     color: "transparent"
     onClosed: Qt.quit()
 
+    // ---------- окно ----------
+    // свернуть — как кнопкой Delta (джинн в док), развернуть — как Hyprland
+    property bool maxed: false
+    function minimizeWin() { Quickshell.execDetached(["delta-shell", "ipc", "call", "minimize", "active"]); }
+    function toggleMax() {
+        maxed = !maxed;
+        Quickshell.execDetached(["hyprctl", "dispatch", 'hl.dsp.window.fullscreen({ mode = "maximized" })']);
+    }
+
     // ---------- пути и типы ----------
     function baseName(p) { const s = p.replace(/\/+$/, ""); return s.slice(s.lastIndexOf("/") + 1) || "/"; }
     function parentOf(p) { const s = p.replace(/\/+$/, ""); const i = s.lastIndexOf("/"); return i <= 0 ? "/" : s.slice(0, i); }
@@ -266,7 +275,7 @@ FloatingWindow {
 
     Process {
         id: job
-        property string kind                 // extract · compress · paste · trash · plain
+        property string kind                 // extract · compress · paste · trash · restore · plain
         property var retry: null              // распаковка, которой нужен пароль
         property bool openAfter: false
         property string done: ""
@@ -286,12 +295,14 @@ FloatingWindow {
             if (code !== 0) {
                 Sounds.play("dialog-warning", 60);
                 win.say((k === "extract" ? I18n.tr("Не удалось распаковать") : k === "compress" ? I18n.tr("Не удалось сжать")
-                         : k === "trash" ? I18n.tr("Не удалось удалить") : I18n.tr("Не получилось")) + (job.err ? ": " + job.err : ""), true);
+                         : k === "trash" ? I18n.tr("Не удалось удалить") : k === "restore" ? I18n.tr("Не удалось восстановить")
+                         : I18n.tr("Не получилось")) + (job.err ? ": " + job.err : ""), true);
                 return;
             }
             if (job.openAfter && job.done) { Quickshell.execDetached(["xdg-open", job.done]); return; }
             if (k === "extract") { Sounds.play("oobe-select", 60); win.say(I18n.tr("Распаковано: ") + win.baseName(job.done)); if (!win.archive) win.pendingSelect = job.done; }
             else if (k === "compress") { Sounds.play("oobe-select", 60); win.say(I18n.tr("Архив готов: ") + win.baseName(job.done)); win.pendingSelect = job.done; }
+            else if (k === "restore") { Sounds.play("oobe-select", 60); win.say(I18n.tr("Восстановлено в ") + win.parentOf(job.done)); }
             rebuildTimer.restart();
         }
     }
@@ -328,6 +339,12 @@ FloatingWindow {
         if (!paths.length) return;
         Sounds.play("drop", 0);
         runJob("trash", I18n.tr("В корзину…"), ["gio", "trash", "--"].concat(paths));
+        clearSel();
+    }
+    // из корзины — туда, откуда удалили
+    function restoreFromTrash(paths) {
+        if (!paths.length) return;
+        runJob("restore", I18n.tr("Восстановление…"), ["delta-files", "--restore"].concat(paths));
         clearSel();
     }
     function paste() {
@@ -389,6 +406,8 @@ FloatingWindow {
             menu = { x: x, y: y, items: l };
             return;
         }
+        if (path === trashDir)
+            l.push({ text: I18n.tr("Восстановить"), icon: "undo", act: () => win.restoreFromTrash(win.selItems.map(s => s.path)) });
         if (!many) l.push({ text: I18n.tr("Открыть"), icon: it.dir ? "folder" : "file", act: () => win.open(it) });
         if (!many && kindOf(it) === "archive") {
             l.push({ text: I18n.tr("Распаковать сюда"), icon: "archive", act: () => win.extract(it.path, win.path, true) });
@@ -426,7 +445,10 @@ FloatingWindow {
                  act: () => { win.hidden = !win.hidden; } });
         l.push({ text: I18n.tr("Открыть в терминале"), icon: "terminal",
                  act: () => Quickshell.execDetached(["sh", "-c", "cd \"$1\" && exec xdg-terminal-exec", "sh", win.path]) });
-        if (path === trashDir) l.push({ text: I18n.tr("Очистить корзину"), icon: "trash", danger: true, act: () => win.ask({ kind: "empty" }) });
+        if (path === trashDir) {
+            l.push({ text: I18n.tr("Восстановить всё"), icon: "undo", act: () => win.restoreFromTrash(win.items.map(s => s.path)) });
+            l.push({ text: I18n.tr("Очистить корзину"), icon: "trash", danger: true, act: () => win.ask({ kind: "empty" }) });
+        }
         menu = { x: x, y: y, items: l };
     }
 
@@ -506,11 +528,24 @@ FloatingWindow {
                 Layout.fillHeight: true
                 spacing: 0
 
-                // панель: назад/вперёд/вверх, путь, поиск, вид
+                // панель: назад/вперёд/вверх, путь, поиск, вид, кнопки окна.
+                // Пустое место панели — заголовок: тащить окно, двойной щелчок —
+                // развернуть (Hyprland заголовков не рисует, кнопок Delta окнам
+                // самой Delta не даёт — WindowControls)
                 RowLayout {
+                    id: toolbar
                     Layout.fillWidth: true
                     Layout.margins: 12
                     spacing: 6
+                    MouseArea {
+                        parent: toolbar.parent
+                        x: 0; y: 0; z: -1
+                        width: toolbar.parent.width
+                        height: toolbar.height + 24
+                        acceptedButtons: Qt.LeftButton
+                        onPressed: mouse => { if (!(mouse.flags & Qt.MouseEventCreatedDoubleClick)) win.startSystemMove(); }
+                        onDoubleClicked: win.toggleMax()
+                    }
                     Btn { icon: "chevron-left"; kind: "ghost"; enabled: win.back.length > 0; onClicked: win.goBack() }
                     Btn { icon: "chevron-right"; kind: "ghost"; enabled: win.fwd.length > 0; onClicked: win.goFwd() }
                     Btn { icon: "chevron-up"; kind: "ghost"; enabled: win.archive !== "" || win.path !== "/"; onClicked: win.goUp() }
@@ -627,6 +662,10 @@ FloatingWindow {
                             ] };
                         }
                     }
+                    Rectangle { implicitWidth: 1; implicitHeight: 22; color: Theme.line; Layout.leftMargin: 4; Layout.rightMargin: 4 }
+                    Btn { icon: "minus"; kind: "ghost"; onClicked: win.minimizeWin() }
+                    Btn { icon: win.maxed ? "restore" : "maximize"; kind: "ghost"; onClicked: win.toggleMax() }
+                    Btn { icon: "close"; kind: "ghost"; onClicked: Qt.quit() }
                 }
 
                 // полоса архива: что открыто и «Распаковать»

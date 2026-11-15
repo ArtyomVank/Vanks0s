@@ -12,7 +12,7 @@ import qs.common.ui
 import "media.js" as Media
 
 // Обои на фоновом слое одного монитора. Без выбранного файла — градиент из
-// темы и акцента. Смена картинки — плавное перетекание.
+// темы и акцента. Смена картинки — новая проступает по пикселям (pixels.frag).
 //
 // Видеообои играет QtMultimedia (бэкенд FFmpeg сам берёт аппаратное
 // декодирование, если оно есть): по кругу, без звука. Пауза, когда на этом
@@ -70,9 +70,39 @@ PanelWindow {
     property string shownUrl: ""
     function showImage(url) {
         if (url === shownUrl) return;
+        const first = shownUrl === "";
         shownUrl = url;
-        if (frontIsA) { imgB.source = url; frontIsA = false; }
-        else          { imgA.source = url; frontIsA = true; }
+        revealAnim.complete();
+        const img = frontIsA ? imgB : imgA;
+        img.instant = first;    // первые обои после входа — сразу, их проявляет вход
+        img.reveal = 0;
+        img.source = url;
+        frontIsA = !frontIsA;
+        if (url === "") { imgA.reveal = 0; imgB.reveal = 0; }
+        else if (img.status === Image.Ready) startReveal(img);
+    }
+    // Новые обои проступают поверх старых квадратиками (pixels.frag);
+    // старые убираются, когда новые проявились целиком.
+    function startReveal(img) {
+        if (img.instant) {
+            img.reveal = 1;
+            (img === imgA ? imgB : imgA).reveal = 0;
+            return;
+        }
+        revealAnim.target = img;
+        revealAnim.restart();
+    }
+    NumberAnimation {
+        id: revealAnim
+        property: "reveal"
+        from: 0
+        to: 1
+        duration: 1300
+        easing.type: Easing.InOutSine
+        onFinished: {
+            const back = target === imgA ? imgB : imgA;
+            back.reveal = 0;
+        }
     }
 
     // --- кадр-заставка для видео (кэшируется, ffmpeg) ---
@@ -137,28 +167,57 @@ PanelWindow {
             }
         }
 
-        Image {
-            id: imgA
-            scale: root.zoom
+        // две картинки: передняя проступает поверх задней (root.startReveal)
+        // (своя стопка: z передней не поднимает её над видео и супер обоями)
+        Item {
             anchors.fill: parent
-            asynchronous: true
-            cache: false
-            fillMode: root.fill === "contain" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
-            sourceSize: Qt.size(root.width * root.devicePixelRatio, root.height * root.devicePixelRatio)
-            opacity: root.frontIsA && status === Image.Ready ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
-        }
+            Image {
+                id: imgA
+                property real reveal: 0
+                property bool instant: false
+                readonly property bool front: root.frontIsA
+                z: front ? 1 : 0
+                scale: root.zoom
+                anchors.fill: parent
+                asynchronous: true
+                cache: false
+                fillMode: root.fill === "contain" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
+                sourceSize: Qt.size(root.width * root.devicePixelRatio, root.height * root.devicePixelRatio)
+                visible: reveal > 0 && status === Image.Ready
+                onStatusChanged: if (status === Image.Ready && front && reveal === 0) root.startReveal(imgA)
+                // шейдер — только пока идёт смена, потом картинка рисуется как есть
+                layer.enabled: reveal > 0 && reveal < 1
+                layer.effect: ShaderEffect {
+                    property real progress: imgA.reveal
+                    property size area: Qt.size(imgA.width, imgA.height)
+                    property real cell: Math.max(8, Math.round(Math.min(imgA.width, imgA.height) / 54))
+                    fragmentShader: Qt.resolvedUrl("pixels.frag.qsb")
+                }
+            }
 
-        Image {
-            id: imgB
-            scale: root.zoom
-            anchors.fill: parent
-            asynchronous: true
-            cache: false
-            fillMode: imgA.fillMode
-            sourceSize: imgA.sourceSize
-            opacity: !root.frontIsA && status === Image.Ready ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.anim.slow; easing.type: Theme.anim.outCurve } }
+            Image {
+                id: imgB
+                property real reveal: 0
+                property bool instant: false
+                readonly property bool front: !root.frontIsA
+                z: front ? 1 : 0
+                scale: root.zoom
+                anchors.fill: parent
+                asynchronous: true
+                cache: false
+                fillMode: imgA.fillMode
+                sourceSize: imgA.sourceSize
+                visible: reveal > 0 && status === Image.Ready
+                onStatusChanged: if (status === Image.Ready && front && reveal === 0) root.startReveal(imgB)
+                // шейдер — только пока идёт смена, потом картинка рисуется как есть
+                layer.enabled: reveal > 0 && reveal < 1
+                layer.effect: ShaderEffect {
+                    property real progress: imgB.reveal
+                    property size area: Qt.size(imgB.width, imgB.height)
+                    property real cell: Math.max(8, Math.round(Math.min(imgB.width, imgB.height) / 54))
+                    fragmentShader: Qt.resolvedUrl("pixels.frag.qsb")
+                }
+            }
         }
 
         // --- видео ---

@@ -15,6 +15,10 @@
 #   delta-files --is-archive <файл>       код 0 — это архив, который мы откроем
 #   delta-files --paste copy|move <куда> <файл>…
 #                                         вставить; занятое имя — «имя (2)»
+#   delta-files --restore <файл в корзине>…
+#                                         вернуть из корзины туда, откуда удалили
+#                                         (папки создаются заново); занятое имя —
+#                                         «имя (2)», чужое не перезаписывается
 #   delta-files ipc …                     команда окну
 #
 # Архивы читает libarchive (bsdtar): zip, 7z, rar (и rar5), tar с gz/bz2/xz/zst/
@@ -224,6 +228,32 @@ paste() {
     return "${code}"
 }
 
+# --- из корзины: обратно по Path= из .trashinfo ---
+restore() {
+    local src name info orig t code=0
+    for src in "$@"; do
+        name=$(basename -- "${src}")
+        info="$(dirname -- "$(dirname -- "${src}")")/info/${name}.trashinfo"
+        [ -e "${src}" ] || [ -L "${src}" ] || continue
+        orig=$(sed -n 's/^Path=//p' "${info}" 2>/dev/null | head -1)
+        if [ -z "${orig}" ]; then
+            echo "Не знаю, откуда удалён ${name}" >&2; code=1; continue
+        fi
+        # Path= — в %XX; относительный — от корня тома корзины (для домашней — от /)
+        orig=$(printf '%b' "${orig//%/\\x}")
+        case "${orig}" in /*) ;; *) orig="/${orig}" ;; esac
+        mkdir -p -- "$(dirname -- "${orig}")" || { code=1; continue; }
+        t=$(free_name "${orig}")
+        if mv -- "${src}" "${t}"; then
+            rm -f -- "${info}"
+            printf '::done:: %s\n' "${t}"
+        else
+            code=1
+        fi
+    done
+    return "${code}"
+}
+
 case "${1:-}" in
     -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     ipc) shift; exec qs -p "${ENTRY}" ipc "$@" ;;
@@ -232,6 +262,7 @@ case "${1:-}" in
     --compress) [ $# -ge 5 ] || exit 2; compress "${@:2}" ;;
     --is-archive) is_archive "${2:-}" ;;
     --paste) [ $# -ge 4 ] && [ -d "$3" ] || exit 2; paste "${@:2}" ;;
+    --restore) [ $# -ge 2 ] || exit 2; restore "${@:2}" ;;
     --*) echo "delta-files: неизвестный ключ $1 (см. --help)" >&2; exit 2 ;;
     *)
         p=${1:-${HOME}}

@@ -241,6 +241,7 @@ hl.bind(mod .. " + S",       hl.dsp.global("delta:wallpapers"))
 hl.bind(mod .. " + N",       hl.dsp.global("delta:notifications"))
 hl.bind(mod .. " + W",       hl.dsp.global("delta:widgets"))
 hl.bind(mod .. " + I",       hl.dsp.global("delta:settings"))
+hl.bind(mod .. " + TAB",     hl.dsp.global("delta:workspaces"))
 hl.bind(mod .. " + L",       hl.dsp.global("delta:lock"))
 hl.bind(mod .. " + ESCAPE",  hl.dsp.global("delta:power"))
 

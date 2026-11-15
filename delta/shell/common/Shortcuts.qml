@@ -18,6 +18,7 @@ Scope {
     signal minimize()
     signal fullscreen()
     signal screenshot()
+    signal workspaces()
     signal volume(string action)
     signal brightness(string action)
 
@@ -35,6 +36,7 @@ Scope {
     Key { name: "minimize";        description: "Свернуть окно";          onPressed: root.minimize() }
     Key { name: "fullscreen";      description: "Развернуть окно";        onPressed: root.fullscreen() }
     Key { name: "screenshot";      description: "Снимок экрана";          onPressed: root.screenshot() }
+    Key { name: "workspaces";      description: "Рабочие столы";          onPressed: root.workspaces() }
     Key { name: "volume-up";       description: "Громче";                 onPressed: root.volume("up") }
     Key { name: "volume-down";     description: "Тише";                   onPressed: root.volume("down") }
     Key { name: "volume-mute";     description: "Выключить звук";         onPressed: root.volume("mute") }
