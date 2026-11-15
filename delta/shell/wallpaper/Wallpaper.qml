@@ -81,16 +81,37 @@ PanelWindow {
         if (url === "") { imgA.reveal = 0; imgB.reveal = 0; }
         else if (img.status === Image.Ready) startReveal(img);
     }
-    // Новые обои проступают поверх старых квадратиками (pixels.frag);
-    // старые убираются, когда новые проявились целиком.
+    // Новые обои проступают поверх старых квадратиками (pixels.frag) волной
+    // от курсора; старые убираются, когда новые проявились целиком.
     function startReveal(img) {
         if (img.instant) {
             img.reveal = 1;
             (img === imgA ? imgB : imgA).reveal = 0;
             return;
         }
+        revealFrom = Qt.point(0.5, 0.5);
+        cursorProc.running = false;
+        cursorProc.running = true;
         revealAnim.target = img;
         revealAnim.restart();
+    }
+    // откуда идёт волна, 0…1 на этом экране: где курсор (hyprctl есть и у
+    // композитора Delta), а если он на другом экране — середина. Ответ
+    // приходит за миллисекунды, пока квадратики ещё не пошли.
+    property point revealFrom: Qt.point(0.5, 0.5)
+    Process {
+        id: cursorProc
+        command: ["hyprctl", "cursorpos", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const s = root.screen;
+                try {
+                    const p = JSON.parse(text);
+                    const fx = (p.x - s.x) / s.width, fy = (p.y - s.y) / s.height;
+                    if (fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1) root.revealFrom = Qt.point(fx, fy);
+                } catch (e) {}
+            }
+        }
     }
     NumberAnimation {
         id: revealAnim
@@ -191,6 +212,7 @@ PanelWindow {
                     property real progress: imgA.reveal
                     property size area: Qt.size(imgA.width, imgA.height)
                     property real cell: Math.max(8, Math.round(Math.min(imgA.width, imgA.height) / 54))
+                    property point origin: root.revealFrom
                     fragmentShader: Qt.resolvedUrl("pixels.frag.qsb")
                 }
             }
@@ -215,6 +237,7 @@ PanelWindow {
                     property real progress: imgB.reveal
                     property size area: Qt.size(imgB.width, imgB.height)
                     property real cell: Math.max(8, Math.round(Math.min(imgB.width, imgB.height) / 54))
+                    property point origin: root.revealFrom
                     fragmentShader: Qt.resolvedUrl("pixels.frag.qsb")
                 }
             }

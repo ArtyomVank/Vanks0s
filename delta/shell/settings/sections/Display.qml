@@ -459,7 +459,7 @@ ColumnLayout {
             SettingRow {
                 icon: "sun"
                 title: I18n.tr("Яркость обычной картинки: ") + (page.cfg ? Math.round(page.cfg.sdrBrightness * 100) : 100) + " %"
-                subtitle: I18n.tr("Как выглядят окна и рабочий стол в режиме HDR")
+                subtitle: I18n.tr("Как выглядят окна и рабочий стол в режиме HDR. Выше 100 % — до перезагрузки: после входа снова 100 %")
                 wide: true
                 Slider {
                     from: 0.5; to: 3; step: 0.05

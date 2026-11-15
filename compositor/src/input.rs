@@ -129,6 +129,7 @@ fn binding(mods: &ModifiersState, sym: Keysym, modified: Keysym) -> Option<Actio
         Keysym::Escape => Some(Action::Global("delta:power")),
         Keysym::h | Keysym::H => Some(Action::Global("delta:minimize")),
         Keysym::f | Keysym::F => Some(Action::Global("delta:fullscreen")),
+        Keysym::Tab | Keysym::ISO_Left_Tab => Some(Action::Global("delta:workspaces")),
         _ => None,
     }
 }
@@ -522,5 +523,11 @@ mod tests {
         let mods = ModifiersState { ctrl: true, alt: true, shift: true, ..Default::default() };
         assert!(matches!(binding(&mods, Keysym::h, Keysym::H), Some(Action::HdrOff)));
         assert!(Action::HdrOff.allowed_when_locked());
+    }
+
+    #[test]
+    fn super_tab_opens_workspaces() {
+        let mods = ModifiersState { logo: true, ..Default::default() };
+        assert!(matches!(binding(&mods, Keysym::Tab, Keysym::Tab), Some(Action::Global("delta:workspaces"))));
     }
 }

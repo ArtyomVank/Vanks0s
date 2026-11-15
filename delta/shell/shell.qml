@@ -117,5 +117,7 @@ ShellRoot {
         // «Настройки» каплей из верхнего дока, как из модуля V: shell settings ""
         function settings(section: string): void { ShellState.openSettings(section, null); }
         function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
+        // живые обои — с начала (кнопка «Показать» в «Настройках» → «Обои»)
+        function wallpaperIntro(): void { SuperWalls.playIntro(); }
     }
 }

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import qs.common
 import qs.common.ui
@@ -22,6 +23,45 @@ ColumnLayout {
     readonly property var layouts: (i.layouts || ["us", "ru"]).filter(l => typeof l === "string")
     // все раскладки из xkb: [{ value, label, sub }]
     property var xkb: []
+
+    // сочетания — ровно те, что есть у текущего композитора: у своего
+    // (compositor/src/input.rs) и у Hyprland (hypr/hyprland.lua) они немного разные
+    readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
+    readonly property var shortcuts: {
+        const common = [
+            { k: ["Super"], t: "Окно приложений" },
+            { k: ["Super", "Tab"], t: "Все рабочие столы" },
+            { k: ["Super", "S"], t: "Выбор обоев" },
+            { k: ["Super", "N"], t: "Центр уведомлений" },
+            { k: ["Super", "W"], t: "Редактор виджетов" },
+            { k: ["Super", "I"], t: "Настройки" },
+            { k: ["Super", "L"], t: "Заблокировать экран" },
+            { k: ["Super", "Esc"], t: "Меню питания" },
+            { k: ["Super", "Enter"], t: "Терминал" },
+            { k: ["Super", "E"], t: "Файлы" },
+            { k: ["Super", "Q"], t: "Закрыть окно" },
+            { k: ["Super", "H"], t: "Свернуть окно" },
+            { k: ["Super", "F"], t: "Развернуть окно" },
+            { k: ["Super", "1…0"], t: "Рабочий стол 1–10" },
+            { k: ["Super", "Shift", "1…0"], t: "Перенести окно на стол" },
+            { k: ["Print"], t: "Снимок экрана" }
+        ];
+        const own = [
+            { k: ["Super", "Shift", "E"], t: "Выйти из сеанса" },
+            { k: ["Ctrl", "Alt", "Shift", "H"], t: "Выключить HDR, если экран погас" },
+            { k: ["Ctrl", "Alt", "Backspace"], t: "Аварийный выход из сеанса" },
+            { k: ["Ctrl", "Alt", "F1…F12"], t: "Текстовая консоль" }
+        ];
+        const hypr = [
+            { k: ["Super", "V"], t: "Плавающее окно" },
+            { k: ["Super", "J"], t: "Повернуть разделение окон" },
+            { k: ["Super", "←↑→↓"], t: "Перейти к соседнему окну" },
+            { k: ["Super", "Колесо"], t: "Следующий или прошлый стол" },
+            { k: ["Super", "ЛКМ"], t: "Перетащить окно" },
+            { k: ["Super", "ПКМ"], t: "Изменить размер окна" }
+        ];
+        return common.concat(ownCompositor ? own : hypr);
+    }
 
     // xkb даёт английские названия — частые переводим
     readonly property var ruNames: ({
@@ -135,28 +175,11 @@ ColumnLayout {
         title: I18n.tr("Сочетания Delta")
         Rows {
             Repeater {
-                model: [
-                    { k: ["Super"], t: "Окно приложений" },
-                    { k: ["Super", "S"], t: "Выбор обоев" },
-                    { k: ["Super", "N"], t: "Центр уведомлений" },
-                    { k: ["Super", "W"], t: "Редактор виджетов" },
-                    { k: ["Super", "I"], t: "Настройки" },
-                    { k: ["Super", "L"], t: "Заблокировать экран" },
-                    { k: ["Super", "Esc"], t: "Меню питания" },
-                    { k: ["Super", "Enter"], t: "Терминал" },
-                    { k: ["Super", "E"], t: "Файлы" },
-                    { k: ["Super", "Q"], t: "Закрыть окно" },
-                    { k: ["Super", "H"], t: "Свернуть окно" },
-                    { k: ["Super", "F"], t: "Во весь экран" },
-                    { k: ["Super", "V"], t: "Плавающее окно" },
-                    { k: ["Super", "1…0"], t: "Рабочий стол 1–10" },
-                    { k: ["Super", "Shift", "1…0"], t: "Перенести окно на стол" },
-                    { k: ["Print"], t: "Снимок экрана" }
-                ]
+                model: root.shortcuts
                 delegate: SettingRow {
                     id: krow
                     required property var modelData
-                    title: modelData.t
+                    title: I18n.tr(modelData.t)
                     KeyCaps { keys: krow.modelData.k }
                 }
             }

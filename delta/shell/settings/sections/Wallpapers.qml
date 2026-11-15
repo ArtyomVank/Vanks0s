@@ -23,6 +23,14 @@ ColumnLayout {
     readonly property string current: Settings.get("wallpaper.path", "")
     Component.onCompleted: WallStore.scan()
 
+    // «Настройки» — отдельный процесс: SuperWalls.playIntro() здесь оживил бы
+    // обои только у себя, а не на столе. Живые обои с начала — у оболочки.
+    function playIntro() { Quickshell.execDetached(["delta-shell", "ipc", "call", "shell", "wallpaperIntro"]); }
+    function apply(w) {
+        SuperWalls.apply(w);
+        if (w.kind === "flow") playIntro();
+    }
+
     // выбор папки через zenity (если есть)
     Process {
         id: chooser
@@ -109,7 +117,13 @@ ColumnLayout {
             }
         }
         HoverHandler { cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: SuperWalls.apply(tile.wall) }
+        TapHandler {
+            // как root.apply: встроенный компонент не видит id раздела
+            onTapped: {
+                SuperWalls.apply(tile.wall);
+                if (tile.wall.kind === "flow") Quickshell.execDetached(["delta-shell", "ipc", "call", "shell", "wallpaperIntro"]);
+            }
+        }
     }
 
     // свои супер обои: окна выбора файлов и ffmpeg — в delta-superwall
@@ -123,7 +137,7 @@ ColumnLayout {
             root.creating = "";
             root.createError = code === 0 || code === 3 ? "" : (createdErr.text.trim() || I18n.tr("Не получилось"));
             if (code !== 0) return;
-            try { SuperWalls.apply(JSON.parse(created.text)); } catch (e) {}
+            try { root.apply(JSON.parse(created.text)); } catch (e) {}
             SuperWalls.reload();
         }
     }
@@ -232,7 +246,7 @@ ColumnLayout {
             visible: SuperWalls.current !== null && SuperWalls.current.kind === "flow"
             icon: "refresh"
             title: I18n.tr("Показать ещё раз")
-            Btn { text: I18n.tr("Показать"); kind: "soft"; onClicked: SuperWalls.playIntro() }
+            Btn { text: I18n.tr("Показать"); kind: "soft"; onClicked: root.playIntro() }
         }
     }
 

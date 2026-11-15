@@ -23,7 +23,9 @@ import qs.display.parts
 // Монитор в HDR (свой композитор) — яркость обычной картинки (sdrBrightness):
 // на ПК это работает и там, где DDC нет, а в HDR монитор его часто не слушает.
 // Меняется на лету (hyprctl dispatch sdrbrightness), а через пару секунд
-// после последнего движения записывается в настройки монитора.
+// после последнего движения записывается в настройки монитора. Полный
+// ползунок — 100 %, как обычный экран; ярче — только в «Дисплее» и до
+// перезагрузки: после входа HDR снова начинается со 100 %.
 //
 // Во вложенной сессии, с моком мониторов и в пробном режиме яркость не
 // меняется по-настоящему — только значение в интерфейсе (и строка в журнале).
@@ -69,12 +71,15 @@ Singleton {
         else ddcTimer.restart();
     }
 
-    // ползунок 0..1 ↔ яркость обычной картинки 0.25..2.5 (×1 — 60 %), по
-    // логарифму: глаз так и видит
-    function hdrToValue(b) { return Math.max(0, Math.min(1, Math.log(Math.max(b, 0.25) / 0.25) / Math.LN10)); }
-    function valueToHdr(v) { return Math.round(0.25 * Math.pow(10, v) * 100) / 100; }
+    // ползунок 0..1 ↔ яркость обычной картинки 0.25..1 (полный — 100 %), по
+    // логарифму: глаз так и видит. Раньше полный был ×2.5, и почти полный
+    // ползунок давал 201 % — экран при этом ярче не становился.
+    function hdrToValue(b) { return Math.max(0, Math.min(1, Math.log(Math.max(b, 0.25) / 0.25) / Math.log(4))); }
+    function valueToHdr(v) { return Math.round(0.25 * Math.pow(4, v) * 100) / 100; }
     readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
     property var hdrTouched: ({})
+    // после входа ярче 100 % не начинаем: сбрасывается один раз на монитор
+    property var hdrReset: ({})
     function syncHdr() {
         if (!ownCompositor || Displays.mock) return;
         const next = Object.assign({}, devices);
@@ -88,7 +93,12 @@ Singleton {
             if (d && d.kind === "backlight") continue;
             // пока ползунок двигают, Displays отстаёт — его значение не берём
             if (d && d.kind === "hdr" && (d.dirty || Date.now() - (hdrTouched[m.name] || 0) < 2500)) continue;
-            next[m.name] = { kind: "hdr", id: m.name, max: 100, value: hdrToValue(m.sdrBrightness), dirty: false };
+            let b = m.sdrBrightness;
+            const reset = !hdrReset[m.name] && b > 1.001 && !Displays.mock && !Displays.dryRun;
+            hdrReset[m.name] = true;
+            if (reset) { b = 1; hdrTouched[m.name] = Date.now(); }
+            next[m.name] = { kind: "hdr", id: m.name, max: 100, value: hdrToValue(b), dirty: reset };
+            if (reset) { hdrTimer.restart(); hdrSave.restart(); }
         }
         devices = next;
         // HDR выключили — монитор снова может отвечать по DDC
