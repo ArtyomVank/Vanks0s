@@ -31,8 +31,9 @@
 #                                меню GRUB скрыто (Shift или Esc при включении —
 #                                показать), без текста ядра; off — как было
 #
-# --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
-# рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
+# --aur — то, чего нет в Arch: драйвер NVIDIA 580 для GTX 900/1000 и Google
+# Chrome. Рецепт берётся с aur.archlinux.org, собирается от nobody и ставится
+# pacman -U; ставить можно только рецепты из AUR_PKGS.
 #
 # install печатает для помощника строки-метки, остальное — вывод pacman:
 #   ::step:: <текст>   начался этап
@@ -53,6 +54,7 @@ REBOOT_PKGS=(linux-zen nvidia-open-dkms nvidia-utils nvidia-580xx-dkms mesa vulk
 declare -A AUR_PKGS=(
     [nvidia-580xx-utils]="nvidia-580xx-utils nvidia-580xx-dkms"
     [lib32-nvidia-580xx-utils]="lib32-nvidia-580xx-utils"
+    [google-chrome]="google-chrome"
 )
 
 say()  { printf '%s\n' "$*" 2>/dev/null || true; [ -w "${LOG}" ] && printf '%s\n' "$*" >>"${LOG}"; return 0; }
@@ -229,8 +231,11 @@ cmd_install() {
         fi
     done
     [ $((${#pkgs[@]} + ${#aur[@]})) -gt 0 ] || die "не выбрано, что ставить"
-    # сборке из AUR нужны makepkg и dkms
-    [ "${#aur[@]}" -gt 0 ] && pkgs+=(base-devel dkms)
+    # сборке из AUR нужен makepkg, драйверу NVIDIA ещё и dkms
+    local nv_aur=0
+    printf '%s\n' "${aur[@]}" | grep -q '^\(lib32-\)\?nvidia-' && nv_aur=1
+    [ "${#aur[@]}" -gt 0 ] && pkgs+=(base-devel)
+    [ "${nv_aur}" = 1 ] && pkgs+=(dkms)
     set -- "${pkgs[@]}"
     # окно закрыли — установку не прерываем (pacman, убитый посреди
     # транзакции, оставил бы систему наполовину обновлённой)
@@ -254,7 +259,7 @@ cmd_install() {
     [ "${#aur[@]}" -gt 0 ] && aur_install "${aur[@]}"
 
     if printf '%s\n' "$@" | grep -qx linux-zen; then grub_prefer_zen; fi
-    if [ "${#aur[@]}" -gt 0 ] || printf '%s\n' "$@" | grep -qx nvidia-open-dkms; then nvidia_initramfs; fi
+    if [ "${nv_aur}" = 1 ] || printf '%s\n' "$@" | grep -qx nvidia-open-dkms; then nvidia_initramfs; fi
     if printf '%s\n' "$@" | grep -qx flatpak; then
         step "Подключаю Flathub"
         run flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \

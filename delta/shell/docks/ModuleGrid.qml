@@ -41,7 +41,9 @@ Item {
     // в плитках клетка маленькая и фиксированная: модули «сжимаются»,
     // а не растягиваются на пол-экрана, как в полном доке
     readonly property real tileCell: 54
-    readonly property real cw: tiles ? tileCell : compact ? 46 : (fullAlong - 2 * pad) / cells
+    // компактный док в правке раскрывается во всю ширину: в клетках по 46 px
+    // модули (часы, рабочие столы) не помещались и док будто сворачивался
+    readonly property real cw: tiles ? tileCell : compact && !editing ? 46 : (fullAlong - 2 * pad) / cells
     // ширина компактного и плиточного вида (Настройки → Доки → Ширина)
     readonly property real wk: DockService.topWidth
 

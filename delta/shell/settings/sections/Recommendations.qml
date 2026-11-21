@@ -18,7 +18,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Рекомендации")
     property string icon: "gamepad"
-    property string keywords: "максимальная производительность процессор частота режим добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chromium игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс фпс fps кадры cs2 разрывы tearing"
+    property string keywords: "максимальная производительность процессор частота режим добро пожаловать помощник драйверы видеокарта nvidia amd intel vulkan steam chrome хром браузер игры библиотеки магазин приложения exe windows wine proton cachyos лаунчер flatpak flathub bazaar pacman box префикс фпс fps кадры cs2 разрывы tearing"
     spacing: 18
 
     // .exe: запомненные «всегда обычно» и «всегда через лаунчер»
@@ -155,7 +155,7 @@ ColumnLayout {
             SettingRow {
                 icon: "apps"
                 title: I18n.tr("Приложения")
-                subtitle: I18n.tr("Steam, Chromium, Discord и магазин приложений")
+                subtitle: I18n.tr("Steam, Google Chrome, Discord и магазин приложений")
                 Btn { text: I18n.tr("Открыть"); onClicked: root.openWelcome("apps") }
             }
         }

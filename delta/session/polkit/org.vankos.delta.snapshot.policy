@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Delta: снимки системы из «Настроек» (pkexec delta-snapshot create / rollback / delete). -->
+<policyconfig>
+  <vendor>Vanks OS</vendor>
+  <action id="org.vankos.delta.snapshot">
+    <description>Manage system snapshots</description>
+    <description xml:lang="ru">Снимки системы</description>
+    <message>Authentication is required to save or restore a system snapshot</message>
+    <message xml:lang="ru">Чтобы сохранить снимок системы или вернуться к нему, нужен пароль администратора.</message>
+    <icon_name>system-software-update</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/delta-snapshot</annotate>
+  </action>
+</policyconfig>

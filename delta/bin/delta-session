@@ -112,6 +112,15 @@ if [ ! -s "${CFG}/settings.json" ]; then
     printf '{ "version": 1 }\n' > "${CFG}/settings.json"
 fi
 
+# Delta Play: оверлей в игре рисует MangoHud (FPS видит только слой Vulkan
+# внутри игры). Он загружается во все программы на Vulkan этой сессии, а
+# что показывать, пишет оболочка в mangohud.conf (play/PlayHud.qml) — пока
+# оверлей выключен, там no_display. Нет MangoHud — оверлей рисует сама Delta.
+if compgen -G '/usr/share/vulkan/implicit_layer.d/[Mm]ango[Hh]ud*.json' >/dev/null; then
+    export MANGOHUD=1 MANGOHUD_CONFIGFILE="${CFG}/mangohud.conf"
+    [ -e "${MANGOHUD_CONFIGFILE}" ] || printf 'no_display\n' > "${MANGOHUD_CONFIGFILE}"
+fi
+
 # Плохие настройки не должны мешать входу: delta-apply сам оставляет
 # прежний generated.lua, если новый не прошёл проверку.
 delta-apply --no-reload || true

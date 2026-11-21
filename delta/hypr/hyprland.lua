@@ -242,6 +242,8 @@ hl.bind(mod .. " + N",       hl.dsp.global("delta:notifications"))
 hl.bind(mod .. " + W",       hl.dsp.global("delta:widgets"))
 hl.bind(mod .. " + I",       hl.dsp.global("delta:settings"))
 hl.bind(mod .. " + TAB",     hl.dsp.global("delta:workspaces"))
+-- Delta Play: игровая панель поверх игры
+hl.bind(mod .. " + G",       hl.dsp.global("delta:play"))
 hl.bind(mod .. " + L",       hl.dsp.global("delta:lock"))
 hl.bind(mod .. " + ESCAPE",  hl.dsp.global("delta:power"))
 
@@ -346,6 +348,13 @@ hl.window_rule({
     match = { class = "^delta-video$" },
     float = true,
     size  = "1100 660",
+    center = true,
+})
+hl.window_rule({
+    name  = "delta-play",
+    match = { class = "^delta-play$" },
+    float = true,
+    size  = "1120 740",
     center = true,
 })
 hl.window_rule({

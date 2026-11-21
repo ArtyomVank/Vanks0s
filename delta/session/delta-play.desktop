@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Delta Play
+Comment=All your games in one place: Steam, Epic, Windows and Linux
+Comment[ru]=Все игры в одном месте: Steam, Epic, Windows и Linux
+Exec=delta-play
+Icon=input-gaming
+Terminal=false
+Categories=Game;
+Keywords=games;steam;epic;proton;library;игры;библиотека;
+StartupWMClass=delta-play

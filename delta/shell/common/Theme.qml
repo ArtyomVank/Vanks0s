@@ -121,17 +121,24 @@ Singleton {
     //   acrylic — «Акрил»: сверху острова с чипами (док в режиме «Плитки»),
     //             круглые кнопки, толстые ползунки-капсулы, цифры
     //             моноширинным шрифтом.
+    //   layers  — «Слои» (Delta 2): сверху одна пилюля по центру, панель
+    //             управления — лист во всю высоту справа (docks/ControlSheet),
+    //             рабочий стол под ним уходит назад: темнеет и размывается.
     // theme — тема, которая подходит стилю: ставится, только если сейчас
     // стоит «своя» тема другого стиля (Delta ↔ акриловое стекло), остальные
     // темы (жидкое стекло, Nothing…) стиль не трогает.
     readonly property var uiStyles: [
         { id: "delta",   name: "Delta", note: "Полоса сверху, плитки с подписями", theme: "delta", top: "full" },
-        { id: "acrylic", name: "Акрил", note: "Острова сверху, круглые кнопки, моноширинные цифры", theme: "acrylic", top: "tiles" }
+        { id: "acrylic", name: "Акрил", note: "Острова сверху, круглые кнопки, моноширинные цифры", theme: "acrylic", top: "tiles" },
+        { id: "layers",  name: "Слои", note: "Пилюля сверху, панель управления листом справа", theme: "delta", top: "compact" }
     ]
     // до 1.8 «Акрил» был темой: у кого он выбран, тому и стиль «Акрил»
     readonly property string ui: uiStyles.some(x => x.id === appearance.ui) ? appearance.ui
         : appearance.style === "acrylic" ? "acrylic" : "delta"
     readonly property bool round: ui === "acrylic"
+    readonly property bool layers: ui === "layers"
+    // меню, которое в этом стиле открывается листом справа, а не каплей из дока
+    function sheetMenu(id) { return layers && id === "power"; }
     function applyUi(id) {
         const u = uiStyles.find(x => x.id === id);
         if (!u) return;

@@ -130,6 +130,7 @@ fn binding(mods: &ModifiersState, sym: Keysym, modified: Keysym) -> Option<Actio
         Keysym::h | Keysym::H => Some(Action::Global("delta:minimize")),
         Keysym::f | Keysym::F => Some(Action::Global("delta:fullscreen")),
         Keysym::Tab | Keysym::ISO_Left_Tab => Some(Action::Global("delta:workspaces")),
+        Keysym::g | Keysym::G => Some(Action::Global("delta:play")),
         _ => None,
     }
 }
@@ -529,5 +530,11 @@ mod tests {
     fn super_tab_opens_workspaces() {
         let mods = ModifiersState { logo: true, ..Default::default() };
         assert!(matches!(binding(&mods, Keysym::Tab, Keysym::Tab), Some(Action::Global("delta:workspaces"))));
+    }
+
+    #[test]
+    fn super_g_opens_game_bar() {
+        let mods = ModifiersState { logo: true, ..Default::default() };
+        assert!(matches!(binding(&mods, Keysym::g, Keysym::g), Some(Action::Global("delta:play"))));
     }
 }

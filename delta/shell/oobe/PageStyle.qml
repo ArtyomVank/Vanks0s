@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import qs.common
 import qs.common.ui
 
-// Шаг 3: стиль интерфейса (Theme.uiStyles: Delta, «Акрил») и тема — материал
+// Шаг 3: стиль интерфейса (Theme.uiStyles: Delta, «Акрил», «Слои») и тема — материал
 // панелей (Theme.styles: Delta, акриловое и жидкое стекло, GNOME…).
 // Применяется сразу; поменять можно в «Настройки → Стили и темы».
 Page {

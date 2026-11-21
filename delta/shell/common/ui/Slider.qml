@@ -4,7 +4,7 @@ import qs.common
 
 // Ползунок. `moved` приходит при перетаскивании (живое значение),
 // `released` — когда отпустили (для дорогих действий: запись, применение).
-// В стиле «Акрил» (Theme.round) — толстая капсула: значок внутри, у края
+// В стилях «Акрил» и «Слои» — толстая капсула: значок внутри, у края
 // заливки — риска вместо ручки. У акрилового стекла заливка светится.
 //     Slider { from: 0; to: 1; value: vol; icon: "volume"; onMoved: v => sink.volume = v }
 Item {
@@ -20,7 +20,7 @@ Item {
     signal released(real value)
 
     implicitWidth: 220
-    readonly property bool capsule: Theme.round
+    readonly property bool capsule: Theme.round || Theme.layers
     implicitHeight: capsule ? 34 : 30
     opacity: enabled ? 1 : 0.45
 

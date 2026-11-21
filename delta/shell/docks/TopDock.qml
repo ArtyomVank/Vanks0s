@@ -52,7 +52,8 @@ PanelWindow {
     readonly property int zone: cfg.autohide !== true && !smart && length !== "compact" ? Math.round(margin + barThick) : 0
     readonly property bool shown: island.isOpen && !island.hidden
 
-    readonly property bool menuHere: ShellState.menu !== "" && ShellState.menuScreen === screen
+    // меню-лист («Слои») открывается не из дока — док под него не меняется
+    readonly property bool menuHere: ShellState.menu !== "" && ShellState.menuScreen === screen && !Theme.sheetMenu(ShellState.menu)
     readonly property bool hovered: island.hovered || hot.containsMouse || hint.containsMouse
     readonly property bool want: Settings.ready && ShellState.desktopShown && !ShellState.widgetEditing && (!autohide || hovered || hold.running || menuHere
                                  || ShellState.docksForced || ShellState.dockEditing || DockService.peek

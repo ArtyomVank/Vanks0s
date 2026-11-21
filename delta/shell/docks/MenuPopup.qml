@@ -11,7 +11,7 @@ PopupLayer {
     id: pop
 
     property var topDock: null
-    readonly property bool wanted: ShellState.menu !== "" && ShellState.menuScreen === screen
+    readonly property bool wanted: ShellState.menu !== "" && ShellState.menuScreen === screen && !Theme.sheetMenu(ShellState.menu)
     // id держится и во время анимации закрытия
     property string menuId: ""
     property string loadedId: ""

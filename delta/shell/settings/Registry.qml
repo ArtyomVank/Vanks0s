@@ -27,6 +27,7 @@ Singleton {
         { id: "about",         file: "About",         group: "system",    title: I18n.tr("О системе"),                icon: "info",      keywords: "система версия процессор видеокарта память диск имя компьютера ядро" },
         { id: "network",       file: "Network",       group: "devices",   title: I18n.tr("Сеть"),                     icon: "wifi",      keywords: "wi-fi wifi интернет ethernet vpn прокси" },
         { id: "bluetooth",     file: "Bluetooth",     group: "devices",   title: "Bluetooth",                icon: "bluetooth", keywords: "блютуз устройства наушники сопряжение" },
+        { id: "link",          file: "Link",          group: "devices",   title: "Delta Link",               icon: "phone",     keywords: "телефон android смартфон vanks launcher уведомления звонки буфер обмена файлы" },
         { id: "keyboard",      file: "Keyboard",      group: "devices",   title: I18n.tr("Клавиатура"),               icon: "keyboard",  keywords: "раскладка язык переключение повтор сочетания горячие клавиши" },
         { id: "mouse",         file: "Mouse",         group: "devices",   title: I18n.tr("Мышь и тачпад"),            icon: "mouse",     keywords: "чувствительность скорость прокрутка тап касание" },
         { id: "styles",        file: "Styles",        group: "look",      title: I18n.tr("Стили и темы"),             icon: "swatch",    keywords: "стиль тема акрил delta жидкое стекло material you gnome nothing тёмная светлая своя тема" },
@@ -38,6 +39,7 @@ Singleton {
         { id: "windows",       file: "Windows",       group: "look",      title: I18n.tr("Окна"),                     icon: "windows",   keywords: "отступы рамка скругление размытие анимации желе" },
         { id: "defaultapps",   file: "DefaultApps",   group: "apps",      title: I18n.tr("Приложения по умолчанию"),  icon: "apps",      keywords: "браузер почта файлы терминал изображения видео музыка текст mime" },
         { id: "autostart",     file: "Autostart",     group: "apps",      title: I18n.tr("Автозапуск"),               icon: "rocket",    keywords: "запуск при входе программы" },
+        { id: "play",          file: "Play",          group: "apps",      title: "Delta Play",               icon: "gamepad",   keywords: "игры игровой режим steam epic proton не беспокоить производительность панель super+g библиотека" },
         { id: "notifications", file: "Notifications", group: "apps",      title: I18n.tr("Уведомления"),              icon: "bell",      keywords: "не беспокоить приложения экран блокировки" },
         { id: "recommendations", file: "Recommendations", group: "apps",      title: I18n.tr("Рекомендации"),             icon: "gamepad",   keywords: "добро пожаловать помощник драйверы видеокарта nvidia amd vulkan steam игры библиотеки магазин приложения" },
         { id: "profile",       file: "Profile",       group: "accounts",  title: I18n.tr("Профиль"),                  icon: "user",      keywords: "имя аватар фото пароль автовход" },
@@ -65,7 +67,8 @@ Singleton {
         wifi: "network", mouse: "mouse", touchpad: "mouse", input: "keyboard",
         account: "profile", time: "datetime", date: "datetime", locale: "language",
         apps: "defaultapps", system: "about", update: "updates",
-        welcome: "recommendations", drivers: "recommendations", games: "recommendations"
+        welcome: "recommendations", drivers: "recommendations", games: "play", game: "play",
+        phone: "link", "delta-link": "link"
     })
 
     // { "Display": true, … } — какие файлы разделов есть на диске

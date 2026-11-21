@@ -21,6 +21,7 @@ Rectangle {
         : Theme.uiStyles.some(x => x.theme === Theme.style) ? info.theme : Theme.style
     // раскладка «Акрила»: три острова сверху, круглые кнопки
     readonly property bool islands: (isUi ? styleId : Theme.ui) === "acrylic"
+    readonly property bool layers: (isUi ? styleId : Theme.ui) === "layers"
     readonly property bool flat: mat === "gnome"
     readonly property bool liquid: mat === "liquid"
     readonly property bool material: mat === "material"
@@ -102,20 +103,61 @@ Rectangle {
                 Rectangle { anchors.verticalCenter: parent.verticalCenter; x: 3; width: 5; height: 5; radius: 2.5; color: Theme.accent }
             }
         }
-        // верхняя панель: у GNOME — сплошная чёрная полоса во всю ширину
+        // верхняя панель: у GNOME — сплошная чёрная полоса во всю ширину,
+        // у «Слоёв» — пилюля по центру
         Rectangle {
             visible: !root.islands
             z: 2
-            x: root.flat ? 0 : 6; y: root.flat ? 0 : 5
-            width: parent.width - 2 * x; height: root.flat ? 11 : 10
+            x: root.layers ? parent.width * 0.27 : root.flat ? 0 : 6; y: root.flat ? 0 : 5
+            width: root.layers ? parent.width * 0.4 : parent.width - 2 * x; height: root.flat ? 11 : 10
             radius: root.flat ? 0 : height / 2
             color: root.flat ? "#000000" : root.panel
             Sheen { radius: parent.radius; liquid: root.liquid; acrylic: root.acrylic }
         }
+        // «Слои»: окно позади уходит в глубину, справа — лист панели управления
+        Rectangle {
+            visible: root.layers
+            z: 2
+            x: parent.width * 0.06; y: 30
+            width: parent.width * 0.5; height: 46
+            radius: root.r
+            color: root.panel
+            opacity: 0.55
+            scale: 0.92
+        }
+        Rectangle {
+            visible: root.layers
+            z: 3
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; margins: 4 }
+            width: parent.width * 0.3
+            radius: 8
+            color: root.panel
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.14)
+            Sheen { radius: parent.radius; liquid: root.liquid; acrylic: root.acrylic }
+            Grid {
+                x: 6; y: 8
+                columns: 2
+                spacing: 4
+                Repeater {
+                    model: 4
+                    delegate: Rectangle {
+                        required property int index
+                        width: (sheetBox.width - 16) / 2; height: 12; radius: 4
+                        color: index === 0 || index === 3 ? Theme.accent : Qt.rgba(1, 1, 1, 0.16)
+                    }
+                }
+            }
+            Item { id: sheetBox; anchors.fill: parent }
+            Rectangle { x: 6; y: 42; width: parent.width - 12; height: 6; radius: 3; color: Qt.rgba(1, 1, 1, 0.16)
+                Rectangle { width: parent.width * 0.7; height: parent.height; radius: 3; color: Theme.fg; opacity: 0.8 } }
+            Rectangle { x: 6; y: 52; width: parent.width - 12; height: 6; radius: 3; color: Qt.rgba(1, 1, 1, 0.16)
+                Rectangle { width: parent.width * 0.45; height: parent.height; radius: 3; color: Theme.fg; opacity: 0.8 } }
+        }
         // окно
         Rectangle {
-            x: parent.width * 0.2; y: 24
-            width: parent.width * 0.6; height: 54
+            x: parent.width * (root.layers ? 0.12 : 0.2); y: root.layers ? 34 : 24
+            width: parent.width * (root.layers ? 0.5 : 0.6); height: 54
             radius: root.r
             z: 2
             color: root.flat ? (Theme.light ? "#FFFFFF" : "#303034") : root.panel

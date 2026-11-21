@@ -21,6 +21,9 @@
 # apply печатает для «Настроек» строки-метки, остальное — вывод pacman:
 #   ::step:: <текст>   начался этап
 #   ::reboot::         обновились ядро, драйвер или Hyprland — нужна перезагрузка
+#
+# Перед установкой сохраняется снимок системы (delta-snapshot): к нему можно
+# откатиться из «Настроек» или командой sudo delta-snapshot rollback ID.
 set -u
 export LC_ALL=C
 
@@ -170,6 +173,13 @@ cmd_apply() {
     local before after
     before=$(pacman -Q "${REBOOT_PKGS[@]}" 2>/dev/null)
 
+    # снимок до любых изменений: не понравилось обновление — «Настройки» → «Снимки
+    # системы» → «Откатить» (delta-snapshot). Не сохранился — обновлению не мешает
+    if command -v delta-snapshot >/dev/null; then
+        step "Сохраняю снимок системы"
+        delta-snapshot create "Перед обновлением" >/dev/null 2>>"${LOG}" || say "снимок системы не сохранился"
+    fi
+
     step "Получаю списки пакетов"
     run_pacman -Sy --noconfirm || die "Не удалось получить списки пакетов — нет интернета?"
     # устаревшие ключи — частая причина ошибки «неверная подпись»
@@ -208,7 +218,7 @@ case "${1:-}" in
     apply) shift; cmd_apply "$@" ;;
     offers) cmd_offers ;;
     -h|--help|"")
-        sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
     *) die "неизвестная команда: $1 (check | apply | offers)" ;;

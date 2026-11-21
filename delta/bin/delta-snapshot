@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# Delta — снимки системы и откат обновлений (Delta 2.0, атомарные обновления).
+#
+#   delta-snapshot list           снимки, новые сверху (без root):
+#                                 «id<TAB>время<TAB>название<TAB>пакетов<TAB>изменений<TAB>нет файлов»
+#   delta-snapshot show ID        чем система сейчас отличается от снимка (без root):
+#                                 «имя<TAB>сейчас<TAB>в снимке», «-» — пакета нет
+#   delta-snapshot create [ТЕКСТ] сохранить снимок (root)
+#   delta-snapshot rollback ID    вернуть пакеты к снимку (root; «Настройки» зовут
+#                                 через pkexec, ход — строки ::step:: как у delta-update)
+#   delta-snapshot delete ID      удалить снимок (root)
+#
+# Снимок — это точный список установленных пакетов с версиями и сами файлы
+# пакетов, закреплённые жёсткими ссылками из кэша pacman (места не занимают,
+# пока файл есть в кэше; paccache их уже не сотрёт). Работает на любой файловой
+# системе, в том числе ext4. Откат — одна транзакция pacman -U: все пакеты
+# сразу возвращаются к версиям снимка, лишние после этого удаляются. Перед
+# откатом сохраняется снимок «до отката», так что и откат можно отменить.
+# Файла версии нет ни в снимке, ни в кэше — он скачивается из архива Arch
+# (archive.archlinux.org, с подписью) или из релиза Delta на GitHub.
+#
+# delta-update apply сам сохраняет снимок перед каждым обновлением; хранится
+# SNAP_KEEP последних (/etc/delta/update.conf, по умолчанию 5).
+set -u
+export LC_ALL=C
+
+DELTA_REPO=""
+SNAP_KEEP=5
+# shellcheck source=/dev/null
+[ -f /usr/share/delta/update.conf ] && . /usr/share/delta/update.conf
+# shellcheck source=/dev/null
+[ -f /etc/delta/update.conf ] && . /etc/delta/update.conf
+
+# переопределяются только для проверок (tools/delta-dev.sh, без root)
+SNAPDIR=${DELTA_SNAPDIR:-/var/lib/delta/snapshots}
+LOCALDB=${DELTA_LOCALDB:-/var/lib/pacman/local}
+DOWNLOADS=${DELTA_SNAP_DOWNLOADS:-/var/cache/delta-update/rollback}
+ARCHIVE=https://archive.archlinux.org/packages
+LOG=/var/log/delta-update.log
+REBOOT_PKGS=" linux linux-lts linux-zen linux-hardened linux-firmware nvidia nvidia-open nvidia-open-dkms nvidia-utils
+              mesa systemd glibc hyprland aquamarine quickshell delta "
+
+say()  { printf '%s\n' "$*" 2>/dev/null || true; [ -w "${LOG}" ] && printf '%s\n' "$*" >>"${LOG}"; return 0; }
+step() { say "::step:: $*"; }
+die()  { printf '%s\n' "$*" >&2 2>/dev/null; [ -w "${LOG}" ] && printf 'ОШИБКА: %s\n' "$*" >>"${LOG}"; exit 1; }
+need_root() { [ "$(id -u)" = 0 ] || [ -n "${DELTA_SNAPDIR:-}" ] || die "нужны права администратора: pkexec delta-snapshot $1"; }
+run_pacman() {
+    # проверка без root: только показать, что было бы сделано
+    [ -n "${DELTA_SNAP_DRYRUN:-}" ] && { say "pacman $*"; return 0; }
+    pacman "$@" 2>&1 | while IFS= read -r line; do say "${line}"; done
+    return "${PIPESTATUS[0]}"
+}
+
+# где искать файлы пакетов: кэш pacman, кэш delta-update, все снимки
+cache_dirs() {
+    if [ -n "${DELTA_PKG_CACHE:-}" ]; then
+        printf '%s\n' ${DELTA_PKG_CACHE}
+    else
+        pacman-conf CacheDir 2>/dev/null || echo /var/cache/pacman/pkg/
+        echo /var/cache/delta-update
+        echo "${DOWNLOADS}"
+    fi
+    local d
+    for d in "${SNAPDIR}"/*/pkgs; do [ -d "${d}" ] && echo "${d}"; done
+    return 0
+}
+
+# установленные пакеты: «имя<TAB>версия<TAB>архитектура», по имени
+installed_list() {
+    local f
+    for f in "${LOCALDB}"/*/desc; do printf '%s\n' "${f}"; done |
+        xargs -d '\n' awk '
+            FNR == 1 { if (n != "") print n "\t" v "\t" a; n = v = a = "" }
+            /^%NAME%$/ { getline; n = $0 } /^%VERSION%$/ { getline; v = $0 } /^%ARCH%$/ { getline; a = $0 }
+            END { if (n != "") print n "\t" v "\t" a }' | sort -t $'\t' -k1,1
+}
+
+# файл пакета имя-версия-архитектура: в снимке, кэшах или скачанных
+find_pkg() {
+    local base="$1-$2-$3" d ext
+    while IFS= read -r d; do
+        for ext in zst xz; do
+            [ -f "${d%/}/${base}.pkg.tar.${ext}" ] && { printf '%s\n' "${d%/}/${base}.pkg.tar.${ext}"; return 0; }
+        done
+    done < <(cache_dirs)
+    return 1
+}
+
+snap_ids() { local d; for d in "${SNAPDIR}"/*/; do [ -f "${d}packages" ] && basename "${d}"; done | sort -r; }
+snap_get() { sed -n "s/^$2=//p" "${SNAPDIR}/$1/info" 2>/dev/null | head -n1; }
+check_id() { [[ $1 =~ ^[0-9]{8}-[0-9]{6}$ ]] && [ -f "${SNAPDIR}/$1/packages" ] || die "нет снимка: $1"; }
+
+# различия списков (оба по имени): «имя<TAB>сейчас<TAB>в снимке», «-» — пакета нет
+diff_lists() { join -t $'\t' -a1 -a2 -e - -o 0,1.2,2.2 "$1" "$2" | awk -F'\t' '$2 != $3'; }
+diff_with() { diff_lists <(installed_list | cut -f1,2) <(cut -f1,2 "${SNAPDIR}/$1/packages"); }
+
+cmd_list() {
+    local id cur
+    cur=$(installed_list | cut -f1,2)
+    for id in $(snap_ids); do
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${id}" "$(snap_get "${id}" time)" "$(snap_get "${id}" title)" \
+            "$(wc -l <"${SNAPDIR}/${id}/packages")" \
+            "$(diff_lists <(printf '%s\n' "${cur}") <(cut -f1,2 "${SNAPDIR}/${id}/packages") | wc -l)" \
+            "$( [ -f "${SNAPDIR}/${id}/missing" ] && wc -l <"${SNAPDIR}/${id}/missing" || echo 0)"
+    done
+}
+
+cmd_show() { check_id "$1"; diff_with "$1"; }
+
+cmd_create() {
+    need_root create
+    local title=${1:-Снимок} id dir tmp name ver arch file missing=0 linked=0
+    install -d -m 0755 "${SNAPDIR}"
+    id=$(date +%Y%m%d-%H%M%S)
+    dir="${SNAPDIR}/${id}"
+    [ -e "${dir}" ] && { sleep 1; id=$(date +%Y%m%d-%H%M%S); dir="${SNAPDIR}/${id}"; }
+    tmp="${SNAPDIR}/.${id}.part"
+    rm -rf "${tmp:?}"
+    install -d -m 0755 "${tmp}/pkgs"
+    installed_list >"${tmp}/packages" || die "не удалось прочитать список пакетов"
+    [ -s "${tmp}/packages" ] || { rm -rf "${tmp:?}"; die "список пакетов пуст"; }
+    pacman -Qqe >"${tmp}/explicit" 2>/dev/null || :
+    : >"${tmp}/missing"
+    while IFS=$'\t' read -r name ver arch; do
+        if file=$(find_pkg "${name}" "${ver}" "${arch}"); then
+            # жёсткая ссылка — без лишнего места; другой диск — не копируем, скачается при откате
+            if ln -f "${file}" "${tmp}/pkgs/" 2>/dev/null; then
+                linked=$((linked + 1))
+                [ -f "${file}.sig" ] && ln -f "${file}.sig" "${tmp}/pkgs/" 2>/dev/null
+                continue
+            fi
+        fi
+        printf '%s\n' "${name}" >>"${tmp}/missing"
+        missing=$((missing + 1))
+    done <"${tmp}/packages"
+    {
+        printf 'time=%s\n' "$(date +%s)"
+        printf 'title=%s\n' "$(printf '%s' "${title}" | tr '\n\t' '  ')"
+        printf 'kernel=%s\n' "$(uname -r)"
+        printf 'delta=%s\n' "$(awk -F'\t' '$1 == "delta" { print $2 }' "${tmp}/packages")"
+    } >"${tmp}/info"
+    mv "${tmp}" "${dir}" || die "не удалось сохранить снимок"
+    say "снимок ${id}: пакетов $(wc -l <"${dir}/packages"), файлов ${linked}, без файла ${missing}"
+    cmd_prune
+    printf '%s\n' "${id}"
+}
+
+# хранить SNAP_KEEP последних; снимок, к которому сейчас откатываются (KEEP_ID), — всегда
+KEEP_ID=""
+cmd_prune() {
+    local keep=${SNAP_KEEP:-5} id n=0
+    [[ ${keep} =~ ^[0-9]+$ ]] && [ "${keep}" -ge 1 ] || keep=5
+    for id in $(snap_ids); do
+        n=$((n + 1))
+        [ "${n}" -gt "${keep}" ] && [ "${id}" != "${KEEP_ID}" ] && rm -rf "${SNAPDIR:?}/${id:?}"
+    done
+    return 0
+}
+
+cmd_delete() { need_root delete; check_id "$1"; rm -rf "${SNAPDIR:?}/${1:?}"; }
+
+# файл версии из архива Arch (с подписью) или из релиза Delta
+download() {
+    local name=$1 ver=$2 arch=$3 url file
+    install -d -m 0755 "${DOWNLOADS}"
+    if [ "${name}" = delta ]; then
+        [ -n "${DELTA_REPO}" ] || return 1
+        file="${DOWNLOADS}/delta-${ver}-any.pkg.tar.zst"
+        url="https://github.com/${DELTA_REPO}/releases/download/v${ver%-*}/delta-${ver}-any.pkg.tar.zst"
+        curl -fsL --retry 3 --max-time 600 -o "${file}.part" "${url}" || { rm -f "${file}.part"; return 1; }
+    else
+        file="${DOWNLOADS}/${name}-${ver}-${arch}.pkg.tar.zst"
+        url="${ARCHIVE}/${name:0:1}/${name}/${name}-${ver}-${arch}.pkg.tar.zst"
+        curl -fsL --retry 3 --max-time 900 -o "${file}.part" "${url}" || { rm -f "${file}.part"; return 1; }
+        curl -fsL --retry 3 --max-time 60 -o "${file}.sig" "${url}.sig" || rm -f "${file}.sig"
+    fi
+    mv -f "${file}.part" "${file}"
+    printf '%s\n' "${file}"
+}
+
+cmd_rollback() {
+    local id=$1
+    need_root rollback
+    check_id "${id}"
+    trap '' HUP PIPE
+    [ -e /var/lib/pacman/db.lck ] && die "Сейчас идёт другая установка — дождитесь её конца"
+
+    local changes extra=() files=() lost=() name cur want arch file reboot=0
+    changes=$(diff_with "${id}")
+    [ -n "${changes}" ] || { step "Система уже как в снимке"; step "Готово"; return 0; }
+
+    step "Собираю пакеты снимка"
+    while IFS=$'\t' read -r name cur want; do
+        case "${REBOOT_PKGS}" in *" ${name} "*) reboot=1 ;; esac
+        if [ "${want}" = - ]; then extra+=("${name}"); continue; fi
+        arch=$(awk -F'\t' -v n="${name}" '$1 == n { print $3 }' "${SNAPDIR}/${id}/packages")
+        if file=$(find_pkg "${name}" "${want}" "${arch}") || file=$(download "${name}" "${want}" "${arch}"); then
+            files+=("${file}")
+        else
+            lost+=("${name} ${want}")
+        fi
+    done <<<"${changes}"
+    # ни одного изменения, пока не собраны все файлы: иначе система останется наполовину
+    [ "${#lost[@]}" -eq 0 ] || die "Не нашлись файлы пакетов: ${lost[*]}"
+
+    step "Сохраняю снимок перед откатом"
+    KEEP_ID=${id}
+    cmd_create "До отката" >/dev/null || die "Не удалось сохранить снимок перед откатом"
+
+    if [ "${#files[@]}" -gt 0 ]; then
+        step "Возвращаю версии пакетов ($((${#files[@]})))"
+        if ! run_pacman -U --noconfirm "${files[@]}"; then
+            # мешают пакеты, которых в снимке не было и которым нужны новые версии
+            [ "${#extra[@]}" -gt 0 ] || die "Откат не удался: pacman отказался ставить версии снимка"
+            step "Убираю пакеты, которых не было в снимке"
+            run_pacman -Rdd --noconfirm "${extra[@]}" || die "Откат не удался: не убрать новые пакеты"
+            extra=()
+            run_pacman -U --noconfirm "${files[@]}" || die "Откат не удался: pacman отказался ставить версии снимка"
+        fi
+    fi
+    if [ "${#extra[@]}" -gt 0 ]; then
+        step "Убираю пакеты, которых не было в снимке"
+        run_pacman -R --noconfirm "${extra[@]}" || say "часть новых пакетов осталась: от них зависят другие"
+    fi
+    # как пакеты были поставлены: сами или зависимостями
+    if [ -s "${SNAPDIR}/${id}/explicit" ] && [ -z "${DELTA_SNAP_DRYRUN:-}" ]; then
+        local now
+        now=$(pacman -Qq)
+        comm -12 <(sort -u "${SNAPDIR}/${id}/explicit") <(printf '%s\n' "${now}" | sort -u) | xargs -r pacman -D --asexplicit >/dev/null 2>&1
+        comm -23 <(cut -f1 "${SNAPDIR}/${id}/packages" | sort -u) <(sort -u "${SNAPDIR}/${id}/explicit") |
+            comm -12 - <(printf '%s\n' "${now}" | sort -u) | xargs -r pacman -D --asdeps >/dev/null 2>&1
+    fi
+    find "${DOWNLOADS}" -maxdepth 1 -name '*.part' -delete 2>/dev/null
+    [ "${reboot}" = 1 ] && say "::reboot::"
+    step "Готово"
+}
+
+case "${1:-}" in
+    list) cmd_list ;;
+    show) [ -n "${2:-}" ] || die "укажите снимок: delta-snapshot show ID"; cmd_show "$2" ;;
+    create) shift; cmd_create "${1:-}" ;;
+    rollback) [ -n "${2:-}" ] || die "укажите снимок: delta-snapshot rollback ID"; cmd_rollback "$2" ;;
+    delete) [ -n "${2:-}" ] || die "укажите снимок: delta-snapshot delete ID"; cmd_delete "$2" ;;
+    prune) need_root prune; cmd_prune ;;
+    -h|--help|"")
+        sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+        [ -n "${1:-}" ] || exit 2
+        ;;
+    *) die "неизвестная команда: $1 (list | show | create | rollback | delete)" ;;
+esac

@@ -8,10 +8,10 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.9.6
+pkgver=2.0.0
 pkgrel=1
-# название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
-_codename=Horizon
+# название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon, 2.0 Nebula)
+_codename=Nebula
 pkgdesc="Delta — графическое окружение Vanks OS на собственном композиторе"
 # В пакете программа для x86_64, но имя файла остаётся -any: delta-update и
 # Vanks Setup уже вышедших версий ищут именно его. Других архитектур у Vanks OS нет.
@@ -85,7 +85,7 @@ optdepends=(
     'wine: программы Windows (.exe) — «Открыть обычно»'
     'umu-launcher: запуск .exe через Proton CachyOS с лучшей совместимостью'
     'proton-cachyos: Proton CachyOS из репозитория (иначе delta-exe скачает его сам)'
-    'libnotify: уведомления delta-exe о скачивании Proton'
+    'libnotify: уведомления delta-exe о скачивании Proton и уведомления телефона в Delta Link'
     'waydroid: приложения Android (delta-android; ставится и из окна «Android»)'
     '7zip: зашифрованные архивы 7z и rar5 в «Файлах»'
     'unrar: старые архивы rar с паролем в «Файлах»'
@@ -115,6 +115,7 @@ package() {
     install -Dm755 "${_src}/bin/delta-greeter-sync" "${pkgdir}/usr/bin/delta-greeter-sync"
     install -Dm755 "${_src}/bin/delta-autologin" "${pkgdir}/usr/bin/delta-autologin"
     install -Dm755 "${_src}/bin/delta-update"    "${pkgdir}/usr/bin/delta-update"
+    install -Dm755 "${_src}/bin/delta-snapshot"  "${pkgdir}/usr/bin/delta-snapshot"
     install -Dm755 "${_src}/bin/delta-welcome"   "${pkgdir}/usr/bin/delta-welcome"
     install -Dm755 "${_src}/bin/delta-setup"     "${pkgdir}/usr/bin/delta-setup"
     install -Dm755 "${_src}/bin/delta-exe"       "${pkgdir}/usr/bin/delta-exe"
@@ -125,7 +126,9 @@ package() {
     install -Dm755 "${_src}/bin/delta-store"     "${pkgdir}/usr/bin/delta-store"
     install -Dm755 "${_src}/bin/delta-files"     "${pkgdir}/usr/bin/delta-files"
     install -Dm755 "${_src}/bin/delta-video"     "${pkgdir}/usr/bin/delta-video"
+    install -Dm755 "${_src}/bin/delta-play"      "${pkgdir}/usr/bin/delta-play"
     install -Dm755 "${_src}/bin/delta-phone"     "${pkgdir}/usr/bin/delta-phone"
+    install -Dm755 "${_src}/bin/delta-link"      "${pkgdir}/usr/bin/delta-link"
     install -Dm755 "${_src}/bin/delta-android"   "${pkgdir}/usr/bin/delta-android"
     install -Dm755 "${_src}/bin/delta-transfers" "${pkgdir}/usr/bin/delta-transfers"
     install -Dm755 "${_src}/bin/delta-clipboard" "${pkgdir}/usr/bin/delta-clipboard"
@@ -149,6 +152,12 @@ package() {
             install -Dm644 "${f}" "${d}/shell/${f#./}"
         done)
 
+    # обои под акриловое стекло (tools/gen-acrylic-walls.sh): «Обои» видят их
+    # в подпапке системных, рядом с набором vankos-wallpapers
+    for f in "${_src}"/wallpapers/acrylic/*.jpg; do
+        install -Dm644 "${f}" "${pkgdir}/usr/share/backgrounds/vankos/acrylic/${f##*/}"
+    done
+
     install -Dm644 "${_src}/session/delta.desktop" \
         "${pkgdir}/usr/share/wayland-sessions/delta.desktop"
     install -Dm644 "${_src}/session/delta-hyprland.desktop" \
@@ -170,6 +179,9 @@ package() {
         "${pkgdir}/usr/share/applications/delta-files.desktop"
     install -Dm644 "${_src}/session/delta-video.desktop" \
         "${pkgdir}/usr/share/applications/delta-video.desktop"
+    # Delta Play: библиотека игр
+    install -Dm644 "${_src}/session/delta-play.desktop" \
+        "${pkgdir}/usr/share/applications/delta-play.desktop"
     # магазин Delta: пакеты Arch и Flathub
     install -Dm644 "${_src}/session/delta-store.desktop" \
         "${pkgdir}/usr/share/applications/delta-store.desktop"
@@ -219,6 +231,9 @@ package() {
     # установка обновлений из «Настроек»: pkexec delta-update apply
     install -Dm644 "${_src}/session/polkit/org.vankos.delta.update.policy" \
         "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.update.policy"
+    # снимки системы из «Настроек»: pkexec delta-snapshot create / rollback / delete
+    install -Dm644 "${_src}/session/polkit/org.vankos.delta.snapshot.policy" \
+        "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.snapshot.policy"
     # помощник «Добро пожаловать»: pkexec delta-setup install …
     install -Dm644 "${_src}/session/polkit/org.vankos.delta.setup.policy" \
         "${pkgdir}/usr/share/polkit-1/actions/org.vankos.delta.setup.policy"

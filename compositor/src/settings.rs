@@ -110,6 +110,8 @@ impl Default for Windows {
 #[serde(default)]
 pub struct Appearance {
     pub style: String,
+    /// стиль интерфейса: delta, acrylic, layers («Слои» — смена стола в глубину)
+    pub ui: String,
     pub accent: String,
     #[serde(deserialize_with = "number")]
     pub frost: f32,
@@ -121,7 +123,7 @@ pub struct Appearance {
 
 impl Default for Appearance {
     fn default() -> Self {
-        Self { style: "delta".into(), accent: "#7C5CFF".into(), frost: 0.5, glass_lab: None }
+        Self { style: "delta".into(), ui: "delta".into(), accent: "#7C5CFF".into(), frost: 0.5, glass_lab: None }
     }
 }
 

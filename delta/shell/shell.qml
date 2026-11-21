@@ -21,6 +21,7 @@ import qs.polkit
 import qs.oobe
 import qs.fx
 import qs.workspaces
+import qs.play
 
 // Меню доков и разделы грузятся через Loader по пути. Модули qs.*, которые
 // импортируют только они, Quickshell без статического импорта не находит
@@ -74,6 +75,8 @@ ShellRoot {
     UpdateCheck {}         // фоновая проверка обновлений и уведомление о них
     VolumeMemory {}        // громкость и «без звука» между входами (если WirePlumber не вернул)
     Workspaces {}          // обзор столов (Super+Tab) и пилюля при смене стола
+    PlayOverlay {}         // Delta Play: игровая панель (Super+G), игровой режим (services/GameMode)
+    PlayHud {}             // Delta Play: оверлей в игре (свой или MangoHud)
     ShellFx {}             // звуки рабочих столов, меню, острова; вспышка снимка (ipc fx flash)
     Oobe {}                // первая настройка при первом входе (delta-shell ipc call oobe start)
 
@@ -82,6 +85,7 @@ ShellRoot {
     Component.onCompleted: {
         Displays.manageProfiles = true;
         NightLight.checked;
+        Link.enabled;          // Delta Link: служба связи с телефоном, пока включён
     }
 
     Shortcuts {
@@ -96,6 +100,7 @@ ShellRoot {
         onBrightness: action => osd.brightness(action)
         onScreenshot: Quickshell.execDetached(["sh", "-c", 'g=$(slurp) && grim -g "$g" - | wl-copy -t image/png && delta-shell ipc call fx flash' + Sounds.shell("camera-shutter")])
         onWorkspaces: ShellState.toggleOverlay("workspaces")
+        onPlay: ShellState.toggleOverlay("play")
         onMinimize: Minimizer.minimizeActive()
         onFullscreen: Motion.fullscreen()
     }

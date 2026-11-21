@@ -28,6 +28,7 @@ Singleton {
     // летит, а на экране блокировки видна только часть рисунка (lockPose).
     // frag — шейдер, group — семейство в списке; a…d — цвета, material — у волн.
     readonly property var groups: [
+        { id: "acrylic", title: "Акрил" },
         { id: "circles", title: "Круги" },
         { id: "you",     title: "Material You" },
         { id: "glass",   title: "Жидкое стекло" },
@@ -36,6 +37,13 @@ Singleton {
         { id: "nothing", title: "Nothing" }
     ]
     readonly property var flows: [
+        // «Акрил»: запечённые пятна и ленты (tools/gen-acrylic-walls.sh), шейдер их
+        // оживляет — пятна перетекают, ленты колышутся; лёгкие, как «Вершина»
+        { id: "acrylic-amber",    kind: "flow", group: "acrylic", frag: "acrylic", title: "Янтарь", photo: "super/acrylic-amber-base.jpg",    mask: "super/acrylic-amber-rib.jpg",    lite: true },
+        { id: "acrylic-sunset",   kind: "flow", group: "acrylic", frag: "acrylic", title: "Закат",  photo: "super/acrylic-sunset-base.jpg",   mask: "super/acrylic-sunset-rib.jpg",   lite: true },
+        { id: "acrylic-lagoon",   kind: "flow", group: "acrylic", frag: "acrylic", title: "Лагуна", photo: "super/acrylic-lagoon-base.jpg",   mask: "super/acrylic-lagoon-rib.jpg",   lite: true },
+        { id: "acrylic-graphite", kind: "flow", group: "acrylic", frag: "acrylic", title: "Графит", photo: "super/acrylic-graphite-base.jpg", mask: "super/acrylic-graphite-rib.jpg", lite: true },
+        { id: "acrylic-morning",  kind: "flow", group: "acrylic", frag: "acrylic", title: "Утро",   photo: "super/acrylic-morning-base.jpg",  mask: "super/acrylic-morning-rib.jpg",  lite: true },
         { id: "flow-blue",    kind: "flow", group: "circles", frag: "circles", title: "Синие",      a: "#0a1c4a", b: "#1f6dff", c: "#9fdcff", d: "#36c6ff" },
         { id: "flow-violet",  kind: "flow", group: "circles", frag: "circles", title: "Фиолетовые", a: "#1d0d47", b: "#7a3cff", c: "#e2b8ff", d: "#ff5fd2" },
         { id: "flow-coral",   kind: "flow", group: "circles", frag: "circles", title: "Коралловые", a: "#3d0d1c", b: "#f0523f", c: "#ffd2a8", d: "#ffb03a" },

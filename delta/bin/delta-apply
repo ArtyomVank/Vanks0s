@@ -163,7 +163,9 @@ lua=$(jq -r '
   "hl.animation({ leaf = \"windows\",    enabled = true, speed = \(sp(5)), spring = \"deltaSpring\" })",
   "hl.animation({ leaf = \"fadeIn\",     enabled = true, speed = \(sp(1.8)), bezier = \"deltaOut\" })",
   "hl.animation({ leaf = \"fadeOut\",    enabled = true, speed = \(sp(1.5)), bezier = \"deltaOut\" })",
-  "hl.animation({ leaf = \"workspaces\", enabled = true, speed = \(sp(3)), spring = \"deltaSpring\", style = \"slide\" })",
+  # «Слои» (appearance.ui = layers): стол сменяется в глубину — у Hyprland
+  # ближе всего затухание; свой композитор уменьшает и гасит (render.rs)
+  "hl.animation({ leaf = \"workspaces\", enabled = true, speed = \(sp(3)), spring = \"deltaSpring\", style = \(if .appearance.ui == "layers" then "\"fade\"" else "\"slide\"" end) })",
   "hl.animation({ leaf = \"layers\",     enabled = true, speed = \(sp(3)), bezier = \"deltaOut\", style = \"fade\" })",
   . as $cfg | ((.windows.openAnim // "popin") as $a
    | { popin: ["popin 80%", "popin 85%"], slide: ["slide", "slide"], fade: ["popin 100%", "popin 100%"] }[$a]

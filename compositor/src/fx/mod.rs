@@ -147,6 +147,8 @@ pub struct Params {
     pub global_time: f32,
     pub jelly: f32,
     pub motion: Motion,
+    /// «Слои»: при смене стола окна уходят в глубину, а не уезжают вбок
+    pub depth: bool,
 }
 
 /// Жидкое стекло панелей: сдвиг фона у самой кромки, ширина скоса и блик.
@@ -202,6 +204,7 @@ impl Params {
             global_time: w.anim_speed.clamp(0.1, 8.0),
             jelly: if w.animations { w.jelly.clamp(0.0, 1.7) } else { 0.0 },
             motion: motion(style),
+            depth: a.ui == "layers",
         }
     }
 

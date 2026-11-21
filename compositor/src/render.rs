@@ -183,8 +183,19 @@ fn scene_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cur
     });
     let ws_offset = |w: &Window, p: Option<(f32, bool, f32)>| -> i32 {
         match p {
-            Some((v, _, dir)) if !data(w).pinned => ((1.0 - v) * dir * width).round() as i32,
+            Some((v, _, dir)) if !data(w).pinned && !params.depth => ((1.0 - v) * dir * width).round() as i32,
             _ => 0,
+        }
+    };
+    // «Слои»: новый стол выходит из глубины (чуть меньше и прозрачный),
+    // прежний уходит назад — уменьшается и гаснет; сдвига вбок нет
+    let ws_depth = |w: &Window, p: Option<(f32, bool, f32)>, leaving: bool| -> Option<(f32, f32)> {
+        match p {
+            Some((v, done, _)) if params.depth && !done && !data(w).pinned => {
+                let v = v.clamp(0.0, 1.0);
+                Some(if leaving { (1.0 - 0.1 * v, 1.0 - v) } else { (0.92 + 0.08 * v, v) })
+            }
+            _ => None,
         }
     };
 
@@ -195,7 +206,7 @@ fn scene_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cur
         let offset = ws_offset(window, ws_p);
         push_window(
             renderer, shell, window, loc + Point::from((offset, 0)), area, scale, focused.as_ref() == Some(window), now,
-            &programs, &params, &mut elements,
+            ws_depth(window, ws_p, false), &programs, &params, &mut elements,
         );
     }
     if let Some((v, done, dir)) = ws_p {
@@ -204,8 +215,17 @@ fn scene_elements(renderer: &mut R, shell: &mut Shell, output: &Output, draw_cur
             if windows.contains(window) || !window.alive() {
                 continue;
             }
+            if params.depth {
+                // уходит назад: на своём месте, гаснет до конца пружины
+                if v < 1.0 {
+                    let loc = data(window).loc;
+                    let d = ws_depth(window, ws_p, true).or(Some((0.9, 1.0 - v.clamp(0.0, 1.0))));
+                    push_window(renderer, shell, window, loc, area, scale, false, now, d, &programs, &params, &mut elements);
+                }
+                continue;
+            }
             let loc = data(window).loc + Point::from(((-v * dir * width).round() as i32, 0));
-            push_window(renderer, shell, window, loc, area, scale, false, now, &programs, &params, &mut elements);
+            push_window(renderer, shell, window, loc, area, scale, false, now, None, &programs, &params, &mut elements);
         }
         if done {
             shell.fx.ws.remove(&name);
@@ -460,6 +480,8 @@ fn push_window(
     scale: Scale<f64>,
     active: bool,
     now: Instant,
+    // смена стола в «Слоях»: (масштаб от центра, прозрачность)
+    depth: Option<(f32, f32)>,
     programs: &Option<Rc<Programs>>,
     p: &Params,
     out: &mut Vec<OutputElement>,
@@ -489,6 +511,7 @@ fn push_window(
         None,
         Open { kind: Open, x: f32, t: f32 },
         Geom { from: Rectangle<f64, Logical>, v: f32 },
+        Depth { s: f32, a: f32 },
         Jelly,
     }
     let state = {
@@ -500,7 +523,9 @@ fn push_window(
             d.fx.open_start = Some(now);
         }
         let mut state = Now::None;
-        if d.fx.jelly.is_some() {
+        if let Some((s, a)) = depth.filter(|_| !d.fx.opening && d.fx.jelly.is_none()) {
+            state = Now::Depth { s, a };
+        } else if d.fx.jelly.is_some() {
             state = Now::Jelly;
         } else if d.fx.opening {
             let x = now.saturating_duration_since(d.fx.open_start.unwrap_or(now)).as_secs_f32() / p.time;
@@ -609,6 +634,23 @@ fn push_window(
                         win_radius: radius,
                     };
                     (geo, Mesh::Reveal(r), blur)
+                }
+                Now::Depth { s, a } => {
+                    let (gw, gh) = (w * s, h * s);
+                    let (gx, gy) = (x + (w - gw) * 0.5, y + (h - gh) * 0.5);
+                    let geo = pad_rect(gx - pad, gy - pad, gw + pad * 2.0, gh + pad * 2.0, 2.0);
+                    let (cx, cy) = (gx + gw * 0.5 - geo.loc.x as f32, gy + gh * 0.5 - geo.loc.y as f32);
+                    let r = RevealParams {
+                        content: [gx - pad - geo.loc.x as f32, gy - pad - geo.loc.y as f32, gw + pad * 2.0, gh + pad * 2.0],
+                        shape: [cx, cy, gw + pad * 2.0, gh + pad * 2.0],
+                        shape_r: 0.0,
+                        ball: [0.0; 4],
+                        content_alpha: a,
+                        alpha: a,
+                        win: [cx, cy, gw * 0.5, gh * 0.5],
+                        win_radius: radius * s,
+                    };
+                    (geo, Mesh::Reveal(r), None)
                 }
                 Now::None => unreachable!(),
             };

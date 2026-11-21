@@ -7,11 +7,15 @@ import qs.common
 //     Chips { model: [{ value: "full", label: "Полный" }, { value: "compact", label: "Компактный" }]
 //             current: Settings.get("docks.apps.length", "compact")
 //             onPicked: v => Settings.set("docks.apps.length", v) }
+// Несколько сразу: multi: true и currents — выбранные значения; picked
+// приходит на каждое нажатие, добавить или убрать решает владелец.
 Flow {
     id: root
 
     property var model: []
     property var current
+    property bool multi: false
+    property var currents: []
     signal picked(var value)
 
     spacing: 6
@@ -21,7 +25,7 @@ Flow {
         delegate: Rectangle {
             id: chip
             required property var modelData
-            readonly property bool sel: modelData.value === root.current
+            readonly property bool sel: root.multi ? root.currents.indexOf(modelData.value) !== -1 : modelData.value === root.current
 
             implicitWidth: lbl.implicitWidth + 24
             implicitHeight: 30

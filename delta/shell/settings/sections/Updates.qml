@@ -14,12 +14,14 @@ import qs.settings.parts
 // pkexec delta-update apply — пароль спрашивает окно polkit, терминал не нужен,
 // ход установки виден здесь же. Фоновая проверка с уведомлением — в оболочке
 // (services/UpdateCheck.qml). В проверках (пробный режим) установка не идёт.
+// Снимки системы (Delta 2.0): delta-update сохраняет снимок перед установкой,
+// «Откатить» — pkexec delta-snapshot rollback ID, ход виден в той же плашке.
 ColumnLayout {
     id: root
 
     property string title: I18n.tr("Обновления")
     property string icon: "download"
-    property string keywords: "pacman пакеты обновить система checkupdates delta по воздуху автоматически"
+    property string keywords: "pacman пакеты обновить система checkupdates delta по воздуху автоматически снимок откат вернуть версия"
     spacing: 18
 
     property var updates: []          // [{ name, from, to }]
@@ -34,6 +36,53 @@ ColumnLayout {
     property string lastLine: ""      // последняя строка pacman
     property bool needReboot: false
     property bool done: false
+    property string mode: "update"     // что сейчас ставится: update | rollback
+
+    // снимки: [{ id, time, title, count, changes, missing }], новые сверху
+    property var snapshots: []
+    property string confirmId: ""      // у какого снимка открыт вопрос «Откатить?»
+    property var confirmDiff: []       // [{ name, now, then }]
+    function readSnapshots() {
+        Exec.read(["delta-snapshot", "list"], (code, out) => {
+            const list = [];
+            for (const l of out.split("\n")) {
+                const f = l.split("\t");
+                if (f.length >= 6) list.push({ id: f[0], time: parseInt(f[1]) * 1000, title: f[2], count: parseInt(f[3]), changes: parseInt(f[4]), missing: parseInt(f[5]) });
+            }
+            snapshots = list;
+        });
+    }
+    function askRollback(id) {
+        confirmId = id;
+        confirmDiff = [];
+        Exec.read(["delta-snapshot", "show", id], (code, out) => {
+            const d = [];
+            for (const l of out.split("\n")) {
+                const f = l.split("\t");
+                if (f.length === 3) d.push({ name: f[0], now: f[1], then: f[2] });
+            }
+            if (confirmId === id) confirmDiff = d;
+        });
+    }
+    function rollback(id) {
+        if (installing) return;
+        confirmId = "";
+        start("rollback", ["pkexec", "delta-snapshot", "rollback", id]);
+    }
+    function saveSnapshot() {
+        // название хранится по-русски, на экране — переводом (I18n.tr при показе)
+        Exec.run(["pkexec", "delta-snapshot", "create", "Сохранён вручную"], {
+            label: I18n.tr("снимок системы"),
+            done: code => { if (code === 0) { Nav.toast(I18n.tr("Снимок сохранён")); readSnapshots(); } }
+        });
+    }
+    function deleteSnapshot(id) {
+        Exec.run(["pkexec", "delta-snapshot", "delete", id], { label: I18n.tr("удаление снимка"), done: () => readSnapshots() });
+    }
+    function changesText(n) {
+        if (n === 0) return I18n.tr("Как сейчас");
+        return I18n.tr("Отличий от текущей системы") + ": " + n;
+    }
 
     readonly property var deltaUpdate: updates.find(u => u.name === "delta") || null
     // версии на выбор: { "0": "0.6.8-1", "1": "1.0-1" }
@@ -81,12 +130,16 @@ ColumnLayout {
         });
         Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2"], (code, out) => deltaVersion = out.trim());
     }
-    Component.onCompleted: { check(); readOffers(); }
+    Component.onCompleted: { check(); readOffers(); readSnapshots(); }
 
     // line: пусто — обновить то, что стоит; "1" — перейти на Delta 1.x
     function install(line) {
         if (installing) return;
-        apply.command = ["pkexec", "delta-update", "apply"].concat(line ? [String(line)] : []);
+        start("update", ["pkexec", "delta-update", "apply"].concat(line ? [String(line)] : []));
+    }
+    function start(m, cmd) {
+        mode = m;
+        apply.command = cmd;
         installing = true;
         done = false;
         needReboot = false;
@@ -95,14 +148,20 @@ ColumnLayout {
         lastLine = "";
         if (Exec.dryRun) {
             // пробный режим: путь интерфейса без установки
-            Exec.run(["pkexec", "delta-update", "apply"], { label: I18n.tr("установка обновлений"), done: () => finish(0, "") });
+            Exec.run(cmd, { label: m === "rollback" ? I18n.tr("откат к снимку") : I18n.tr("установка обновлений"), done: () => finish(0, "") });
             return;
         }
         apply.running = true;
     }
     function finish(code, err) {
         installing = false;
-        if (code === 0) {
+        readSnapshots();
+        if (code === 0 && mode === "rollback") {
+            done = true;
+            stage = I18n.tr("Готово");
+            Nav.toast(needReboot ? I18n.tr("Система возвращена к снимку — перезагрузите компьютер") : I18n.tr("Система возвращена к снимку"));
+            check();
+        } else if (code === 0) {
             done = true;
             stage = "Готово";
             updates = [];
@@ -117,10 +176,10 @@ ColumnLayout {
                                          I18n.tr("Перезагрузите компьютер, чтобы закончить обновление")]);
         } else if (code === 126 || code === 127) {
             stage = "";
-            Nav.toast("Установка отменена");
+            Nav.toast(mode === "rollback" ? I18n.tr("Откат отменён") : "Установка отменена");
         } else {
             stage = "";
-            error = err || "Установка не удалась";
+            error = err || (mode === "rollback" ? I18n.tr("Откат не удался") : "Установка не удалась");
         }
     }
 
@@ -174,7 +233,7 @@ ColumnLayout {
                         text: root.installing ? root.stage
                             : root.checking ? "Проверяем обновления…"
                             : root.error ? "Не получилось"
-                            : root.done && root.needReboot ? "Обновлено — нужна перезагрузка"
+                            : root.done && root.needReboot ? (root.mode === "rollback" ? I18n.tr("Возвращено — нужна перезагрузка") : "Обновлено — нужна перезагрузка")
                             : root.updates.length ? "Доступно обновлений: " + root.plural(root.updates.length)
                             : "Система обновлена"
                         size: "title"
@@ -247,6 +306,100 @@ ColumnLayout {
         }
     }
 
+    // --- снимки системы: откат обновления ---
+    Card {
+        title: I18n.tr("Снимки системы")
+        SettingRow {
+            icon: "restore"
+            title: I18n.tr("Откат обновлений")
+            subtitle: I18n.tr("Перед каждым обновлением система запоминает версии всех программ. Если после обновления что-то сломалось — верните снимок: программы встанут как были. Ваши файлы и настройки не меняются.")
+            Btn { text: I18n.tr("Сохранить снимок"); enabled: !root.installing; onClicked: root.saveSnapshot() }
+        }
+        Repeater {
+            model: root.snapshots
+            delegate: ColumnLayout {
+                id: sn
+                required property var modelData
+                readonly property bool asking: root.confirmId === modelData.id
+                Layout.fillWidth: true
+                spacing: 8
+                SettingRow {
+                    Layout.fillWidth: true
+                    icon: "clock"
+                    title: I18n.tr(sn.modelData.title) + " · " + root.when(new Date(sn.modelData.time).toISOString())
+                    subtitle: root.changesText(sn.modelData.changes)
+                    RowLayout {
+                        spacing: 6
+                        Btn {
+                            text: I18n.tr("Откатить")
+                            visible: !sn.asking
+                            enabled: sn.modelData.changes > 0 && !root.installing
+                            onClicked: root.askRollback(sn.modelData.id)
+                        }
+                        Btn { icon: "trash"; kind: "danger"; visible: !sn.asking; enabled: !root.installing; onClicked: root.deleteSnapshot(sn.modelData.id) }
+                    }
+                }
+                // вопрос перед откатом: что именно вернётся
+                Rectangle {
+                    visible: sn.asking
+                    Layout.fillWidth: true
+                    implicitHeight: ask.implicitHeight + 28
+                    radius: Theme.radius - 4
+                    color: Theme.soft2
+                    ColumnLayout {
+                        id: ask
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                        spacing: 8
+                        Label {
+                            Layout.fillWidth: true
+                            text: I18n.tr("Вернуть систему к этому снимку?")
+                            font.weight: Font.Bold
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            tone: 3; size: "small"
+                            text: I18n.tr("Перед откатом сохранится снимок текущей системы — откат тоже можно отменить. Если каких-то версий нет на компьютере, они скачаются из архива Arch.")
+                        }
+                        Repeater {
+                            model: root.confirmDiff.slice(0, 8)
+                            delegate: RowLayout {
+                                id: dl
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Label { Layout.fillWidth: true; text: dl.modelData.name; size: "small"; elide: Text.ElideRight }
+                                Label { text: dl.modelData.now === "-" ? I18n.tr("нет") : dl.modelData.now; tone: 3; size: "small" }
+                                Sym { name: "chevron-right"; size: 12; color: Theme.fg3 }
+                                Label {
+                                    text: dl.modelData.then === "-" ? I18n.tr("удалится") : dl.modelData.then
+                                    size: "small"; font.weight: Font.DemiBold
+                                }
+                            }
+                        }
+                        Label {
+                            visible: root.confirmDiff.length > 8
+                            text: I18n.tr("и ещё") + " " + (root.confirmDiff.length - 8)
+                            tone: 3; size: "small"
+                        }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignRight
+                            spacing: 8
+                            Btn { text: I18n.tr("Отмена"); onClicked: root.confirmId = "" }
+                            Btn { text: I18n.tr("Откатить"); kind: "accent"; enabled: !root.installing; onClicked: root.rollback(sn.modelData.id) }
+                        }
+                    }
+                }
+            }
+        }
+        SettingRow {
+            visible: root.snapshots.length === 0
+            icon: "info"
+            title: I18n.tr("Снимков пока нет")
+            subtitle: I18n.tr("Первый сохранится перед следующим обновлением")
+        }
+    }
+
     Card {
         title: I18n.tr("Пакеты")
         visible: root.updates.length > 0
@@ -290,6 +443,8 @@ ColumnLayout {
         function onAction(name, arg) {
             if (name === "updates.check") root.check();
             else if (name === "updates.install") root.install();
+            // проверки: вопрос «Откатить?» у снимка arg (или у последнего)
+            else if (name === "updates.rollback") root.askRollback(arg || (root.snapshots[root.snapshots.length - 1]?.id ?? ""));
             else if (name === "updates.fake") root.updates = [{ name: "linux", from: "6.17.1", to: "6.17.2" }, { name: "delta", from: "0.1.0-1", to: "0.4.0-1" }, { name: "firefox", from: "144.0", to: "144.0.1" }];
         }
     }

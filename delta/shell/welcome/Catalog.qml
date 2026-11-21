@@ -10,7 +10,7 @@ import Quickshell.Io
 // видеокарту этого компьютера и приложения. Здесь же — что уже стоит и что
 // отмечено. Пункт: { id, icon, title, text, pkgs, aur?, on, steam?, setting? }.
 //   pkgs  — пакеты Arch (ставит delta-setup install);
-//   aur   — рецепты AUR (только драйвер NVIDIA 580, см. delta-setup);
+//   aur   — рецепты AUR (драйвер NVIDIA 580 и Google Chrome, см. delta-setup);
 //   on    — отмечен по умолчанию;
 //   steam — нужен Vulkan для 32-битных игр (Steam, Wine): к нему добавятся
 //           драйверы Vulkan этой видеокарты, иначе pacman выберет любой;
@@ -129,9 +129,10 @@ Singleton {
         { id: "steam", icon: "gamepad", title: "Steam", on: true, steam: true,
           text: I18n.tr("Магазин игр и Proton — тысячи игр для Windows прямо в Vanks OS"),
           pkgs: ["steam"] },
-        { id: "chromium", icon: "globe", title: "Chromium", on: true,
+        // Chrome в Arch не собирают — рецепт из AUR (delta-setup собирает его от nobody)
+        { id: "chrome", icon: "globe", title: "Google Chrome", on: true,
           text: I18n.tr("Быстрый браузер с синхронизацией закладок"),
-          pkgs: ["chromium"] },
+          aur: ["google-chrome"] },
         { id: "discord", icon: "send", title: "Discord", on: false,
           text: I18n.tr("Голосовые каналы и чаты с друзьями"),
           pkgs: ["discord"] },

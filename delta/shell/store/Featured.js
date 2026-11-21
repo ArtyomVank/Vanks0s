@@ -11,7 +11,7 @@ var sections = [
         { title: "Steam", pkg: "steam", fp: "com.valvesoftware.Steam", text: "Магазин игр и Proton — игры для Windows прямо в Vanks OS" },
         { title: "Discord", pkg: "discord", fp: "com.discordapp.Discord", text: "Голосовые каналы и чаты с друзьями" },
         { title: "Telegram", pkg: "telegram-desktop", fp: "org.telegram.desktop", text: "Быстрый мессенджер с каналами и звонками" },
-        { title: "Chromium", pkg: "chromium", fp: "org.chromium.Chromium", text: "Быстрый браузер с синхронизацией закладок" },
+        { title: "Google Chrome", fp: "com.google.Chrome", text: "Быстрый браузер с синхронизацией закладок" },
         { title: "Firefox", pkg: "firefox", fp: "org.mozilla.firefox", text: "Свободный браузер, который бережёт приватность" },
         { title: "OBS Studio", pkg: "obs-studio", fp: "com.obsproject.Studio", nvenc: true, text: "Запись экрана и стримы" },
         { title: "VLC", pkg: "vlc", fp: "org.videolan.VLC", text: "Плеер, который открывает всё" },

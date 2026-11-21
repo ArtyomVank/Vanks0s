@@ -8,7 +8,7 @@ import qs.settings
 import qs.settings.parts
 
 // Стили и темы — три уровня оформления (см. Theme.qml):
-//   «Стиль» — интерфейс (Theme.uiStyles): Delta и «Акрил»;
+//   «Стиль» — интерфейс (Theme.uiStyles): Delta, «Акрил» и «Слои»;
 //   «Тема»  — материал панелей (Theme.styles): Delta, акриловое и жидкое
 //             стекло, GNOME, Material You, Nothing;
 //   «Цвет»  — цветокор (Theme.themes): оттенок поверхностей и акцент, в том

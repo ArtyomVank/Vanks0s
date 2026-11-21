@@ -36,7 +36,7 @@ Scope {
 
     // Всплывающие окна грузятся, только пока они нужны (и доигрывают закрытие).
     property bool menuAlive: false
-    readonly property bool menuWanted: ShellState.menu !== "" && ShellState.menuScreen === root.screen
+    readonly property bool menuWanted: ShellState.menu !== "" && ShellState.menuScreen === root.screen && !Theme.sheetMenu(ShellState.menu)
     onMenuWantedChanged: if (menuWanted) menuAlive = true
     LazyLoader {
         active: root.menuAlive
@@ -44,6 +44,20 @@ Scope {
             screen: root.screen
             topDock: top
             onFinished: if (!wanted) root.menuAlive = false
+        }
+    }
+
+    // «Слои»: панель управления — лист справа (ControlSheet), не капля из дока
+    property bool sheetAlive: false
+    readonly property bool sheetWanted: ShellState.menuScreen === root.screen && Theme.sheetMenu(ShellState.menu)
+    onSheetWantedChanged: if (sheetWanted) sheetAlive = true
+    LazyLoader {
+        active: root.sheetAlive
+        ControlSheet {
+            screen: root.screen
+            open: root.sheetWanted
+            onDismissed: { ShellState.noteDismiss("menu:" + ShellState.menu); ShellState.closeMenu(); }
+            onFinished: if (!root.sheetWanted) root.sheetAlive = false
         }
     }
 

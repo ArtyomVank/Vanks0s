@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Delta Play — игры Steam, Epic, Windows и Linux в одном окне.
+#
+#   delta-play           открыть библиотеку
+#   delta-play bar       игровая панель поверх игры (как Super+G)
+#   delta-play on|off    игровой режим вручную (off — снова сам, по окну игры)
+#   delta-play status    игровой режим: JSON {active, manual, game}
+set -u
+
+DELTA_DATA=${DELTA_DATA:-/usr/share/delta}
+SHELL_DIR=${DELTA_SHELL_DIR:-${DELTA_DATA}/shell}
+ENTRY=${DELTA_PLAY_ENTRY:-${SHELL_DIR}/play-app.qml}
+
+case "${1:-}" in
+    -h|--help) sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    bar) exec delta-shell ipc call play bar ;;
+    on) exec delta-shell ipc call play manual true ;;
+    off) exec delta-shell ipc call play manual false ;;
+    status) exec delta-shell ipc call play status ;;
+    "") exec qs -p "${ENTRY}" -d ;;
+    *) echo "delta-play: неизвестная команда: $1 (см. delta-play --help)" >&2; exit 2 ;;
+esac
