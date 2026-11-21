@@ -1382,5 +1382,11 @@ var strings = {
     "Узкий": "Schmal",
     "Обычный": "Normal",
     "Большой": "Groß",
-    "Как выглядят окна и рабочий стол в режиме HDR. Выше 100 % — до перезагрузки: после входа снова 100 %": "Wie Fenster und Schreibtisch im HDR-Modus aussehen. Über 100 % gilt bis zum Neustart: nach der Anmeldung wieder 100 %",
+    "Как выглядят окна и рабочий стол в режиме HDR. Общий ползунок яркости её не меняет": "Wie Fenster und Schreibtisch im HDR-Modus aussehen. Der allgemeine Helligkeitsregler ändert sie nicht",
+    // заставка загрузки (1.9.6)
+    "Заставка загрузки": "Startbildschirm",
+    "Загрузка компьютера": "Systemstart",
+    "Заставка Delta при включении": "Delta-Startbildschirm beim Einschalten",
+    "Применяю… это займёт около минуты": "Wird angewendet… das dauert etwa eine Minute",
+    "Знак Vanks OS и точки загрузки вместо меню GRUB и текста. Меню всё равно можно открыть: зажмите Shift или Esc при включении": "Das Vanks-OS-Zeichen und Ladepunkte statt GRUB-Menü und Text. Das Menü lässt sich trotzdem öffnen: beim Einschalten Shift oder Esc gedrückt halten",
 };

@@ -797,6 +797,11 @@ impl Shell {
     pub fn fx_geometry_from(&mut self, window: &Window, from: Rectangle<i32, Logical>) {
         if self.settings.windows.animations {
             let mut d = data(window);
+            // окно тянут (оторвали от верха или от края): форму ведёт желе,
+            // а возврат прежнего размера его не гасит
+            if d.fx.jelly.as_ref().is_some_and(|j| j.released.is_none()) {
+                return;
+            }
             d.fx.jelly = None;
             d.fx.geom = Some((from.to_f64(), Instant::now()));
         }

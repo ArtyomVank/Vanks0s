@@ -24,6 +24,13 @@
 #                                максимальная производительность (root): процессор
 #                                всегда на полной частоте, и после перезагрузки
 #
+#   delta-setup bootsplash status
+#                                on | off — заставка загрузки Delta (без root)
+#   delta-setup bootsplash on|off
+#                                заставка загрузки (root): Plymouth с темой Delta,
+#                                меню GRUB скрыто (Shift или Esc при включении —
+#                                показать), без текста ядра; off — как было
+#
 # --aur — только драйвер NVIDIA 580 для GTX 900/1000 (в Arch его больше нет):
 # рецепт берётся с aur.archlinux.org, собирается от nobody и ставится pacman -U.
 #
@@ -439,16 +446,128 @@ cmd_performance() {
     return 0
 }
 
+# --- заставка загрузки -------------------------------------------------------
+
+# тихая загрузка: заставка вместо текста ядра и мигающего курсора
+SPLASH_ARGS=(quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0)
+MKINIT=/etc/mkinitcpio.conf
+
+splash_status() {
+    if command -v plymouth-set-default-theme >/dev/null && grep -Eq '^HOOKS=.*[( ]plymouth[ )]' "${MKINIT}" 2>/dev/null \
+        && [ "$(plymouth-set-default-theme 2>/dev/null)" = delta ]; then
+        echo on
+    else
+        echo off
+    fi
+}
+
+# KEY="значение" в /etc/default/grub: заменить строку (и закомментированную) или дописать
+grub_set() {
+    if grep -q "^#\?${1}=" "${GRUB_DEFAULTS}"; then
+        sed -i "s|^#\?${1}=.*|${1}=${2}|" "${GRUB_DEFAULTS}"
+    else
+        echo "${1}=${2}" >>"${GRUB_DEFAULTS}"
+    fi
+}
+
+# параметры ядра по умолчанию: добавить (add) или убрать (del) наши
+grub_args() {
+    local cur a out
+    cur=$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/\1/p' "${GRUB_DEFAULTS}" | tail -n1)
+    out=" ${cur} "
+    for a in "${SPLASH_ARGS[@]}"; do
+        if [ "$1" = add ]; then
+            [[ ${out} == *" ${a} "* ]] || out="${out}${a} "
+        elif [ "${a}" = splash ] || [ "${a}" = vt.global_cursor_default=0 ] || [ "${a}" = rd.udev.log_level=3 ]; then
+            out=${out// ${a} / }
+        fi
+    done
+    out=$(echo "${out}" | tr -s ' ' | sed 's/^ //; s/ $//')
+    grub_set GRUB_CMDLINE_LINUX_DEFAULT "\"${out}\""
+}
+
+# systemd-boot: те же параметры в строках options записей
+sdboot_args() {
+    local f a
+    for f in /boot/loader/entries/*.conf /efi/loader/entries/*.conf; do
+        [ -f "${f}" ] || continue
+        for a in "${SPLASH_ARGS[@]}"; do
+            if [ "$1" = add ]; then
+                grep -Eq "^options.*( |^options)${a}( |$)" "${f}" || sed -i "/^options/s|\$| ${a}|" "${f}"
+            elif [ "${a}" = splash ] || [ "${a}" = vt.global_cursor_default=0 ] || [ "${a}" = rd.udev.log_level=3 ]; then
+                sed -i -E "/^options/s/ ${a//./\\.}( |$)/\1/" "${f}"
+            fi
+        done
+    done
+}
+
+cmd_bootsplash() {
+    case "${1:-}" in
+        status) splash_status; return 0 ;;
+        on|off) ;;
+        *) die "delta-setup bootsplash on|off|status" ;;
+    esac
+    [ "$(id -u)" = 0 ] || die "нужны права администратора: pkexec delta-setup bootsplash $1"
+    trap '' HUP PIPE
+    : >"${LOG}" 2>/dev/null
+    if [ "$1" = on ]; then
+        if ! command -v plymouth-set-default-theme >/dev/null; then
+            # ставит так же, как помощник: -Sy ключей и затем -Su вместе с пакетом
+            cmd_install plymouth
+        fi
+        [ -f /usr/share/plymouth/themes/delta/delta.plymouth ] || die "Нет темы заставки Delta — обновите пакет delta"
+        step "Включаю заставку Delta"
+        plymouth-set-default-theme delta || die "Не удалось выбрать тему заставки"
+        if ! grep -Eq '^HOOKS=.*[( ]plymouth[ )]' "${MKINIT}"; then
+            # сразу за udev/systemd — до encrypt: пароль диска спросит заставка
+            if grep -Eq '^HOOKS=.*[( ](udev|systemd)[ )]' "${MKINIT}"; then
+                sed -i -E '/^HOOKS=/s/([( ])(udev|systemd)([ )])/\1\2 plymouth\3/' "${MKINIT}"
+            else
+                sed -i -E '/^HOOKS=/s/\(base/(base plymouth/' "${MKINIT}"
+            fi
+        fi
+        if [ -f "${GRUB_DEFAULTS}" ] && command -v grub-mkconfig >/dev/null; then
+            step "Прячу меню загрузки"
+            [ -f "${GRUB_DEFAULTS}.delta-orig" ] || cp -a "${GRUB_DEFAULTS}" "${GRUB_DEFAULTS}.delta-orig"
+            grub_set GRUB_TIMEOUT_STYLE hidden
+            grub_set GRUB_TIMEOUT 1
+            grub_args add
+        fi
+        sdboot_args add
+    else
+        step "Выключаю заставку"
+        sed -i -E '/^HOOKS=/s/ plymouth([ )])/\1/' "${MKINIT}"
+        if [ -f "${GRUB_DEFAULTS}" ] && command -v grub-mkconfig >/dev/null; then
+            if [ -f "${GRUB_DEFAULTS}.delta-orig" ]; then
+                mv -f "${GRUB_DEFAULTS}.delta-orig" "${GRUB_DEFAULTS}"
+            else
+                grub_set GRUB_TIMEOUT_STYLE menu
+                grub_set GRUB_TIMEOUT 5
+                grub_args del
+            fi
+        fi
+        sdboot_args del
+    fi
+    step "Пересобираю загрузку"
+    run mkinitcpio -P || die "mkinitcpio завершился с ошибкой — загрузка не изменена до конца"
+    if [ -f "${GRUB_DEFAULTS}" ] && command -v grub-mkconfig >/dev/null; then
+        run grub-mkconfig -o /boot/grub/grub.cfg || die "grub-mkconfig завершился с ошибкой"
+    fi
+    say "::reboot::"
+    step "Готово"
+}
+
 case "${1:-}" in
     detect) cmd_detect ;;
     performance) shift; cmd_performance "$@" ;;
     install) shift; cmd_install "$@" ;;
     remove) shift; cmd_remove "$@" ;;
     android) shift; cmd_android "$@" ;;
+    bootsplash) shift; cmd_bootsplash "$@" ;;
     protected) printf '%s\n' "${PROTECTED[@]}" ;;
     -h|--help|"")
         sed -n '2,/^set -u/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
         [ -n "${1:-}" ] || exit 2
         ;;
-    *) die "неизвестная команда: $1 (detect | install | remove | android | performance)" ;;
+    *) die "неизвестная команда: $1 (detect | install | remove | android | performance | bootsplash)" ;;
 esac

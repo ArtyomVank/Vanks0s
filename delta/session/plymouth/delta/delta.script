@@ -1,0 +1,95 @@
+# Delta — заставка загрузки Vanks OS (Plymouth, модуль script): чёрный экран,
+# знак V, под ним пять точек бегут по кругу — быстрее внизу, медленнее
+# наверху. Зашифрованный диск — поле пароля вместо точек.
+# Картинки рисует tools/gen-plymouth.py.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+sw = Window.GetWidth();
+sh = Window.GetHeight();
+sx = Window.GetX();
+sy = Window.GetY();
+# 1080 строк — масштаб 1; на 4K всё вдвое крупнее
+k = Math.Max(1, sh / 1080);
+
+logo.image = Image("logo.png");
+logo.image = logo.image.Scale(logo.image.GetWidth() * k, logo.image.GetHeight() * k);
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetPosition(sx + sw / 2 - logo.image.GetWidth() / 2, sy + sh * 0.42 - logo.image.GetHeight() / 2, 1);
+
+dot.image = Image("dot.png");
+dot.image = dot.image.Scale(dot.image.GetWidth() * k, dot.image.GetHeight() * k);
+for (i = 0; i < 5; i++) {
+    dots[i] = Sprite(dot.image);
+    dots[i].SetZ(2);
+}
+
+frame = 0;
+spin = 1;
+
+fun refresh() {
+    global.frame = global.frame + 1;
+    cx = global.sx + global.sw / 2 - global.dot.image.GetWidth() / 2;
+    cy = global.sy + global.sh * 0.72 - global.dot.image.GetHeight() / 2;
+    r = 22 * global.k;
+    for (i = 0; i < 5; i++) {
+        # круг за 150 кадров (около 3 с); каждая следующая точка чуть позади
+        p = global.frame / 150 - i * 0.075;
+        p = p - Math.Int(p);
+        if (p < 0) p = p + 1;
+        a = 2 * Math.Pi * (p + 0.12 * Math.Sin(2 * Math.Pi * p));
+        global.dots[i].SetX(cx + r * Math.Sin(a));
+        global.dots[i].SetY(cy - r * Math.Cos(a));
+        global.dots[i].SetOpacity(global.spin * (1 - i * 0.14));
+    }
+}
+Plymouth.SetRefreshFunction(refresh);
+
+# --- пароль диска -------------------------------------------------------------
+
+field.image = Image("field.png");
+field.sprite = Sprite(field.image);
+field.sprite.SetPosition(sx + sw / 2 - field.image.GetWidth() / 2, sy + sh * 0.68, 3);
+field.sprite.SetOpacity(0);
+ask.sprite = Sprite();
+ask.sprite.SetZ(3);
+stars.sprite = Sprite();
+stars.sprite.SetZ(4);
+
+fun display_password(prompt, bullets) {
+    global.spin = 0;
+    global.field.sprite.SetOpacity(1);
+    if (prompt == "") prompt = "Пароль диска";
+    t = Image.Text(prompt, 1, 1, 1, 1, "Sans 12");
+    global.ask.sprite.SetImage(t);
+    global.ask.sprite.SetPosition(global.sx + global.sw / 2 - t.GetWidth() / 2, global.sy + global.sh * 0.68 - t.GetHeight() - 10, 3);
+    global.ask.sprite.SetOpacity(1);
+    b = "";
+    for (i = 0; i < bullets && i < 28; i++) b = b + "•";
+    s = Image.Text(b, 1, 1, 1, 1, "Sans 14");
+    global.stars.sprite.SetImage(s);
+    global.stars.sprite.SetPosition(global.sx + global.sw / 2 - s.GetWidth() / 2,
+        global.sy + global.sh * 0.68 + global.field.image.GetHeight() / 2 - s.GetHeight() / 2, 4);
+    global.stars.sprite.SetOpacity(1);
+}
+Plymouth.SetDisplayPasswordFunction(display_password);
+
+fun display_normal() {
+    global.spin = 1;
+    global.field.sprite.SetOpacity(0);
+    global.ask.sprite.SetOpacity(0);
+    global.stars.sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayNormalFunction(display_normal);
+
+# --- сообщения (проверка диска и т. п.) ----------------------------------------
+
+note.sprite = Sprite();
+note.sprite.SetZ(5);
+fun message(text) {
+    t = Image.Text(text, 0.7, 0.7, 0.75, 1, "Sans 11");
+    global.note.sprite.SetImage(t);
+    global.note.sprite.SetPosition(global.sx + global.sw / 2 - t.GetWidth() / 2, global.sy + global.sh * 0.9, 5);
+}
+Plymouth.SetMessageFunction(message);

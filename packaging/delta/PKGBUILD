@@ -8,7 +8,7 @@
 # поэтому версии ограничены сверху: обновляем их осознанно, после проверки.
 
 pkgname=delta
-pkgver=1.9.5
+pkgver=1.9.6
 pkgrel=1
 # название выпуска Vanks OS (0.1 Aurora … 0.5 Magnetar, 0.6 Zenith, 1.0 Horizon)
 _codename=Horizon
@@ -89,6 +89,7 @@ optdepends=(
     'waydroid: приложения Android (delta-android; ставится и из окна «Android»)'
     '7zip: зашифрованные архивы 7z и rar5 в «Файлах»'
     'unrar: старые архивы rar с паролем в «Файлах»'
+    'plymouth: заставка загрузки Delta вместо текста и меню GRUB (ставит delta-setup bootsplash on)'
 )
 
 _src="${startdir}/../../delta"
@@ -202,6 +203,11 @@ package() {
 
     # экран блокировки: пароль заодно открывает связку ключей (lock/Lock.qml)
     install -Dm644 "${_src}/session/pam/delta-lock" "${pkgdir}/etc/pam.d/delta-lock"
+
+    # заставка загрузки (Plymouth): включает delta-setup bootsplash on
+    for _f in delta.plymouth delta.script logo.png dot.png field.png; do
+        install -Dm644 "${_src}/session/plymouth/delta/${_f}" "${pkgdir}/usr/share/plymouth/themes/delta/${_f}"
+    done
 
     # режим производительности повторяется при загрузке (delta-setup performance)
     install -Dm644 "${_src}/session/delta-performance.service" \

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Delta
+Description=Заставка загрузки Vanks OS: знак V и кружащиеся точки
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/delta
+ScriptFile=/usr/share/plymouth/themes/delta/delta.script

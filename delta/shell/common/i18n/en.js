@@ -1392,5 +1392,11 @@ var strings = {
     "Узкий": "Narrow",
     "Обычный": "Normal",
     "Большой": "Large",
-    "Как выглядят окна и рабочий стол в режиме HDR. Выше 100 % — до перезагрузки: после входа снова 100 %": "How windows and the desktop look in HDR mode. Above 100 % lasts until restart: after login it's 100 % again",
+    "Как выглядят окна и рабочий стол в режиме HDR. Общий ползунок яркости её не меняет": "How windows and the desktop look in HDR mode. The main brightness slider doesn't change it",
+    // заставка загрузки (1.9.6)
+    "Заставка загрузки": "Boot splash",
+    "Загрузка компьютера": "Computer startup",
+    "Заставка Delta при включении": "Delta splash at power-on",
+    "Применяю… это займёт около минуты": "Applying… this takes about a minute",
+    "Знак Vanks OS и точки загрузки вместо меню GRUB и текста. Меню всё равно можно открыть: зажмите Shift или Esc при включении": "The Vanks OS mark and loading dots instead of the GRUB menu and text. You can still open the menu: hold Shift or Esc at power-on",
 };

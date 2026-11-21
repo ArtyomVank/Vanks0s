@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Io
 import qs.common
 import qs.common.ui
+import qs.settings
 import qs.lock.parts
 import qs.widgets
 import qs.walls
@@ -17,7 +18,24 @@ ColumnLayout {
 
     property string title: I18n.tr("Экран блокировки")
     property string icon: "lock"
-    property string keywords: "блокировка вход часы виджеты уведомления пароль простой автовход экран входа обои фон картинка"
+    property string keywords: "блокировка вход часы виджеты уведомления пароль простой автовход экран входа обои фон картинка загрузка заставка grub plymouth"
+
+    // заставка загрузки (delta-setup bootsplash): on | off | "" — ещё не знаем
+    property string splash: ""
+    property bool splashBusy: false
+    function readSplash() { Exec.read(["delta-setup", "bootsplash", "status"], (code, out) => root.splash = code === 0 ? out.trim() : "off"); }
+    function setSplash(on) {
+        if (splashBusy) return;
+        splashBusy = true;
+        Exec.run(["pkexec", "delta-setup", "bootsplash", on ? "on" : "off"], {
+            label: I18n.tr("Заставка загрузки"),
+            done: () => {
+                if (Exec.dryRun) root.splash = on ? "on" : "off";
+                else root.readSplash();
+                root.splashBusy = false;
+            }
+        });
+    }
     spacing: 18
 
     // Часы экрана блокировки: значение — у виджета «Часы» его сетки, если он
@@ -63,7 +81,7 @@ ColumnLayout {
     readonly property string lockWall: Settings.get("lock.wallpaper", "") || ""
     readonly property var folderWalls: WallStore.items.filter(it => !it.video).slice(0, 24).map(it => it.path)
     property var systemWalls: []
-    Component.onCompleted: { WallStore.scan(); sysProc.running = true; }
+    Component.onCompleted: { WallStore.scan(); sysProc.running = true; readSplash(); }
 
     // системные обои (пакеты кладут их в /usr/share/backgrounds)
     Process {
@@ -269,6 +287,16 @@ ColumnLayout {
             icon: "eye"; title: I18n.tr("Плавный переход к рабочему столу")
             subtitle: I18n.tr("Рабочий стол плавно проступает, когда вы входите")
             Toggle { checked: Settings.get("lock.smoothTransitions", true); onToggled: v => Settings.set("lock.smoothTransitions", v) }
+        }
+    }
+
+    Card {
+        title: I18n.tr("Загрузка компьютера")
+        SettingRow {
+            icon: "power"; title: I18n.tr("Заставка Delta при включении")
+            subtitle: root.splashBusy ? I18n.tr("Применяю… это займёт около минуты")
+                : I18n.tr("Знак Vanks OS и точки загрузки вместо меню GRUB и текста. Меню всё равно можно открыть: зажмите Shift или Esc при включении")
+            Toggle { checked: root.splash === "on"; enabled: !root.splashBusy && root.splash !== ""; onToggled: v => root.setSplash(v) }
         }
     }
 

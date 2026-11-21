@@ -14,18 +14,15 @@ import qs.display.parts
 //   Brightness.step(d)       прибавить d (может быть отрицательным), вернуть новое значение
 //
 //   Brightness.has(порт) / valueFor(порт) / setFor(порт, v)   — отдельный монитор
-//   Brightness.devices       { порт: { kind: "backlight" | "ddc" | "hdr", id, value, max } }
+//   Brightness.devices       { порт: { kind: "backlight" | "ddc", id, value, max } }
 //
 // Встроенный экран — logind Session.SetBrightness (без root), запасной путь —
 // brightnessctl. Внешние — DDC/CI через ddcutil: он медленный (сотни мс на
 // команду), поэтому поиск идёт в фоне с кешем, а запись — с задержкой, по
 // одной команде на монитор, последним значением.
-// Монитор в HDR (свой композитор) — яркость обычной картинки (sdrBrightness):
-// на ПК это работает и там, где DDC нет, а в HDR монитор его часто не слушает.
-// Меняется на лету (hyprctl dispatch sdrbrightness), а через пару секунд
-// после последнего движения записывается в настройки монитора. Полный
-// ползунок — 100 %, как обычный экран; ярче — только в «Дисплее» и до
-// перезагрузки: после входа HDR снова начинается со 100 %.
+// Яркость HDR (яркость обычной картинки, sdrBrightness) — отдельная настройка
+// монитора в «Дисплее»: общий ползунок её не трогает (1.9.6 — раньше он вёл
+// HDR вместо DDC, и общие 80 % превращали HDR 250 % в 80 %).
 //
 // Во вложенной сессии, с моком мониторов и в пробном режиме яркость не
 // меняется по-настоящему — только значение в интерфейсе (и строка в журнале).
@@ -67,42 +64,18 @@ Singleton {
         v = Math.max(dev.kind === "backlight" ? 0.01 : 0, Math.min(1, v));
         update(output, { value: v, dirty: true });
         if (dev.kind === "backlight") blTimer.restart();
-        else if (dev.kind === "hdr") { hdrTouched[output] = Date.now(); hdrTimer.restart(); hdrSave.restart(); }
         else ddcTimer.restart();
     }
 
-    // ползунок 0..1 ↔ яркость обычной картинки 0.25..1 (полный — 100 %), по
-    // логарифму: глаз так и видит. Раньше полный был ×2.5, и почти полный
-    // ползунок давал 201 % — экран при этом ярче не становился.
-    function hdrToValue(b) { return Math.max(0, Math.min(1, Math.log(Math.max(b, 0.25) / 0.25) / Math.log(4))); }
-    function valueToHdr(v) { return Math.round(0.25 * Math.pow(4, v) * 100) / 100; }
     readonly property bool ownCompositor: !!Quickshell.env("DELTA_COMPOSITOR")
-    property var hdrTouched: ({})
-    // после входа ярче 100 % не начинаем: сбрасывается один раз на монитор
-    property var hdrReset: ({})
+    // HDR включили или выключили — монитор мог начать или перестать отвечать по DDC
+    property string hdrSet: ""
     function syncHdr() {
         if (!ownCompositor || Displays.mock) return;
-        const next = Object.assign({}, devices);
-        let gone = false;
-        const hdrOn = Displays.monitors.filter(m => m.cmPreset === "hdr" && !m.disabled);
-        for (const k in next) {
-            if (next[k].kind === "hdr" && !hdrOn.some(m => m.name === k)) { delete next[k]; gone = true; }
-        }
-        for (const m of hdrOn) {
-            const d = next[m.name];
-            if (d && d.kind === "backlight") continue;
-            // пока ползунок двигают, Displays отстаёт — его значение не берём
-            if (d && d.kind === "hdr" && (d.dirty || Date.now() - (hdrTouched[m.name] || 0) < 2500)) continue;
-            let b = m.sdrBrightness;
-            const reset = !hdrReset[m.name] && b > 1.001 && !Displays.mock && !Displays.dryRun;
-            hdrReset[m.name] = true;
-            if (reset) { b = 1; hdrTouched[m.name] = Date.now(); }
-            next[m.name] = { kind: "hdr", id: m.name, max: 100, value: hdrToValue(b), dirty: reset };
-            if (reset) { hdrTimer.restart(); hdrSave.restart(); }
-        }
-        devices = next;
-        // HDR выключили — монитор снова может отвечать по DDC
-        if (gone) scanDdc();
+        const now = Displays.monitors.filter(m => m.cmPreset === "hdr" && !m.disabled).map(m => m.name).sort().join(",");
+        if (now === hdrSet) return;
+        hdrSet = now;
+        scanDdc();
     }
     Connections {
         target: Displays
@@ -126,14 +99,6 @@ Singleton {
             if (d.kind !== kind || !d.dirty || busy[k]) continue;
             const raw = Math.round(d.value * d.max);
             update(k, { dirty: false });
-            if (kind === "hdr") {
-                // свой композитор и во вложенной сессии — его можно; Hyprland не трогаем
-                if (Displays.mock || Displays.dryRun) { console.info("[delta] яркость HDR (проверка): " + k + " → " + valueToHdr(d.value)); continue; }
-                run(["hyprctl", "-i", Displays.instance, "dispatch", "sdrbrightness", k + "," + valueToHdr(d.value)], (code, out) => {
-                    if (code !== 0 || /error|unknown|invalid/i.test(out)) console.warn("[delta] яркость HDR " + k + ": " + out.trim());
-                });
-                continue;
-            }
             if (dryRun) {
                 console.info("[delta] яркость (проверка): " + k + " → " + raw + "/" + d.max);
                 continue;
@@ -164,15 +129,6 @@ Singleton {
 
     Timer { id: blTimer; interval: 30; onTriggered: root.flush("backlight") }
     Timer { id: ddcTimer; interval: 300; onTriggered: root.flush("ddc") }
-    Timer { id: hdrTimer; interval: 16; onTriggered: root.flush("hdr") }
-    Timer {
-        id: hdrSave
-        interval: 2000
-        onTriggered: {
-            for (const k in root.devices)
-                if (root.devices[k].kind === "hdr") Displays.saveSdrBrightness(k, root.valueToHdr(root.devices[k].value));
-        }
-    }
 
     // --- поиск устройств ---------------------------------------------------
 
@@ -222,8 +178,7 @@ Singleton {
             ddcScanning = false;
             const next = Object.assign({}, devices);
             for (const k in next) if (next[k].kind === "ddc" && !acc[k]) delete next[k];
-            // монитор в HDR — ползунок остаётся за яркостью HDR
-            for (const k in acc) if (!(next[k] && (next[k].dirty || next[k].kind === "hdr"))) next[k] = acc[k];
+            for (const k in acc) if (!(next[k] && next[k].dirty)) next[k] = acc[k];
             devices = next;
             cacheFile.setText(JSON.stringify(acc) + "\n");
             return;

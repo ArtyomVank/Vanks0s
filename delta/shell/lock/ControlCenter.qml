@@ -19,8 +19,9 @@ import qs.services
 // Центр управления стиля «Акрил» (Theme.round) — меню кнопки питания верхнего
 // дока (menus/PowerMenu.qml). Сверху дата, аптайм и заряд, карандаш — правка.
 // Блоки (power.cc.blocks — порядок и какие видны; power.cc.sizes — размер:
-// { id: "half" | "large" }, без записи — обычный; две узкие половинки подряд
-// встают рядом, большой — на всю ширину, выше и подробнее):
+// { id: { w: колонок из 6, h: высота, 0 — по содержимому } }, без записи — во
+// всю ширину; в правке тянутся за край, узкие встают рядом, вытянутый выше
+// становится большим — подробнее):
 //   media         музыка и вертикальные ползунки света и звука;
 //   music         только музыка;
 //   sliders       только ползунки света и звука;
@@ -67,22 +68,22 @@ ColumnLayout {
     }
     function removeBlock(id) { Settings.set("power.cc.blocks", blocks.filter(x => x !== id)); }
     function addBlock(id) { Settings.set("power.cc.blocks", blocks.concat([id])); }
-    // размеры: узкий (полширины) — всем, кроме «Музыки, света и звука» (им
-    // тесно), большой — всем, кроме VPN (ему нечего показать крупнее)
+    // размеры тянутся за края, как виджеты на телефоне: ширина — сколько из
+    // шести колонок занять, высота — в пикселях (0 — сама по содержимому).
+    // Записи 1.9.5 («half» / «large») читаются как полширины и большой.
+    readonly property int cols: 6
+    readonly property var minSpan: ({ media: 4, music: 3, vpn: 3, notifications: 3 })
     readonly property var sizes: Settings.get("power.cc.sizes", null) ?? ({})
     function sizeOf(id) {
-        const v = sizes[id];
-        return v === "half" && id !== "media" ? "half" : v === "large" && id !== "vpn" ? "large" : "normal";
+        const v = sizes[id], min = minSpan[id] ?? 2;
+        if (v === "half") return { w: Math.max(3, min), h: 0, large: false };
+        if (v === "large") return { w: cols, h: 0, large: id !== "vpn" };
+        const w = Math.round(v?.w ?? cols);
+        return { w: Math.max(min, Math.min(cols, w)), h: Math.max(0, Math.round(v?.h ?? 0)), large: false };
     }
-    function isHalf(id) { return sizeOf(id) === "half"; }
-    function isLarge(id) { return sizeOf(id) === "large"; }
-    function sizesFor(id) {
-        return [{ v: "half", t: "Узкий" }, { v: "normal", t: "Обычный" }, { v: "large", t: "Большой" }]
-            .filter(x => !(x.v === "half" && id === "media") && !(x.v === "large" && id === "vpn"));
-    }
-    function setSize(id, v) {
+    function setSize(id, w, h) {
         const s = Object.assign({}, sizes);
-        if (v === "normal") delete s[id]; else s[id] = v;
+        if (w >= cols && h <= 0) delete s[id]; else s[id] = { w: w, h: Math.round(h) };
         Settings.set("power.cc.sizes", s);
     }
 
@@ -477,104 +478,164 @@ ColumnLayout {
     }
 
     // ---------- блоки ----------
-    // две колонки: целый блок занимает обе, половинки встают рядом
+    // шесть колонок: блок занимает сколько вытянули, соседние встают рядом
     GridLayout {
+        id: grid
         Layout.fillWidth: true
-        columns: 2
+        columns: root.cols
         columnSpacing: 10
         rowSpacing: 12
+        readonly property real colW: (width + columnSpacing) / root.cols
     Repeater {
         model: root.blocks
-        delegate: ColumnLayout {
+        delegate: Item {
             id: blk
             required property string modelData
             required property int index
-            readonly property bool half: root.isHalf(modelData)
-            Layout.columnSpan: half ? 1 : 2
+            readonly property var size: root.sizeOf(modelData)
+            // пока тянут за край — живой размер, в настройки пишется на отпускании
+            property int dragW: -1
+            property real dragH: -1
+            readonly property int span: dragW > 0 ? dragW : size.w
+            readonly property real boxH: dragH >= 0 ? dragH : size.h
+            readonly property bool half: span <= 3
+            // обычная высота блока: от неё считается, когда он станет большим
+            property real baseH: 0
+            readonly property bool large: size.large || (boxH > 0 && baseH > 0 && boxH >= baseH * 1.3)
+            Layout.columnSpan: span
             Layout.fillWidth: true
-            Layout.preferredWidth: half ? 1 : 2
+            Layout.preferredWidth: span
             Layout.alignment: Qt.AlignTop
-            spacing: 6
+            implicitHeight: col.implicitHeight
             // VPN без подключений вне правки не показываем
             visible: root.editing || modelData !== "vpn" || Vpn.available
 
-            // полоска правки: название, выше/ниже, убрать
-            Rectangle {
-                visible: root.editing
-                Layout.fillWidth: true
-                implicitHeight: 34
-                radius: 17
-                color: Theme.tint(0.14)
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 12; rightMargin: 4 }
-                    spacing: 4
-                    Sym { name: root.blockCatalog[blk.modelData].icon; size: 16; color: Theme.accent }
-                    // у половинки места на название нет — только значок
-                    Label { visible: !blk.half; Layout.fillWidth: true; text: I18n.tr(root.blockCatalog[blk.modelData].name); size: "small"; font.weight: Font.Bold }
-                    Item { visible: blk.half; Layout.fillWidth: true }
-                    // половинка двигается влево-вправо, целый блок — вверх-вниз
-                    Repeater {
-                        model: [{ icon: blk.half ? "chevron-left" : "chevron-up", act: -1 },
-                                { icon: blk.half ? "chevron-right" : "chevron-down", act: 1 },
-                                { icon: "close", act: 0 }]
-                        delegate: Rectangle {
-                            id: eb
-                            required property var modelData
-                            readonly property bool can: modelData.act === 0
-                                || (modelData.act < 0 ? blk.index > 0 : blk.index < root.blocks.length - 1)
-                            width: 28; height: 28; radius: 14
-                            opacity: can ? 1 : 0.3
-                            color: ebHov.hovered && can ? Theme.soft2 : "transparent"
-                            Sym { anchors.centerIn: parent; name: eb.modelData.icon; size: 14 }
-                            HoverHandler { id: ebHov; cursorShape: eb.can ? Qt.PointingHandCursor : Qt.ArrowCursor }
-                            TapHandler {
-                                enabled: eb.can
-                                onTapped: eb.modelData.act === 0 ? root.removeBlock(blk.modelData)
-                                    : root.moveBlock(blk.modelData, eb.modelData.act)
+            ColumnLayout {
+                id: col
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                spacing: 6
+
+                // полоска правки: название, выше/ниже, убрать
+                Rectangle {
+                    visible: root.editing
+                    Layout.fillWidth: true
+                    implicitHeight: 34
+                    radius: 17
+                    color: Theme.tint(0.14)
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 4 }
+                        spacing: 4
+                        Sym { name: root.blockCatalog[blk.modelData].icon; size: 16; color: Theme.accent }
+                        // у узкого места на название нет — только значок
+                        Label { visible: !blk.half; Layout.fillWidth: true; text: I18n.tr(root.blockCatalog[blk.modelData].name); size: "small"; font.weight: Font.Bold }
+                        Item { visible: blk.half; Layout.fillWidth: true }
+                        // узкий двигается влево-вправо, широкий — вверх-вниз
+                        Repeater {
+                            model: [{ icon: blk.half ? "chevron-left" : "chevron-up", act: -1 },
+                                    { icon: blk.half ? "chevron-right" : "chevron-down", act: 1 },
+                                    { icon: "close", act: 0 }]
+                            delegate: Rectangle {
+                                id: eb
+                                required property var modelData
+                                readonly property bool can: modelData.act === 0
+                                    || (modelData.act < 0 ? blk.index > 0 : blk.index < root.blocks.length - 1)
+                                width: 28; height: 28; radius: 14
+                                opacity: can ? 1 : 0.3
+                                color: ebHov.hovered && can ? Theme.soft2 : "transparent"
+                                Sym { anchors.centerIn: parent; name: eb.modelData.icon; size: 14 }
+                                HoverHandler { id: ebHov; cursorShape: eb.can ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                                TapHandler {
+                                    enabled: eb.can
+                                    onTapped: eb.modelData.act === 0 ? root.removeBlock(blk.modelData)
+                                        : root.moveBlock(blk.modelData, eb.modelData.act)
+                                }
                             }
                         }
                     }
                 }
-            }
-            // правка: размер блока
-            Flow {
-                visible: root.editing
-                Layout.fillWidth: true
-                spacing: 3
-                Repeater {
-                    model: root.sizesFor(blk.modelData)
-                    delegate: Rectangle {
-                        id: sz
-                        required property var modelData
-                        readonly property bool on: root.sizeOf(blk.modelData) === modelData.v
-                        width: szLabel.implicitWidth + 14; height: 26; radius: 13
-                        color: on ? Theme.accent : szHov.hovered ? Theme.soft2 : Theme.soft
-                        Behavior on color { ColorAnimation { duration: Theme.anim.fast } }
-                        Label {
-                            id: szLabel
-                            anchors.centerIn: parent
-                            text: I18n.tr(sz.modelData.t)
-                            size: "caption"
-                            font.weight: Font.DemiBold
-                            color: sz.on ? Theme.onAccent : Theme.fg
-                        }
-                        HoverHandler { id: szHov; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: root.setSize(blk.modelData, sz.modelData.v) }
-                    }
+                Loader {
+                    id: body
+                    // блоки читают parent.half — узкий вид, parent.large — большой
+                    readonly property bool half: blk.half
+                    readonly property bool large: blk.large
+                    readonly property real natural: item ? item.implicitHeight : 0
+                    // отложено: иначе блок становится большим посреди пересчёта высоты
+                    onNaturalChanged: Qt.callLater(() => { if (!blk.large && item) blk.baseH = natural; })
+                    Layout.fillWidth: true
+                    // вытянутый выше — содержимое растягивается, ниже своего не сжимается
+                    Layout.preferredHeight: blk.boxH > 0 ? Math.max(blk.boxH, natural) : -1
+                    clip: blk.boxH > 0
+                    sourceComponent: blk.modelData === "media" ? mediaBlock
+                        : blk.modelData === "music" ? musicBlock
+                        : blk.modelData === "sliders" ? slidersBlock
+                        : blk.modelData === "net" ? netBlock
+                        : blk.modelData === "toggles" ? togglesBlock
+                        : blk.modelData === "vpn" ? vpnBlock
+                        : notifBlock
                 }
             }
-            Loader {
-                // блоки читают parent.half — узкий вид, parent.large — большой
-                readonly property bool half: blk.half
-                readonly property bool large: root.isLarge(blk.modelData)
-                Layout.fillWidth: true
-                sourceComponent: blk.modelData === "media" ? mediaBlock
-                    : blk.modelData === "music" ? musicBlock
-                    : blk.modelData === "sliders" ? slidersBlock
-                    : blk.modelData === "net" ? netBlock
-                    : blk.modelData === "toggles" ? togglesBlock
-                    : blk.modelData === "vpn" ? vpnBlock
-                    : notifBlock
+
+            // ---- правка: размер тянется за правый край, низ и угол ----
+            Rectangle {
+                visible: root.editing
+                x: body.x - 4; y: body.y - 4
+                width: body.width + 8; height: body.height + 8
+                radius: 18
+                color: "transparent"
+                border.width: 1.5
+                border.color: blk.dragW > 0 || blk.dragH >= 0 ? Theme.accent : Theme.line
+            }
+            // тянуть начали / тянут / отпустили (сдвиг — от точки нажатия)
+            function gripStart(h, v) {
+                grabW = width; grabH = body.height;
+                if (h) dragW = span;
+                if (v) dragH = boxH > 0 ? boxH : body.height;
+            }
+            function gripMove(h, v, dx, dy) {
+                if (h) {
+                    const n = Math.round((grabW + dx + grid.columnSpacing) / grid.colW);
+                    dragW = Math.max(root.minSpan[modelData] ?? 2, Math.min(root.cols, n));
+                }
+                if (v) {
+                    const lo = baseH > 0 ? baseH : 40;
+                    dragH = Math.max(lo, Math.min(Math.max(lo * 2.6, 320), grabH + dy));
+                }
+            }
+            function gripEnd() {
+                const w = span;
+                // почти своя высота — снова «по содержимому»
+                const h = boxH > 0 && boxH > baseH * 1.06 ? boxH : 0;
+                dragW = -1; dragH = -1;
+                root.setSize(modelData, w, h);
+            }
+            property real grabW: 0
+            property real grabH: 0
+            Grip {
+                visible: root.editing
+                onStarted: blk.gripStart(horiz, vert)
+                onMoved: (dx, dy) => blk.gripMove(horiz, vert, dx, dy)
+                onFinished: blk.gripEnd()
+                horiz: true
+                x: body.x + body.width - 12; y: body.y + body.height / 2 - 30
+                width: 16; height: 60
+            }
+            Grip {
+                visible: root.editing
+                onStarted: blk.gripStart(horiz, vert)
+                onMoved: (dx, dy) => blk.gripMove(horiz, vert, dx, dy)
+                onFinished: blk.gripEnd()
+                vert: true
+                x: body.x + body.width / 2 - 30; y: body.y + body.height - 6
+                width: 60; height: 16
+            }
+            Grip {
+                visible: root.editing
+                onStarted: blk.gripStart(horiz, vert)
+                onMoved: (dx, dy) => blk.gripMove(horiz, vert, dx, dy)
+                onFinished: blk.gripEnd()
+                horiz: true; vert: true
+                x: body.x + body.width - 16; y: body.y + body.height - 12
+                width: 20; height: 20
             }
         }
     }
@@ -701,6 +762,38 @@ ColumnLayout {
         }
     }
 
+    // ручка размера блока в правке: тянут за неё — сдвиг от точки нажатия
+    // в координатах сцены (блок может переехать в другой ряд, пока тянут)
+    component Grip: Item {
+        id: grip
+        property bool horiz: false
+        property bool vert: false
+        signal started()
+        signal moved(real dx, real dy)
+        signal finished()
+        property point from
+        HoverHandler {
+            cursorShape: grip.horiz && grip.vert ? Qt.SizeFDiagCursor : grip.horiz ? Qt.SizeHorCursor : Qt.SizeVerCursor
+        }
+        DragHandler {
+            id: gd
+            target: null
+            onActiveChanged: {
+                if (active) { grip.from = centroid.scenePosition; grip.started(); }
+                else grip.finished();
+            }
+            onCentroidChanged: if (active) grip.moved(centroid.scenePosition.x - grip.from.x, centroid.scenePosition.y - grip.from.y)
+        }
+        Rectangle {
+            anchors.centerIn: parent
+            width: grip.horiz && grip.vert ? 14 : grip.horiz ? 6 : 40
+            height: grip.horiz && grip.vert ? 14 : grip.horiz ? 40 : 6
+            radius: Math.min(width, height) / 2
+            color: gd.active ? Theme.accent : Theme.fg
+            opacity: gd.active ? 1 : 0.55
+        }
+    }
+
     // ================= блоки =================
 
     // --- музыка, свет и звук ---
@@ -716,11 +809,13 @@ ColumnLayout {
                 PlayerTile { Layout.fillWidth: true; Layout.fillHeight: true; big: mbk.large }
                 VSlider {
                     visible: Brightness.available
+                    Layout.fillHeight: true
                     icon: "sun"
                     value: Brightness.value
                     onMoved: v => Brightness.set(v)
                 }
                 VSlider {
+                    Layout.fillHeight: true
                     icon: root.sink?.audio?.muted ? "volume-mute" : "volume"
                     value: root.sink?.audio?.volume ?? 0
                     onMoved: v => { if (root.sink?.audio) root.sink.audio.volume = v; }
@@ -757,6 +852,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     Layout.preferredHeight: parent.large ? 240 : parent.half ? 178 : 56
+                    Layout.fillHeight: true
                     sourceComponent: parent.half ? vert : horiz
                     Component {
                         id: vert
@@ -787,11 +883,11 @@ ColumnLayout {
     // --- Wi-Fi и Bluetooth ---
     Component {
         id: netBlock
-        // половинка — кнопки друг под другом
+        // узкий — кнопки друг под другом
         GridLayout {
             id: nb
             readonly property bool large: parent?.large ?? false
-            columns: parent?.half ? 1 : 2
+            columns: (parent?.width ?? 400) >= 250 ? 2 : 1
             columnSpacing: 10
             rowSpacing: 10
             readonly property var devices: Networking.devices.values
@@ -806,6 +902,7 @@ ColumnLayout {
                 sub: nb.net ? I18n.tr("Подключено") : nb.wired ? I18n.tr("Подключено") : Networking.wifiEnabled ? I18n.tr("Не подключено") : I18n.tr("Выключен")
                 on: nb.net !== null || nb.wired
                 implicitHeight: nb.large ? 84 : 64
+                Layout.fillHeight: true
                 onClicked: if (root.screen) ShellState.openMenu("wifi", root.screen)
             }
             WideChip {
@@ -815,6 +912,7 @@ ColumnLayout {
                     : root.btAdapter === null ? I18n.tr("Нет адаптера") : root.btAdapter.enabled ? I18n.tr("Включён") : I18n.tr("Выключен")
                 on: nb.btDev !== null
                 implicitHeight: nb.large ? 84 : 64
+                Layout.fillHeight: true
                 onClicked: if (root.screen) ShellState.openMenu("bluetooth", root.screen)
             }
         }
@@ -826,7 +924,8 @@ ColumnLayout {
         GridLayout {
             id: tgb
             readonly property bool large: parent?.large ?? false
-            columns: parent?.half ? 2 : large ? 3 : 4
+            // сколько кружков влезает в ширину блока
+            columns: Math.max(1, Math.floor(((parent?.width ?? 400) + 6) / (large ? 120 : 96)))
             columnSpacing: 6
             rowSpacing: 8
             Repeater {
