@@ -87,7 +87,8 @@ ColumnLayout {
     readonly property var deltaUpdate: updates.find(u => u.name === "delta") || null
     // версии на выбор: { "0": "0.6.8-1", "1": "1.0-1" }
     property var offers: ({})
-    readonly property int currentLine: parseInt(deltaVersion) || 0
+    // линия 1 — своё окружение: и 1.x, и 2.x
+    readonly property int currentLine: Math.min(parseInt(deltaVersion) || 0, 1)
     function readOffers() {
         Exec.read(["delta-update", "offers"], (code, out) => {
             const o = {};
@@ -128,7 +129,7 @@ ColumnLayout {
             Settings.set("updates.lastCheck", new Date().toISOString());
             Settings.set("updates.available", list.length);
         });
-        Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2"], (code, out) => deltaVersion = out.trim());
+        Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2 | sed 's/^[0-9]*://'"], (code, out) => deltaVersion = out.trim());
     }
     Component.onCompleted: { check(); readOffers(); readSnapshots(); }
 

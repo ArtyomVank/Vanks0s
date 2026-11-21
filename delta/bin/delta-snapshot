@@ -78,6 +78,8 @@ installed_list() {
 # файл пакета имя-версия-архитектура: в снимке, кэшах или скачанных
 find_pkg() {
     local base="$1-$2-$3" d ext
+    # у Delta с 2.0.1 эпоха (1:2.0.1-1), а в имени файла её нет
+    [ "$1" = delta ] && base="delta-${2#*:}-$3"
     while IFS= read -r d; do
         for ext in zst xz; do
             [ -f "${d%/}/${base}.pkg.tar.${ext}" ] && { printf '%s\n' "${d%/}/${base}.pkg.tar.${ext}"; return 0; }
@@ -165,6 +167,7 @@ download() {
     install -d -m 0755 "${DOWNLOADS}"
     if [ "${name}" = delta ]; then
         [ -n "${DELTA_REPO}" ] || return 1
+        ver=${ver#*:}
         file="${DOWNLOADS}/delta-${ver}-any.pkg.tar.zst"
         url="https://github.com/${DELTA_REPO}/releases/download/v${ver%-*}/delta-${ver}-any.pkg.tar.zst"
         curl -fsL --retry 3 --max-time 600 -o "${file}.part" "${url}" || { rm -f "${file}.part"; return 1; }

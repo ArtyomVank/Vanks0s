@@ -59,14 +59,26 @@ run_pacman() {
     return "${PIPESTATUS[0]}"
 }
 
-# новейший пакет delta линии $1 из релизов GitHub: «ссылка<TAB>имя<TAB>sha256:…»
+# новейший пакет delta линии $1 из релизов GitHub: «ссылка<TAB>имя<TAB>sha256:…».
+# Линия 0 — Delta 0.x на Hyprland, линия 1 — своё окружение: 1.x, 2.x и дальше.
+# Берём наибольшую версию, а не первый релиз в списке: мостовой выпуск для
+# старой линии (1.9.7) может выйти позже 2.0.1.
 delta_release() {
     [ -n "${DELTA_REPO}" ] || return 1
     command -v curl >/dev/null && command -v jq >/dev/null || return 1
-    delta_releases_json |
-        jq -r --arg line "$1" '[.[] | select((.draft or .prerelease) | not) | .assets[]?
-               | select(.name | test("^delta-" + $line + "\\.[^-]*-[0-9.]+-any\\.pkg\\.tar\\.zst$"))]
-               | first // empty | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null
+    local major best="" bestver="" url name digest ver
+    case "$1" in 0) major=0 ;; 1) major='[1-9][0-9]*' ;; *) return 1 ;; esac
+    while IFS=$'\t' read -r url name digest; do
+        ver=$(pkg_version "${name}")
+        if [ -z "${bestver}" ] || [ "$(vercmp "${ver}" "${bestver}")" -gt 0 ]; then
+            bestver=${ver}; best="${url}"$'\t'"${name}"$'\t'"${digest}"
+        fi
+    done < <(delta_releases_json |
+        jq -r --arg major "${major}" '.[] | select((.draft or .prerelease) | not) | .assets[]?
+               | select(.name | test("^delta-(" + $major + ")\\.[^-]*-[0-9.]+-any\\.pkg\\.tar\\.zst$"))
+               | [.browser_download_url, .name, (.digest // "")] | @tsv' 2>/dev/null)
+    [ -n "${best}" ] && printf '%s\n' "${best}"
+    return 0
 }
 delta_releases_json() {
     [ -n "${DELTA_RELEASES_FILE:-}" ] && { cat "${DELTA_RELEASES_FILE}"; return; }
@@ -75,8 +87,12 @@ delta_releases_json() {
 }
 pkg_version() { local n=${1#delta-}; printf '%s\n' "${n%-any.pkg.tar.zst}"; }
 installed()   { pacman -Q "$1" 2>/dev/null | awk '{print $2}'; }
-# линия установленной Delta: 0 — на Hyprland, 1 — своё окружение
-current_line() { local v; v=$(installed delta); v=${v%%.*}; printf '%s\n' "${v:-0}"; }
+# версия Delta без эпохи: с 2.0.1 у пакета epoch=1 (иначе пакет «delta» из AUR
+# с версией 20060803 «новее» и yay ставит его вместо Delta), а в именах файлов
+# релизов эпохи нет — так их находят уже вышедшие системы и Vanks Setup
+delta_installed() { local v; v=$(installed delta); printf '%s\n' "${v#*:}"; }
+# линия установленной Delta: 0 — на Hyprland, 1 — своё окружение (1.x, 2.x…)
+current_line() { local v; v=$(delta_installed); v=${v%%.*}; [ "${v:-0}" -ge 1 ] 2>/dev/null && echo 1 || echo 0; }
 delta_latest() { delta_release "${1:-$(current_line)}"; }
 
 cmd_offers() {
@@ -96,7 +112,7 @@ delta_check() {
     [ -n "${latest}" ] || return 1
     IFS=$'\t' read -r url name _ <<<"${latest}"
     new=$(pkg_version "${name}")
-    old=$(installed delta)
+    old=$(delta_installed)
     if [ -z "${old}" ] || [ "$(vercmp "${new}" "${old}")" -gt 0 ]; then
         printf 'delta %s -> %s\n' "${old:-нет}" "${new}"
     fi
@@ -192,7 +208,7 @@ cmd_apply() {
     if latest=$(delta_latest "${line}") && [ -n "${latest}" ]; then
         IFS=$'\t' read -r url name digest <<<"${latest}"
         new=$(pkg_version "${name}")
-        old=$(installed delta)
+        old=$(delta_installed)
         if [ -z "${old}" ] || [ "$(vercmp "${new}" "${old}")" -gt 0 ]; then
             step "Обновляю Delta до ${new}"
             install -d -m 0755 "${CACHE}"

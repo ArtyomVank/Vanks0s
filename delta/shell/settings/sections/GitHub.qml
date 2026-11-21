@@ -45,7 +45,7 @@ ColumnLayout {
             root.loaded = true;
             if (root.repo) root.fetchRelease();
         });
-        Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2"], (code, out) => root.installed = out.trim());
+        Exec.read(["sh", "-c", "pacman -Q delta 2>/dev/null | cut -d' ' -f2 | sed 's/^[0-9]*://'"], (code, out) => root.installed = out.trim());
     }
 
     function fetchRelease() {

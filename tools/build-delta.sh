@@ -72,9 +72,11 @@ built=$(find "${SRC_DIR}/packaging/delta" -maxdepth 1 -name 'delta-*.pkg.tar.zst
 install -d "${OUT_DIR}"
 # прежняя сборка с тем же именем, но другим содержимым не должна остаться рядом
 rm -f "${OUT_DIR}"/delta-*.pkg.tar.zst "${OUT_DIR}"/delta-*.pkg.tar.zst.sig
-install -m 0644 "${built}" "${OUT_DIR}/"
-chown root:root "${OUT_DIR}/$(basename "${built}")"
-log "готово: ${OUT_DIR}/$(basename "${built}")"
+# эпоху (delta-1:2.0.1-1-any…) из имени убираем: двоеточие не пишется на FAT
+name=$(basename "${built}"); name=${name/#delta-[0-9]*:/delta-}
+install -m 0644 "${built}" "${OUT_DIR}/${name}"
+chown root:root "${OUT_DIR}/${name}"
+log "готово: ${OUT_DIR}/${name}"
 
 # --- обои Vanks OS: отдельный пакет, пересобираем только при новой версии ---
 # (180 МБ картинок — сжимать их на каждой сборке ISO незачем)

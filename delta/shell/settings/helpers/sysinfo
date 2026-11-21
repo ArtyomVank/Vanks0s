@@ -17,7 +17,7 @@ fi
 
 # версия Delta: файл пакета, затем pacman; запуск из исходников — версия из
 # PKGBUILD рядом с ними и пометка «разработка»
-delta=$(cat "${data}/VERSION" 2>/dev/null || pacman -Q delta 2>/dev/null | awk '{print $2}')
+delta=$(cat "${data}/VERSION" 2>/dev/null || pacman -Q delta 2>/dev/null | awk '{sub(/^[0-9]+:/, "", $2); print $2}')
 if [ -z "${delta}" ]; then
     src=$(sed -n 's/^pkgver=//p' "${data}/../packaging/delta/PKGBUILD" 2>/dev/null)
     delta="${src:+${src} }(разработка)"

@@ -63,7 +63,10 @@ log "собираю пакет"
     || die "makepkg не смог собрать delta"
 
 name="delta-${ver}-${rel}-any.pkg.tar.zst"
-[[ -f ${tmp}/out/${name} ]] || die "makepkg завершился, но ${name} не найден"
+# makepkg пишет эпоху в имя (delta-1:2.0.1-1-any…) — в релизе имя без неё
+built=$(find "${tmp}/out" -maxdepth 1 -name "delta-*${ver}-${rel}-any.pkg.tar.zst" | head -n1)
+[[ -n ${built} ]] || die "makepkg завершился, но ${name} не найден"
+[[ ${built} = "${tmp}/out/${name}" ]] || mv "${built}" "${tmp}/out/${name}"
 rm -f "${DIST}"/delta-*.pkg.tar.zst "${DIST}"/delta-*.pkg.tar.zst.sha256
 cp "${tmp}/out/${name}" "${DIST}/${name}"
 ( cd "${DIST}" && sha256sum "${name}" > "${name}.sha256" )
