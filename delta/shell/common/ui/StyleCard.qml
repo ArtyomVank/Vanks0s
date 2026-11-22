@@ -18,7 +18,7 @@ Rectangle {
                                      : (Theme.styles.find(x => x.id === styleId) || Theme.styles[0])
     readonly property bool sel: isUi ? Theme.ui === styleId : Theme.style === styleId
     readonly property string mat: !isUi ? styleId
-        : Theme.uiStyles.some(x => x.theme === Theme.style) ? info.theme : Theme.style
+        : styleId === "nothing" || Theme.uiStyles.some(x => x.theme === Theme.style) ? info.theme : Theme.style
     // раскладка «Акрила»: три острова сверху, круглые кнопки
     readonly property bool islands: (isUi ? styleId : Theme.ui) === "acrylic"
     readonly property bool layers: (isUi ? styleId : Theme.ui) === "layers"
@@ -206,7 +206,8 @@ Rectangle {
         spacing: 2
         Row {
             spacing: 6
-            Label { text: I18n.tr(root.info.name); font.weight: Font.Bold }
+            // у Nothing — название точками: так виден шрифт стиля
+            Label { text: I18n.tr(root.info.name); font.weight: Font.Bold; font.family: root.isUi && root.nothing ? Theme.fontDot : Theme.textFont("body", false) }
             Sym { visible: root.sel; anchors.verticalCenter: parent.verticalCenter; name: "check"; size: 14; color: Theme.accent }
         }
         Label { width: parent.width; text: I18n.tr(root.info.note); size: "caption"; tone: 3; elide: Text.ElideRight }

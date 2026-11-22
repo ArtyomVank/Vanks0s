@@ -11,6 +11,8 @@ Canvas {
     property real digitHeight: 100
     property color color: "#ffffff"
     property real ghost: 0
+    // радиус точки — доля шага; мелким цифрам (часы в доке) нужен зазор побольше
+    property real dot: 0.42
 
     readonly property real pitch: digitHeight / 7
     // ширина строки в клетках: цифра — 5, двоеточие — 1, между знаками — 1
@@ -41,12 +43,13 @@ Canvas {
     onTextChanged: requestPaint()
     onColorChanged: requestPaint()
     onGhostChanged: requestPaint()
+    onDotChanged: requestPaint()
     onDigitHeightChanged: requestPaint()
 
     onPaint: {
         const ctx = getContext("2d");
         ctx.reset();
-        const p = pitch, r = p * 0.42;
+        const p = pitch, r = p * dot;
         let x0 = 0;
         for (let i = 0; i < text.length; i++) {
             const g = glyphs[text[i]];

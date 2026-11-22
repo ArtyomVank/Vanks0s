@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import qs.common
 import qs.common.ui
 
-// Шаг 3: стиль интерфейса (Theme.uiStyles: Delta, «Акрил», «Слои») и тема — материал
+// Шаг 3: стиль интерфейса (Theme.uiStyles: Delta, «Акрил», «Слои», Nothing) и тема — материал
 // панелей (Theme.styles: Delta, акриловое и жидкое стекло, GNOME…).
 // Применяется сразу; поменять можно в «Настройки → Стили и темы».
 Page {
@@ -21,10 +21,10 @@ Page {
 
         GridLayout {
             Layout.fillWidth: true
-            columns: 6
+            columns: 20
             columnSpacing: 14
             rowSpacing: 14
-            // сверху два стиля (по три колонки), ниже шесть тем
+            // сверху четыре стиля (по пять колонок), ниже пять тем (по четыре)
             Repeater {
                 model: Theme.uiStyles.map(u => ({ kind: "style", id: u.id })).concat(Theme.styles.map(t => ({ kind: "theme", id: t.id })))
                 delegate: StyleCard {
@@ -33,7 +33,7 @@ Page {
                     required property int index
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
-                    Layout.columnSpan: modelData.kind === "style" ? 3 : 1
+                    Layout.columnSpan: modelData.kind === "style" ? 5 : 4
                     implicitHeight: modelData.kind === "style" ? 200 : 150
                     kind: modelData.kind
                     styleId: modelData.id

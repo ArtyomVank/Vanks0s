@@ -258,7 +258,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.userName
                 color: "#ffffff"
-                font.family: Theme.font
+                font.family: Theme.textFont("body", false)
                 font.pixelSize: 18
                 font.weight: Font.Bold
             }
@@ -287,7 +287,7 @@ Item {
                 text: pam.length ? pam : Keyboard.capsLock ? "Включён Caps Lock" : ""
                 color: root.auth && root.auth.isError && pam.length ? "#ffb3b3" : "#ffffff"
                 opacity: text.length ? 0.9 : 0
-                font.family: Theme.font
+                font.family: Theme.textFont("body", false)
                 font.pixelSize: 13
                 font.weight: Font.Medium
                 Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
@@ -367,7 +367,7 @@ Item {
             Text {
                 text: confirmBox.questions[root.confirm] || ""
                 color: "#ffffff"
-                font.family: Theme.font
+                font.family: Theme.textFont("body", false)
                 font.pixelSize: 15
                 font.weight: Font.Bold
             }
@@ -376,7 +376,7 @@ Item {
                 text: I18n.tr("Несохранённые данные в программах пропадут")
                 color: "#ffffff"
                 opacity: 0.75
-                font.family: Theme.font
+                font.family: Theme.textFont("body", false)
                 font.pixelSize: 12
             }
             Row {

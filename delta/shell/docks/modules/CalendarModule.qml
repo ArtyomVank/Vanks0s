@@ -3,9 +3,12 @@ import Quickshell
 import qs.common
 import qs.common.ui
 import qs.docks
+import qs.widgets.parts as WParts
 
 // Часы и дата. Сбоку экрана — часы в две строки. Настройки (Доки → Модули):
 // docks.top.opts.calendarDate — дата рядом, calendarSeconds — секунды.
+// В стиле Nothing цифры — точками по сетке в целые пиксели (DotDigits): шрифт
+// из точек на таком кегле сливается в обычные линии.
 Item {
     id: root
 
@@ -28,6 +31,10 @@ Item {
                                                            : days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()])
         : Qt.locale(I18n.locale).toString(now, "ddd, d MMM").replace(/\.(?=,|$)/g, "")
 
+    readonly property bool dots: Theme.dotText !== "off"
+    // шаг точек 3 px (цифра — 7 рядов): мельче точки сливаются в серое
+    readonly property int dotH: 21
+
     implicitWidth: vertical ? col.implicitWidth : row.implicitWidth
     implicitHeight: vertical ? col.implicitHeight : 20
 
@@ -38,8 +45,9 @@ Item {
         spacing: 8
         Row {
             anchors.verticalCenter: parent.verticalCenter
-            Label { text: root.time.slice(0, 5); num: true; size: "small"; color: Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
-            Label { visible: root.seconds; text: root.time.slice(5); num: true; size: "small"; color: Theme.acrylic ? Theme.fg3 : Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
+            WParts.DotDigits { visible: root.dots; text: root.time; digitHeight: root.dotH; dot: 0.4; color: Theme.fg }
+            Label { visible: !root.dots; text: root.time.slice(0, 5); num: true; size: "small"; color: Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
+            Label { visible: root.seconds && !root.dots; text: root.time.slice(5); num: true; size: "small"; color: Theme.acrylic ? Theme.fg3 : Theme.fg; font.weight: Font.Bold; font.features: { "tnum": 1 } }
         }
         Label { visible: root.full && root.showDate; text: root.day; size: "small"; tone: 2; font.weight: Font.Medium }
     }
@@ -47,7 +55,10 @@ Item {
         id: col
         visible: root.vertical
         anchors.centerIn: parent
-        Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(0, 2); num: true; size: "small"; font.weight: Font.Bold }
-        Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(3, 5); num: true; size: "small"; tone: 2; font.weight: Font.Bold }
+        spacing: root.dots ? 3 : 0
+        Label { visible: !root.dots; anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(0, 2); num: true; size: "small"; font.weight: Font.Bold }
+        Label { visible: !root.dots; anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(3, 5); num: true; size: "small"; tone: 2; font.weight: Font.Bold }
+        WParts.DotDigits { visible: root.dots; anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(0, 2); digitHeight: root.dotH; dot: 0.4; color: Theme.fg }
+        WParts.DotDigits { visible: root.dots; anchors.horizontalCenter: parent.horizontalCenter; text: root.time.slice(3, 5); digitHeight: root.dotH; dot: 0.4; color: Theme.fg2 }
     }
 }

@@ -11,7 +11,8 @@ Label {
     property bool display: false
 
     font.pixelSize: Math.max(1, Math.round(px))
-    font.family: display ? Theme.fontDisplay : Theme.font
+    // в стиле Nothing текст виджетов — всегда точками
+    font.family: display || Theme.dotText !== "off" ? Theme.fontDisplay : Theme.font
     font.weight: display ? Font.Bold : Font.Normal
     textFormat: Text.PlainText
     maximumLineCount: 1

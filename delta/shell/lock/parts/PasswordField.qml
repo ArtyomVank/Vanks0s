@@ -71,7 +71,7 @@ Rectangle {
             leftPadding: 4
             text: root.placeholder
             color: Qt.rgba(1, 1, 1, 0.55)
-            font.family: Theme.font
+            font.family: Theme.textFont("body", false)
             font.pixelSize: 15
         }
     }

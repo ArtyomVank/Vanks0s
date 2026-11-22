@@ -60,7 +60,7 @@ Item {
                 visible: root.text.length > 0
                 text: root.text
                 color: "#ffffff"
-                font.family: Theme.font
+                font.family: Theme.textFont("body", false)
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }
@@ -74,7 +74,7 @@ Item {
         opacity: hover.hovered || charge.active ? 0.9 : 0
         text: root.hold && (charge.active || tap.pressed) ? I18n.tr("Удерживайте") : root.label
         color: "#ffffff"
-        font.family: Theme.font
+        font.family: Theme.textFont("body", false)
         font.pixelSize: 12
         Behavior on opacity { NumberAnimation { duration: Theme.anim.fast } }
     }

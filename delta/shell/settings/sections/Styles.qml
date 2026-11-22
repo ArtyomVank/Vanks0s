@@ -8,9 +8,9 @@ import qs.settings
 import qs.settings.parts
 
 // Стили и темы — три уровня оформления (см. Theme.qml):
-//   «Стиль» — интерфейс (Theme.uiStyles): Delta, «Акрил» и «Слои»;
+//   «Стиль» — интерфейс (Theme.uiStyles): Delta, «Акрил», «Слои» и Nothing;
 //   «Тема»  — материал панелей (Theme.styles): Delta, акриловое и жидкое
-//             стекло, GNOME, Material You, Nothing;
+//             стекло, GNOME, Material You (у Nothing материал свой);
 //   «Цвет»  — цветокор (Theme.themes): оттенок поверхностей и акцент, в том
 //             числе свои цвета пользователя.
 ColumnLayout {
@@ -18,7 +18,7 @@ ColumnLayout {
 
     property string title: I18n.tr("Стили и темы")
     property string icon: "swatch"
-    property string keywords: "стиль интерфейс тема материал акрил delta жидкое стекло акриловое material you gnome nothing цвет цветокор тёмная светлая свой цвет"
+    property string keywords: "стиль интерфейс тема материал акрил delta жидкое стекло акриловое material you gnome nothing точки точечный шрифт цвет цветокор тёмная светлая свой цвет"
     spacing: 18
 
     // --- стиль: интерфейс ---
@@ -46,6 +46,17 @@ ColumnLayout {
                 }
             }
         }
+        SettingRow {
+            visible: Theme.ui === "nothing"
+            icon: "font"
+            title: I18n.tr("Текст точками")
+            subtitle: I18n.tr("Шрифт из точек в приложениях Delta, доках, виджетах и на экране блокировки")
+            Chips {
+                model: [{ value: "all", label: I18n.tr("Везде") }, { value: "titles", label: I18n.tr("Заголовки и цифры") }]
+                current: Theme.appearance.dotText === "titles" ? "titles" : "all"
+                onPicked: v => Settings.set("appearance.dotText", v)
+            }
+        }
     }
 
     // --- тема: материал панелей ---
@@ -53,7 +64,16 @@ ColumnLayout {
         title: I18n.tr("Тема")
         subtitle: I18n.tr("Из чего сделаны панели: стекло, акрил, сплошной цвет")
 
+        Label {
+            visible: Theme.ui === "nothing"
+            Layout.fillWidth: true
+            Layout.margins: 12
+            text: I18n.tr("У стиля Nothing свой материал: чёрное и белое без оттенков, тонкие рамки. Чтобы выбрать тему, смените стиль.")
+            tone: 2
+            wrapMode: Text.WordWrap
+        }
         Item {
+            visible: Theme.ui !== "nothing"
             Layout.fillWidth: true
             implicitHeight: matGrid.implicitHeight + 24
             GridLayout {

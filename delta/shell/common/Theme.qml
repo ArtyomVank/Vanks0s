@@ -73,9 +73,9 @@ Singleton {
     //             (Contour), ползунки и переключатели светятся;
     //   gnome  — сплошные серые панели, как в GNOME (Adwaita), без прозрачности;
     //   liquid — жидкое стекло: линза — фон у края изгибается, тонкий блик (Sheen);
-    //   material — Material You, как на Pixel: плотные панели, цвета от темы;
-    //   nothing — как Nothing OS: чёрное и белое без оттенков, тонкие рамки,
-    //             красный акцент, часы из точек.
+    //   material — Material You, как на Pixel: плотные панели, цвета от темы.
+    // Материал «nothing» (чёрное и белое без оттенков, тонкие рамки, красный
+    // акцент) с 2.1 — часть стиля Nothing, отдельно его не выбрать.
     // preset — что ставится при выборе темы (дальше можно поменять самому).
     readonly property var styles: [
         { id: "delta",  name: "Delta",          note: "Тонированное стекло",
@@ -87,11 +87,11 @@ Singleton {
         { id: "gnome",  name: "GNOME",          note: "Сплошные панели без прозрачности",
           preset: { glass: 1, radius: 12, rounding: 12, blur: false, border: 0, clock: "minimal" } },
         { id: "material", name: "Material You", note: "Цвета от темы, резкие пружинистые анимации",
-          preset: { glass: 0.97, radius: 28, rounding: 22, blur: false, border: 0, clock: "stack" } },
-        { id: "nothing", name: "Nothing", note: "Монохром, тонкие рамки, красный акцент и часы из точек",
-          preset: { glass: 1, radius: 20, rounding: 16, blur: false, border: 1, clock: "dots", accent: "#D71921" } }
+          preset: { glass: 0.97, radius: 28, rounding: 22, blur: false, border: 0, clock: "stack" } }
     ]
-    readonly property string style: styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
+    readonly property var nothingPreset: ({ glass: 1, radius: 20, rounding: 16, blur: false, border: 1, clock: "dots", accent: "#D71921" })
+    readonly property string style: appearance.style === "nothing" ? "nothing"
+        : styles.some(x => x.id === appearance.style) ? appearance.style : "delta"
     readonly property bool flat: style === "gnome"
     readonly property bool liquid: style === "liquid"
     readonly property bool material: style === "material"
@@ -102,8 +102,8 @@ Singleton {
     // выбрать тему: вместе с ней — прозрачность, скругления, размытие и рамка окон
     function applyStyle(id) {
         const st = styles.find(x => x.id === id);
-        if (!st) return;
-        const p = st.preset;
+        const p = id === "nothing" ? nothingPreset : st ? st.preset : null;
+        if (!p) return;
         Settings.set("appearance.style", id);
         Settings.set("appearance.glass", p.glass);
         if (p.frost !== undefined) Settings.set("appearance.frost", p.frost);
@@ -124,16 +124,22 @@ Singleton {
     //   layers  — «Слои» (Delta 2): сверху одна пилюля по центру, панель
     //             управления — лист во всю высоту справа (docks/ControlSheet),
     //             рабочий стол под ним уходит назад: темнеет и размывается.
+    //   nothing — как Nothing OS (с 2.1; раньше — тема): монохром, тонкие
+    //             рамки, красный акцент, часы и текст точечным шрифтом
+    //             (Delta Dots, tools/gen-dot-font.py). Материал у стиля свой.
     // theme — тема, которая подходит стилю: ставится, только если сейчас
-    // стоит «своя» тема другого стиля (Delta ↔ акриловое стекло), остальные
-    // темы (жидкое стекло, Nothing…) стиль не трогает.
+    // стоит «своя» тема другого стиля (Delta ↔ акриловое стекло ↔ Nothing),
+    // остальные темы (жидкое стекло, GNOME…) стиль не трогает.
     readonly property var uiStyles: [
         { id: "delta",   name: "Delta", note: "Полоса сверху, плитки с подписями", theme: "delta", top: "full" },
         { id: "acrylic", name: "Акрил", note: "Острова сверху, круглые кнопки, моноширинные цифры", theme: "acrylic", top: "tiles" },
-        { id: "layers",  name: "Слои", note: "Пилюля сверху, панель управления листом справа", theme: "delta", top: "compact" }
+        { id: "layers",  name: "Слои", note: "Пилюля сверху, панель управления листом справа", theme: "delta", top: "compact" },
+        { id: "nothing", name: "Nothing", note: "Монохром, красный акцент, текст и часы из точек", theme: "nothing", top: "full" }
     ]
-    // до 1.8 «Акрил» был темой: у кого он выбран, тому и стиль «Акрил»
-    readonly property string ui: uiStyles.some(x => x.id === appearance.ui) ? appearance.ui
+    // до 1.8 «Акрил» был темой: у кого он выбран, тому и стиль «Акрил»;
+    // до 2.1 темой был Nothing — стиль Nothing там, где стоит его материал
+    readonly property string ui: style === "nothing" ? "nothing"
+        : uiStyles.some(x => x.id === appearance.ui && x.id !== "nothing") ? appearance.ui
         : appearance.style === "acrylic" ? "acrylic" : "delta"
     readonly property bool round: ui === "acrylic"
     readonly property bool layers: ui === "layers"
@@ -144,7 +150,7 @@ Singleton {
         if (!u) return;
         Settings.set("appearance.ui", id);
         Settings.set("docks.top.length", u.top);
-        if (uiStyles.some(x => x.theme === style) && style !== u.theme) applyStyle(u.theme);
+        if ((id === "nothing" || uiStyles.some(x => x.theme === style)) && style !== u.theme) applyStyle(u.theme);
     }
 
     // Матовость (appearance.frost, 0…1) — сила размытия под панелями (её
@@ -289,10 +295,25 @@ Singleton {
     }
     readonly property var sansFallback: ["Inter", "Adwaita Sans", "Noto Sans", "Cantarell", "Liberation Sans", "sans-serif"]
     readonly property string font: pickFont([appearance.font || "Inter"].concat(sansFallback))
-    readonly property string fontDisplay: pickFont(["Inter Tight", font])
+    // заголовки и крупные цифры; в стиле Nothing — точками (dotText ниже)
+    readonly property string fontDisplay: dotText !== "off" ? fontDot : pickFont(["Inter Tight", font])
     readonly property string fontMono: pickFont(["JetBrains Mono", "Adwaita Mono", "Noto Sans Mono", "monospace"])
     // цифры в доках и меню: у «Акрила» — моноширинные (часы, проценты, размеры)
     readonly property string fontNum: round ? pickFont(["Iosevka NF", "Iosevka", "JetBrains Mono", fontMono]) : font
+    // Точечный шрифт стиля Nothing: свой, из оболочки — в систему не ставится,
+    // поэтому приложениям GTK/Qt (ThemeSync) по-прежнему уходит Theme.font.
+    readonly property FontLoader dotLoader: FontLoader { source: Qt.resolvedUrl("fonts/DeltaDots.ttf") }
+    readonly property string fontDot: dotLoader.status === FontLoader.Ready ? dotLoader.name : pickFont(["Inter Tight", font])
+    // где текст точками (appearance.dotText): all — везде, titles — заголовки,
+    // цифры, доки и часы, а обычный текст остаётся прежним; вне Nothing — нигде
+    readonly property string dotText: !nothing || dotLoader.status !== FontLoader.Ready ? "off"
+        : appearance.dotText === "titles" ? "titles" : "all"
+    // шрифт текста размера size (как у Label) и крупного/цифрового текста
+    function textFont(size, num) {
+        if (dotText === "all" || dotText === "titles" && (num || size === "title" || size === "h1" || size === "display"))
+            return fontDot;
+        return num && round ? fontNum : size === "h1" || size === "display" ? fontDisplay : font;
+    }
 
     // Анимации: длительности в мс и кривые, общие для всех модулей.
     // k — «Скорость анимаций» (windows.animSpeed: 0.3, 0.5, 1, 2, 4; меньше —

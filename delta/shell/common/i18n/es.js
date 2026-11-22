@@ -1503,4 +1503,12 @@ var strings = {
     "«Поделиться → Delta Link» на телефоне — файл в «Загрузках» компьютера": "«Compartir → Delta Link» en el teléfono deja el archivo en Descargas del ordenador",
     "Показать и управлять телефоном в окне — по проводу, в «Телефоне»": "Ver y controlar el teléfono en una ventana, por cable, en «Teléfono»",
     "Утро": "Mañana",
+    // --- 2.1: стиль Nothing ---
+    "Монохром, красный акцент, текст и часы из точек": "Monocromo, acento rojo, texto y reloj de puntos",
+    "Текст точками": "Texto de puntos",
+    "Шрифт из точек в приложениях Delta, доках, виджетах и на экране блокировки": "Fuente de puntos en las apps de Delta, docks, widgets y la pantalla de bloqueo",
+    "Везде": "En todas partes",
+    "Заголовки и цифры": "Títulos y números",
+    "У стиля Nothing свой материал: чёрное и белое без оттенков, тонкие рамки. Чтобы выбрать тему, смените стиль.": "El estilo Nothing tiene su propio material: blanco y negro sin matices, bordes finos. Para elegir un tema, cambia el estilo.",
+    "ВРЕМЯ": "HORA",
 };

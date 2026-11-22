@@ -8,7 +8,8 @@ import qs.common
 //   catalog       [{ id, label, mango: [ключи MangoHud] }]
 //   mangoActive   сессию запустили с MangoHud (delta-session: MANGOHUD=1 и
 //                 MANGOHUD_CONFIGFILE — файл, который пишет PlayHud)
-//   mangoConf(on, items, corner)  текст конфигурации MangoHud
+//   mangoConf(on, items, corner)  текст конфигурации MangoHud: блок в углу,
+//                 у стиля Nothing — точечным шрифтом (dotFile)
 // MangoHud перечитывает свой файл на лету: оверлей включается и меняется
 // прямо в запущенной игре.
 Singleton {
@@ -24,6 +25,11 @@ Singleton {
     ]
     readonly property var defaults: ["fps", "cpu", "gpu", "ram"]
 
+    // файл точечного шрифта (Theme.fontDot) для MangoHud: тот, что в оболочке
+    readonly property string dotFile: {
+        const u = Qt.resolvedUrl("../common/fonts/DeltaDots.ttf").toString();
+        return u.startsWith("file://") ? decodeURIComponent(u.slice(7)) : "";
+    }
     readonly property string mangoFile: Quickshell.env("MANGOHUD_CONFIGFILE") || ""
     readonly property bool mangoActive: Quickshell.env("MANGOHUD") === "1" && mangoFile !== ""
 
@@ -35,17 +41,21 @@ Singleton {
         // выключен — MangoHud остаётся в игре, но ничего не рисует
         if (!on) return "no_display\n";
         const pos = { tl: "top-left", tr: "top-right", bl: "bottom-left", br: "bottom-right" }[corner] || "top-left";
+        // небольшой блок в углу: показатель на строку, без горизонтальной
+        // полосы — та растягивается на всю ширину экрана (horizontal_stretch)
         const lines = [
             "# пишет Delta (play/PlayHud.qml) — меняйте в игровой панели Super+G",
-            "legacy_layout=0", "horizontal", "hud_compact", "hud_no_margin",
+            "legacy_layout=0", "hud_compact", "table_columns=3", "cellpadding_y=-0.05",
             "position=" + pos, "offset_x=14", "offset_y=14",
-            "round_corners=12", "background_alpha=0.5", "background_color=" + hex(Theme.base),
-            "font_size=20", "text_color=FFFFFF",
+            "round_corners=10", "background_alpha=0.55", "background_color=" + hex(Theme.base),
+            "font_size=16", "text_color=FFFFFF",
             "fps_color_change", "fps_value=30,60", "fps_color=FF6B6B,F09A2B," + hex(Theme.accent),
             "cpu_color=" + hex(Theme.accent), "gpu_color=" + hex(Theme.accent),
             "ram_color=" + hex(Theme.accent), "vram_color=" + hex(Theme.accent),
             "toggle_hud=Shift_R+F12"
         ];
+        // стиль Nothing — точечным шрифтом оболочки
+        if (Theme.dotText !== "off" && dotFile !== "") lines.push("font_file=" + dotFile);
         for (const it of catalog)
             if (items.indexOf(it.id) !== -1) for (const k of it.mango) lines.push(k);
         return lines.join("\n") + "\n";
