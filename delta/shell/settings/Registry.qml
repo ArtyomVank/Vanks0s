@@ -33,6 +33,7 @@ Singleton {
         { id: "styles",        file: "Styles",        group: "look",      title: I18n.tr("Стили и темы"),             icon: "swatch",    keywords: "стиль тема акрил delta жидкое стекло material you gnome nothing тёмная светлая своя тема" },
         { id: "appearance",    file: "Appearance",    group: "look",      title: I18n.tr("Оформление"),               icon: "palette",   keywords: "цвет акцент прозрачность стекло скругление шрифт значки курсор gtk qt" },
         { id: "wallpapers",    file: "Wallpapers",    group: "look",      title: I18n.tr("Обои"),                     icon: "image",     keywords: "фон картинка видеообои папка" },
+        { id: "presets",       file: "Presets",       group: "look",      title: I18n.tr("Пресеты"),                  icon: "layers",    keywords: "пресет набор сохранить обои часы виджеты готовые виды" },
         { id: "docks",         file: "Docks",         group: "look",      title: I18n.tr("Доки"),                     icon: "dock",      keywords: "панель автоскрытие край модули значки" },
         { id: "widgets",       file: "Widgets",       group: "look",      title: I18n.tr("Виджеты"),                  icon: "widgets",   keywords: "часы погода календарь рабочий стол" },
         { id: "lock",          file: "Lock",          group: "look",      title: I18n.tr("Экран блокировки"),         icon: "lock",      keywords: "блокировка вход часы виджеты" },
@@ -61,7 +62,7 @@ Singleton {
 
     // другие имена для ссылок вида `delta-settings look`
     readonly property var aliases: ({
-        look: "appearance", theme: "styles", style: "styles", styles: "styles", walls: "wallpapers", wallpaper: "wallpapers",
+        look: "appearance", theme: "styles", style: "styles", styles: "styles", walls: "wallpapers", wallpaper: "wallpapers", preset: "presets", looks: "presets",
         dock: "docks", bottom: "docks", top: "docks", notif: "notifications",
         monitor: "display", monitors: "display", screen: "display", audio: "sound",
         wifi: "network", mouse: "mouse", touchpad: "mouse", input: "keyboard",

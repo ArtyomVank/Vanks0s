@@ -21,11 +21,13 @@ Item {
     property real size: 152
     // ширина цифр «Длинных» часов — доля высоты
     property real tallWidth: 0.62
-    // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над минутами
+    // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над
+    // минутами, mixed — «Часы стеклом» (как на телефоне: часы стеклом, минуты сплошные)
     property string tallKind: "line"
     // толщина линий — множитель
     property real tallThick: 1
-    readonly property string tallLook: tallKind === "hollow" ? "hollow" : t === "glass" ? "glass" : "solid"
+    readonly property string tallLook: tallKind === "hollow" ? "hollow" : t === "glass" || tallKind === "mixed" ? "glass" : "solid"
+    readonly property string tallMinLook: tallKind === "mixed" ? "solid" : tallLook
     property bool showDate: true
     property color textColor: "#ffffff"   // цвет даты (на обоях всегда светлый)
 
@@ -73,7 +75,7 @@ Item {
     // тень для обычных стилей, свечение для неона
     readonly property color shadowColor: glow ? (tint === "accent" ? Theme.accent : "#ffffff") : Qt.rgba(0, 0, 0, 0.3)
 
-    implicitWidth: Math.max(tall ? tallBox.width : dots ? dotFace.width : face.width, date.implicitWidth)
+    implicitWidth: Math.max(tall ? tallBox.width : dots ? dotFace.width : face.width, tall ? dateBelow.implicitWidth : date.implicitWidth)
     implicitHeight: col.implicitHeight
 
     Column {
@@ -81,9 +83,10 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: root.px * 0.02
 
+        // у «Длинных» дата под цифрами, как на телефоне (dateBelow)
         Text {
             id: date
-            visible: root.showDate && !root.minimal
+            visible: root.showDate && !root.minimal && !root.tall
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.dateText
             color: root.textColor
@@ -121,6 +124,7 @@ Item {
                     widthRatio: root.tallWidth
                     thick: root.tallThick
                     look: root.tallLook
+                    minutesLook: root.tallMinLook
                     color: tallFace.ink
                 }
                 WParts.TallDigits {
@@ -132,7 +136,7 @@ Item {
                     digitHeight: d1.digitHeight
                     widthRatio: root.tallWidth
                     thick: root.tallThick
-                    look: root.tallLook
+                    look: root.tallMinLook
                     color: tallFace.ink
                 }
             }
@@ -165,6 +169,19 @@ Item {
                 shadowVerticalOffset: 3
                 blurMax: 24
             }
+        }
+
+        Text {
+            id: dateBelow
+            visible: root.showDate && root.tall
+            anchors.horizontalCenter: parent.horizontalCenter
+            topPadding: root.size * 0.06
+            text: root.dateText
+            color: root.textColor
+            opacity: 0.92
+            font.family: Theme.fontDisplay
+            font.weight: Font.DemiBold
+            font.pixelSize: Math.round(root.size * 0.17)
         }
 
         WParts.DotDigits {
@@ -225,7 +242,7 @@ Item {
                     visible: root.faced
                     hollow: root.outline
                     rim: root.outline ? Math.max(1.2, root.px * 0.022) : Math.max(1, root.px * 0.026)
-                    fill: 0.2
+                    fill: 0.38
                     tint: root.outline && root.t === "accent" ? Theme.accent : root.outline ? Qt.rgba(1, 1, 1, 0.92) : "#ffffff"
                 }
 

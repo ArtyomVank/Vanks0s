@@ -35,7 +35,9 @@ Base {
     // вид «Длинных»: line — линии, hollow — пустые внутри, column — часы над минутами
     readonly property string tallKind: opt("tallKind", "line")
     readonly property real tallThick: Math.max(0.5, Math.min(2.4, Number(opt("tallThick", 1)) || 1))
-    readonly property string tallLook: tallKind === "hollow" ? "hollow" : tint === "glass" ? "glass" : "solid"
+    // mixed — «Часы стеклом», как на телефоне: часы стеклом, минуты сплошные
+    readonly property string tallLook: tallKind === "hollow" ? "hollow" : tint === "glass" || tallKind === "mixed" ? "glass" : "solid"
+    readonly property string tallMinLook: tallKind === "mixed" ? "solid" : tallLook
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -82,7 +84,8 @@ Base {
         WText {
             id: dateLine
             anchors.horizontalCenter: parent.horizontalCenter
-            visible: !root.minimal
+            // у «Длинных» дата под цифрами, как на телефоне (dateBelow)
+            visible: !root.minimal && !root.tall
             text: root.dateText
             px: Math.min(11 * root.ch, 4.4 * root.cw)
             display: true
@@ -128,6 +131,7 @@ Base {
                     widthRatio: root.tallWidth
                     thick: root.tallThick
                     look: root.tallLook
+                    minutesLook: root.tallMinLook
                     color: root.tallColor
                     layer.enabled: visible && root.tint !== "glass"
                     layer.effect: MultiEffect {
@@ -148,7 +152,7 @@ Base {
                     digitHeight: root.tallH
                     widthRatio: root.tallWidth
                     thick: root.tallThick
-                    look: root.tallLook
+                    look: root.tallMinLook
                     color: root.tallColor
                     layer.enabled: tallFace.layer.enabled && visible
                     layer.effect: MultiEffect {
@@ -200,7 +204,7 @@ Base {
                     visible: root.faced
                     hollow: root.outline
                     rim: root.outline ? Math.max(1.2, root.fs * 0.028) : Math.max(1, root.fs * 0.03)
-                    fill: 0.2
+                    fill: 0.38
                     tint: root.outline && root.tint === "accent" ? Theme.accent : root.outline ? Qt.rgba(1, 1, 1, 0.92) : "#ffffff"
                 }
 
@@ -269,6 +273,18 @@ Base {
                     }
                 }
             }
+        }
+
+        WText {
+            id: dateBelow
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.tall
+            text: root.dateText
+            px: dateLine.px
+            display: true
+            font.weight: Font.DemiBold
+            color: "#ffffff"
+            opacity: 0.9
         }
     }
 }

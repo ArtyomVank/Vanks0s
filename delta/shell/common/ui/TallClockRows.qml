@@ -22,7 +22,7 @@ ColumnLayout {
         Chips {
             current: root.kind
             model: [{ value: "line", label: I18n.tr("Линии") }, { value: "hollow", label: I18n.tr("Пустые внутри") },
-                    { value: "column", label: I18n.tr("В столбик") }]
+                    { value: "column", label: I18n.tr("В столбик") }, { value: "mixed", label: I18n.tr("Часы стеклом") }]
             onPicked: v => root.picked("tallKind", v)
         }
     }

@@ -16,6 +16,8 @@ import qs.walls
 import qs.services
 import qs.widgets.parts
 import qs.launcher.parts
+import qs.play
+import qs.wallpaper
 
 // «Настройки» Delta — отдельный процесс Quickshell (запуск: delta-settings).
 // AppId задаёт класс окна для правила Hyprland «delta-settings».

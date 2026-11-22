@@ -95,7 +95,8 @@ Singleton {
     ]
 
     readonly property var tallKinds: [
-        { value: "line", label: "Линии" }, { value: "hollow", label: "Пустые внутри" }, { value: "column", label: "В столбик" }
+        { value: "line", label: "Линии" }, { value: "hollow", label: "Пустые внутри" }, { value: "column", label: "В столбик" },
+        { value: "mixed", label: "Часы стеклом" }
     ]
     // Настройка часов: у виджета (item[key]), иначе общая (fallback). Битые
     // значения (старые версии писали в color число) не считаются.

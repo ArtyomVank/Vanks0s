@@ -124,5 +124,31 @@ ShellRoot {
         function widgets(): void { ShellState.widgetEditing = !ShellState.widgetEditing; }
         // живые обои — с начала (кнопка «Показать» в «Настройках» → «Обои»)
         function wallpaperIntro(): void { SuperWalls.playIntro(); }
+        // готовый вид (wallpaper/Looks): shell look sunset-glass; lookUndo — как было
+        function look(id: string): string {
+            const l = Looks.list.find(x => x.id === id);
+            if (!l) return "нет вида «" + id + "»: " + Looks.list.map(x => x.id).join(", ");
+            Looks.apply(l);
+            return l.id;
+        }
+        function lookUndo(): void { Looks.undo(); }
+        // свои пресеты по номеру с 1: presetSave, preset 2, presetRemove 2
+        function presetSave(): string {
+            const p = Looks.save();
+            return p ? p.name : "уже " + Looks.max + " пресетов — удалите один";
+        }
+        function preset(n: int): string {
+            const p = Looks.presets[n - 1];
+            if (!p) return "нет пресета " + n + " (всего " + Looks.presets.length + ")";
+            Looks.applyPreset(p);
+            if (Looks.isFlow(p)) SuperWalls.playIntro();
+            return p.name;
+        }
+        function presetRemove(n: int): string {
+            const p = Looks.presets[n - 1];
+            if (!p) return "нет пресета " + n;
+            Looks.remove(p.id);
+            return p.name;
+        }
     }
 }
